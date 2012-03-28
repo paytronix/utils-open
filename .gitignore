@@ -1,0 +1,6 @@
+target/
+*.pyc
+*.sublime-project
+*.sublime-workspace
+*~
+#*#

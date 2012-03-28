@@ -1,0 +1,224 @@
+<?xml version="1.0" ?>
+<!--
+    Copyright 2012 Paytronix Systems, Inc.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.paytronix.utils</groupId>
+    <artifactId>parent</artifactId>
+    <packaging>pom</packaging>
+    <name>Paytronix Utils - Parent</name>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <scala.version>2.9.1-1</scala.version>
+        <scala.compatibility.version>2.9.1</scala.compatibility.version>
+    </properties>
+
+    <modules>
+        <module>extendedreflection</module>
+        <module>interchange</module>
+        <module>lift</module>
+        <module>maven</module>
+        <module>scala</module>
+        <module>validation</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+                <version>3.0.1</version>
+                <configuration>
+                    <scalaVersion>${scala.version}</scalaVersion>
+                    <jvmArgs>
+                        <jvmArg>-Xss2048K</jvmArg>
+                        <jvmArg>-Xmx1G</jvmArg>
+                    </jvmArgs>
+                    <args>
+                        <arg>-deprecation</arg>
+                        <arg>-unchecked</arg>
+                    </args>
+                    <testSourceDir>src/test/scala</testSourceDir>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>scala-compile-first</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>scala-test-compile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>2.3.2</version>
+                <configuration>
+                    <args>
+                        <arg>-Xlint:deprecation</arg>
+                    </args>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <argLine>-Xmx512m</argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <repositories>
+        <repository>
+          <id>oss.sonatype.org-releases</id>
+          <name>releases</name>
+          <url>http://oss.sonatype.org/content/repositories/releases</url>
+        </repository>
+
+        <repository>
+          <id>oss.sonatype.org-snapshots</id>
+          <name>snapshots</name>
+          <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+          <id>oss.sonatype.org-releases</id>
+          <name>releases</name>
+          <url>http://oss.sonatype.org/content/repositories/releases</url>
+        </pluginRepository>
+
+        <pluginRepository>
+          <id>oss.sonatype.org-snapshots</id>
+          <name>snapshots</name>
+          <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.thoughtworks.paranamer</groupId>
+                <artifactId>paranamer</artifactId>
+                <version>2.2</version>
+            </dependency>
+            <dependency>
+                <groupId>javax.inject</groupId>
+                <artifactId>javax.inject</artifactId>
+                <version>1</version>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>4.7</version><scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>${scala.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scalap</artifactId>
+                <version>${scala.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-tools.testing</groupId>
+                <artifactId>specs_${scala.compatibility.version}</artifactId>
+                <version>1.6.9</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>1.6.4</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>1.0.1</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>extendedreflection</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>interchange</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>lift</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>scala</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>validation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.chuusai</groupId>
+                <artifactId>shapeless_${scala.compatibility.version}</artifactId>
+                <version>1.2.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.maven</groupId>
+                <artifactId>maven-plugin-api</artifactId>
+                <version>3.0.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.maven</groupId>
+                <artifactId>maven-core</artifactId>
+                <version>3.0.4</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <distributionManagement>
+        <repository>
+            <id>paytronix-releases</id>
+            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/releases</url>
+        </repository>
+
+        <snapshotRepository>
+            <id>paytronix-snapshots</id>
+            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+</project>
