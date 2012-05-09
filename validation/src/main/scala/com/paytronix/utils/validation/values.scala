@@ -124,6 +124,7 @@ object values {
                 val location = segment :: outer.location
                 val code = outer.code
                 val text = outer.text
+                val invalidInput = outer.invalidInput
             }
         }
 
@@ -132,6 +133,20 @@ object values {
 
         /** A human readable default equivalent in english */
         def text: String
+
+        /** A textual representation of the invalid input value, or None if the input value is too complex to display in text */
+        def invalidInput: Option[String]
+
+        /** Supply the textual representation of the invalid input value */
+        def withInvalidInput(s: String): ValidationError = {
+            val outer = this
+            new ValidationError {
+                val location = outer.location
+                val code = outer.code
+                val text = outer.text
+                override val invalidInput = Some(s)
+            }
+        }
 
         /** Default toString makes things nicer */
         override def toString: String = (
@@ -148,6 +163,7 @@ object values {
             val location = Nil
             val code = _message
             val text = _message
+            val invalidInput = None
         }
 
         /** Create a validation error with no formattable parameters */
@@ -155,6 +171,7 @@ object values {
             val location = Nil
             val code = _code
             val text = _message
+            val invalidInput = None
         }
 
         /** Create a validation error with some formatting parameters using String.format */
@@ -162,6 +179,7 @@ object values {
             val location = Nil
             val code = _code
             val text = _format.format(args: _*)
+            val invalidInput = None
         }
 
         /** Extract the code and text from a ValidationError */
@@ -200,15 +218,23 @@ object values {
         fieldSeparator: String = ": ",
         errorSeparator: String = "\n",
         locationSeparator: String = ".",
+        invalidInputPrefix: String = " (invalid input was: ",
+        invalidInputSuffix: String = ")",
         indented: Boolean = true,
-        bundled: Boolean = true
+        bundled: Boolean = true,
+        withInvalidInputs: Boolean = true
     ): String = {
         val m = validationErrorsToMap(in)
 
         (
             for ((key, keyString) <- m.keys.toSeq.map(k => (k, k.mkString(locationSeparator))).sortBy(_._2))
             yield {
-                val errors = m(key).map(_.text)
+                val errors = m(key).map { error =>
+                    error.text + (error.invalidInput match {
+                        case Some(s) if withInvalidInputs => invalidInputPrefix + s + invalidInputSuffix
+                        case _ => ""
+                    })
+                }
 
                 val prefix = if (keyString != "") keyString + fieldSeparator else ""
 

@@ -53,11 +53,16 @@ import values.{Validated, ValidationError, ValidationFunction}
  *   }
  */
 object fields {
-    /** Attach a field name to a Validated value */
-    def field[A](name: String, result: Validated[A]): Validated[A] = result match {
-        case Left(errors) => Left(errors.map(_.nest(name)))
-        case Right(value) => Right(value)
-    }
+    /** Attach a field name to any errors in a Validated value */
+    def field[A](name: String, result: Validated[A]): Validated[A] =
+        result match {
+            case Left(errors) => Left(errors.map(_.nest(name)))
+            case Right(value) => Right(value)
+        }
+
+    /** Wrap a ValidationFunction such that any errors it yields will have a field name added */
+    def field[A, B](name: String, func: ValidationFunction[A, B]): ValidationFunction[A, B] =
+        in => field(name, func(in))
 
     /** Implicitly extend a String with the "in" method for writing field validations as "field" in fieldContainer is nonBlank() */
     implicit def fieldNameOps(in: String): FieldNameOps = FieldNameOps(in)
