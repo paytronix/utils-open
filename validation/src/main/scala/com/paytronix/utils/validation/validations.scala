@@ -25,7 +25,7 @@ import scala.collection.mutable.{ArrayBuffer, Builder, ListBuffer}
 import scala.util.control.Exception.{allCatch, catching}
 import scala.util.matching.Regex
 
-import values.{Validated, ValidationError, ValidationFunction, missingValueError}
+import base.{Validated, ValidationError, ValidationFunction, field, missingValueError, nonMissingValueError}
 
 object boolean {
     val invalidBooleanError = ValidationError("invalid_boolean", "invalid boolean (expected true/false, yes/no, on/off, or a number)")
@@ -97,7 +97,12 @@ object enumeration {
     def invalidEnumerationError(incorrect: String): ValidationError =
         ValidationError("invalid_enumeration", "value \"" + incorrect + "\" is not an allowed option for this field")
 
-    import values.definedIn
+    /**
+     * Apply a partial function to the input only if it is defined, yielding the result of the application.
+     * Fails validation if the partial function isn't defined.
+     */
+    def definedIn[A, B](pf: PartialFunction[A, B], error: String => ValidationError = invalidEnumerationError): ValidationFunction[A, B] =
+        in => if (pf.isDefinedAt(in)) Right(pf(in)) else Left(error(String.valueOf(in)) :: Nil)
 
     /**
      * Assert that the value is a member of the given enumeration, and yield the enumeration value if successful.
@@ -184,7 +189,6 @@ object numeric {
         in => if (num.signum(in) <= 0) Right(in)
               else Left(error :: Nil)
 
-    import values.validationFunctionOps
     import string.{nonBlank, numericWithSign, numericWithSignAndDecimal, nonNumericError}
 
     /** Assert that some string is a well formatted number, converting it */
@@ -375,7 +379,6 @@ object string {
 
 object file {
     import string.nonBlank
-    import values.validationFunctionOps
 
     val nonExistentError = ValidationError("non_existent", "does not exist")
     val nonDirectoryError = ValidationError("non_directory", "not a directory")
@@ -402,7 +405,6 @@ object file {
 
 object regex {
     import string.nonBlank
-    import values.validationFunctionOps
 
     /** Assert that a String is nonblank and parse it as a regular expression */
     def pattern(missingValue: ValidationError = missingValueError): ValidationFunction[String, Regex] =
@@ -413,7 +415,6 @@ object regex {
 
 object reflection {
     import string.nonBlank
-    import values.validationFunctionOps
 
     val invalidClassName = ValidationError("invalid_class_name", "invalid class name")
     def lookupError(e: Exception): ValidationError = ValidationError("unknown_error", "error while looking up class: " + e.toString)
@@ -435,8 +436,6 @@ object reflection {
 }
 
 object column {
-    import values.validationFunctionOps
-
     def requiredColumnError(c: String) = ValidationError("missing_required_column", "Missing column " + c)
     def unknownColumnError(c: String) = ValidationError("invalid_column", "Invalid unknown column " + c)
 
@@ -529,8 +528,6 @@ object url {
 }
 
 object option {
-    import values.nonMissingValueError
-
     /** Apply some validation to the value inside an Option. */
     def optional[A, B](f: ValidationFunction[A, B]): ValidationFunction[Option[A], Option[B]] = (in: Option[A]) => in match {
         case Some(v) => f(v).right.map(Some.apply)
@@ -635,7 +632,6 @@ object sequence {
 
     // undocumented territory! ask me later!
 
-    import fields.field
     import numeric.int
     import shapeless.{::, HList, HNil, LeftFolder, Poly2, Reverse}
 
