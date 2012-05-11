@@ -27,8 +27,10 @@
     <groupId>com.paytronix.utils.maven</groupId>
     <artifactId>avroschemifier-maven-plugin</artifactId>
     <packaging>maven-plugin</packaging>
-    <name>Paytronix Maven Utils - Avro Schemifier Plugin</name>
     <version>1.0.0-SNAPSHOT</version>
+
+    <name>Paytronix Maven Utils - Avro Schemifier Plugin</name>
+    <description>Maven plugin that generates Avro schema files from classes using Interchange reflection.</description>
 
     <dependencies>
         <dependency>

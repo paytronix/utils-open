@@ -27,8 +27,10 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>scala</artifactId>
     <packaging>jar</packaging>
-    <name>Paytronix Utils - Miscellaneous Scala</name>
     <version>1.0.0-SNAPSHOT</version>
+
+    <name>Paytronix Utils - Miscellaneous Scala</name>
+    <description>Library with various Scala utilities and types.</description>
 
     <dependencies>
         <dependency>

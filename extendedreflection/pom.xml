@@ -27,8 +27,10 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>extendedreflection</artifactId>
     <packaging>jar</packaging>
-    <name>Paytronix Utils - Extended Reflection</name>
     <version>1.0.0-SNAPSHOT</version>
+
+    <name>Paytronix Utils - Extended Reflection</name>
+    <description>Library which melds Java reflection and Scala compiler signature inspection to generate a richer reflection model than just Java reflection can provide</description>
 
     <dependencies>
         <dependency>

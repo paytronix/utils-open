@@ -27,8 +27,10 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>lift</artifactId>
     <packaging>jar</packaging>
-    <name>Paytronix Utils - Lift Support</name>
     <version>1.0.0-SNAPSHOT</version>
+
+    <name>Paytronix Utils - Lift Support</name>
+    <description>Library providing utilities for Lift, particularly for bridging interchange and ResultG with Lift's Box type.</description>
 
     <properties>
         <lift.version>2.4-M5</lift.version>

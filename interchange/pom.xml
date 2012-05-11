@@ -27,8 +27,10 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>interchange</artifactId>
     <packaging>jar</packaging>
-    <name>Paytronix Utils - Interchange</name>
     <version>1.0.0-SNAPSHOT</version>
+
+    <name>Paytronix Utils - Interchange</name>
+    <description>Library which allows for reflection-based transcoding of Scala and Java objects to/from JSON, Avro, and MongoDB with minimal metadata.</description>
 
     <properties>
         <lift.version>2.4-M5</lift.version>
