@@ -20,7 +20,7 @@ import org.specs._
 import org.specs.matcher.Matcher
 import org.specs.runner.JUnit4
 
-import result.{Failed, FailedG, Okay, Result, ResultG, catching, catchingException, catchingExceptions, eitherOps, eitherOpsG, optionOps}
+import result.{Failed, FailedG, Okay, Result, ResultG, eitherOps, eitherOpsG, optionOps, tryCatch, tryCatching}
 
 class ResultTestSpecsAsTest extends JUnit4(ResultTestSpecs)
 
@@ -423,22 +423,22 @@ object ResultTestSpecs extends Specification {
 
     "Catching" should {
         "catch any Exception" in {
-            catchingException { "foo" } must_== Okay("foo")
-            catchingException { throw new RuntimeException("foo") } must beFailedWith("foo")
-            catchingException { throw new Throwable("foo") } must throwA[Throwable]
+            tryCatch.value { "foo" } must_== Okay("foo")
+            tryCatch.value { throw new RuntimeException("foo") } must beFailedWith("foo")
+            tryCatch.value { throw new Throwable("foo") } must throwA[Throwable]
         }
 
         "catch only a specific Exception" in {
-            catching[ExceptionA] apply { "foo" } must_== Okay("foo")
-            catching[ExceptionA] apply { throw new ExceptionA("foo") } must beFailedWith("foo")
-            catching[ExceptionA] apply { throw new ExceptionB("foo") } must throwA[ExceptionB]
+            tryCatching[ExceptionA].value { "foo" } must_== Okay("foo")
+            tryCatching[ExceptionA].value { throw new ExceptionA("foo") } must beFailedWith("foo")
+            tryCatching[ExceptionA].value { throw new ExceptionB("foo") } must throwA[ExceptionB]
         }
 
         "catch only specific Exceptions" in {
-            catchingExceptions(classOf[ExceptionA], classOf[ExceptionB]) { "foo" } must_== Okay("foo")
-            catchingExceptions(classOf[ExceptionA], classOf[ExceptionB]) { throw new ExceptionA("foo") } must beFailedWith("foo")
-            catchingExceptions(classOf[ExceptionA], classOf[ExceptionB]) { throw new ExceptionB("foo") } must beFailedWith("foo")
-            catchingExceptions(classOf[ExceptionA], classOf[ExceptionB]) { throw new UnsupportedOperationException("foo") } must throwA[UnsupportedOperationException]
+            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { "foo" } must_== Okay("foo")
+            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionA("foo") } must beFailedWith("foo")
+            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionB("foo") } must beFailedWith("foo")
+            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new UnsupportedOperationException("foo") } must throwA[UnsupportedOperationException]
         }
     }
 }

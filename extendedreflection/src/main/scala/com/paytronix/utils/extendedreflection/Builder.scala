@@ -32,7 +32,7 @@ import com.paytronix.utils.scala.reflection.{
     paranamer
 }
 import com.paytronix.utils.scala.resource.withResource
-import com.paytronix.utils.scala.result.{Okay, Failed, FailedG, Result, catchingException, firstOrLast, iterableResultOps, optionOps}
+import com.paytronix.utils.scala.result.{Okay, Failed, FailedG, Result, firstOrLast, iterableResultOps, optionOps, tryCatch}
 
 
 /** Central object which builds reflection models and caches various heavy information */
@@ -54,7 +54,7 @@ class Builder(val classLoader: ClassLoader) {
             for {
                 sig <- sigFor(clazz)
                 csym <- classSymbolFor(clazz, sig)
-                ctype <- catchingException(csym.infoType)
+                ctype <- tryCatch.value(csym.infoType)
             } yield ctype
 
         typeRFor(clazz, sigType.asA[sig.ClassInfoType]) match {
@@ -356,14 +356,14 @@ class Builder(val classLoader: ClassLoader) {
             }
 
             signatureClassFile <- (
-                catchingException(ClassFileParser.parse(ByteCode(signatureClassBytes))) whenFailed (
+                tryCatch.value(ClassFileParser.parse(ByteCode(signatureClassBytes))) whenFailed (
                     "Failed to parse class " + sigLocationName.encoded +
                     " (looking for signature of " + clazzName.qualified + ")"
                 )
             )
 
             signatureAnnotation <- (
-                catchingException(signatureClassFile.annotation("Lscala/reflect/ScalaSignature;")) whenFailed (
+                tryCatch.value(signatureClassFile.annotation("Lscala/reflect/ScalaSignature;")) whenFailed (
                     "Failed to parse ScalaSignature annotation from " + sigLocationName.encoded +
                      " (looking for signature of " + clazzName.qualified + ")"
                 )
@@ -377,7 +377,7 @@ class Builder(val classLoader: ClassLoader) {
             }
 
             annotationConstValue <- signatureAnnotation.elementValuePairs.headOption match {
-                case Some(AnnotationElement(_, ConstValueIndex(idx))) => catchingException(signatureClassFile.constantWrapped(idx))
+                case Some(AnnotationElement(_, ConstValueIndex(idx))) => tryCatch.value(signatureClassFile.constantWrapped(idx))
                 case Some(_) =>
                     Failed("ScalaSignature annotation from " + sigLocationName.encoded + " does not have a " +
                             "ConstValueIndex as its element value (looking for signature of " + clazzName.qualified + ")")
@@ -393,8 +393,8 @@ class Builder(val classLoader: ClassLoader) {
                             "element values (looking for signature of " + clazzName.qualified + ")")
             }
 
-            length <- catchingException(ByteCodecs.decode(rawBytes)) // mutates rawBytes!
-            sig    <- catchingException(ScalaSigAttributeParsers.parse(ByteCode(rawBytes.take(length))))
+            length <- tryCatch.value(ByteCodecs.decode(rawBytes)) // mutates rawBytes!
+            sig    <- tryCatch.value(ScalaSigAttributeParsers.parse(ByteCode(rawBytes.take(length))))
         } yield sig
     }
 
@@ -463,7 +463,7 @@ class Builder(val classLoader: ClassLoader) {
     /** Find the reflection Method for a given MethodSymbol */
     private def methodForMethodSymbol(clazz: Class[_], msym: sig.MethodSymbol): Result[reflect.Method] =
         for {
-            ty <- catchingException(msym.infoType).whenFailed("failed to get info for " + msym.name + " in " + clazz.getName)
+            ty <- tryCatch.value(msym.infoType).whenFailed("failed to get info for " + msym.name + " in " + clazz.getName)
 
             meth <- clazz.getDeclaredMethods.filter(meth => meth.getName == msym.name && meth.getParameterTypes.length == msym.children.length) match {
                 case Array() => Failed("could not find method for " + msym + " with type " + ty + " in " + clazz.getName)
@@ -497,13 +497,13 @@ class Builder(val classLoader: ClassLoader) {
     final case class WrapMethod(meth: reflect.Method) extends MethodOrConstructor {
         def getGenericParameterTypes = meth.getGenericParameterTypes
         def getParameterAnnotations = meth.getParameterAnnotations
-        def paranamerNames = catchingException(paranamer.lookupParameterNames(meth))
+        def paranamerNames = tryCatch.value(paranamer.lookupParameterNames(meth))
     }
 
     final case class WrapConstructor(ctor: reflect.Constructor[_]) extends MethodOrConstructor {
         def getGenericParameterTypes = ctor.getGenericParameterTypes
         def getParameterAnnotations = ctor.getParameterAnnotations
-        def paranamerNames = catchingException(paranamer.lookupParameterNames(ctor))
+        def paranamerNames = tryCatch.value(paranamer.lookupParameterNames(ctor))
     }
 
     /** Helper method used when building class member models to report errors that will cause something being modelled to be ignored */
@@ -522,7 +522,7 @@ class Builder(val classLoader: ClassLoader) {
         val parameterAnnotations: Array[Array[JavaAnnotation]] = meth.getParameterAnnotations
         val sigParamInfo: Result[List[(String, sig.Type)]] =
             msymResult.flatMap(_.children.mapResult {
-                psym => catchingException(psym.asInstanceOf[sig.MethodSymbol].infoType).map(sigType => (psym.name, sigType))
+                psym => tryCatch.value(psym.asInstanceOf[sig.MethodSymbol].infoType).map(sigType => (psym.name, sigType))
             })
 
         val parameterNamesResult =
@@ -548,7 +548,7 @@ class Builder(val classLoader: ClassLoader) {
             resultTypeR <- typeRFor (
                 meth.getGenericReturnType,
                 msymResult.flatMap {
-                    msym => catchingException {
+                    msym => tryCatch.value {
                         msym.infoType match {
                             case sig.PolyType(sig.MethodType(resultType, _), _) => resultType
                             // it may be that as of 2.9 NullaryMethodType has replaced PolyType(MethodType(...)), but I don't know for sure
@@ -645,7 +645,7 @@ class Builder(val classLoader: ClassLoader) {
                             } yield setterMethR
 
                             val fieldAnnotations: List[JavaAnnotation] =
-                                catchingException(clazz.getDeclaredField(name).getAnnotations.toList) getOrElse Nil
+                                tryCatch.value(clazz.getDeclaredField(name).getAnnotations.toList) getOrElse Nil
 
                             val otherMethRs = (
                                 sortedSyms
@@ -738,7 +738,7 @@ class Builder(val classLoader: ClassLoader) {
                     case _ => false
                 }.map(_._1).toResult whenFailed ("no setter method found")
 
-                val fieldAnnotations = catchingException(clazz.getDeclaredField(name).getAnnotations.toList) getOrElse Nil
+                val fieldAnnotations = tryCatch.value(clazz.getDeclaredField(name).getAnnotations.toList) getOrElse Nil
 
                 makeMethodR(ownerNameR, clazz, getterMeth, Failed("no method symbol when using reflection only")) match {
                     case Okay(getterMethR) =>

@@ -46,7 +46,7 @@ import org.bson.BSONObject
 import com.paytronix.utils.extendedreflection
 import com.paytronix.utils.scala.concurrent.ThreadLocal
 import com.paytronix.utils.scala.reflection.{cast, classByName, paranamer, splitFullyQualifiedName}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, catching, catchingException, firstOrLastG, iterableResultOps, optionOps}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, firstOrLastG, iterableResultOps, optionOps, tryCatch, tryCatching}
 
 
 /** Object that contains thread-local settings for coding and decoding */
@@ -104,7 +104,7 @@ final case class Coder[T](contextClassLoader: ClassLoader, implementation: Compo
     /** Attempt conversion of a byte array to a value of the mapped type */
     def decodeAvro(writerSchema: Schema, in: Array[Byte], offset: Int, length: Int): Result[T] =
         for {
-            decoder <- catchingException(DecoderFactory.get.binaryDecoder(in, offset, length, null))
+            decoder <- tryCatch.value(DecoderFactory.get.binaryDecoder(in, offset, length, null))
                            .whenFailed("Failed to create Avro decoder")
             result  <- decodeAvro(writerSchema, decoder)
         } yield result
@@ -112,26 +112,26 @@ final case class Coder[T](contextClassLoader: ClassLoader, implementation: Compo
     /** Attempt conversion of an input stream to a value of the mapped type  */
     def decodeAvro(writerSchema: Schema, in: InputStream): Result[T] =
         for {
-            decoder <- catchingException(DecoderFactory.get.binaryDecoder(in, null))
+            decoder <- tryCatch.value(DecoderFactory.get.binaryDecoder(in, null))
                            .whenFailed("Failed to create Avro decoder")
             result  <- decodeAvro(writerSchema, decoder)
         } yield result
 
     /** Attempt decoding from some Avro decoder */
     def decodeAvro(writerSchema: Schema, in: Decoder): Result[T] =
-        catchingException {
+        tryCatch.result {
             val resolver = ResolvingDecoderCache(avroSchema, writerSchema)
             resolver.configure(in)
             val result = formatFailedPath(implementation.decodeAvro(contextClassLoader, resolver))
             resolver.drain()
             result
-        }.flatten whenFailed "failed to decode from byte array"
+        } whenFailed "failed to decode from byte array"
 
     /** Attempt conversion of a value of the mapped type to a byte array */
     def encodeAvro(in: T): Result[Array[Byte]] = {
         val baos = new ByteArrayOutputStream
         for {
-            encoder   <- catchingException(EncoderFactory.get.directBinaryEncoder(baos, null)) whenFailed "Failed to create Avro encoder"
+            encoder   <- tryCatch.value(EncoderFactory.get.directBinaryEncoder(baos, null)) whenFailed "Failed to create Avro encoder"
             encodedOk <- encodeAvro(in, encoder)
         } yield baos.toByteArray
     }
@@ -143,7 +143,7 @@ final case class Coder[T](contextClassLoader: ClassLoader, implementation: Compo
     /** Attempt encoding of a value to a given output stream */
     def encodeAvro(in: T, out: OutputStream): Result[Unit] =
         for {
-            encoder   <- catchingException(EncoderFactory.get.binaryEncoder(out, null)) whenFailed "Failed to create Avro encoder"
+            encoder   <- tryCatch.value(EncoderFactory.get.binaryEncoder(out, null)) whenFailed "Failed to create Avro encoder"
             encodedOk <- encodeAvro(in, encoder)
         } yield { }
 
@@ -221,7 +221,7 @@ object ComposableCoder {
 
     /** Catch an exception in a block yielding CoderResult */
     def catchingCoderException[A](f: => CoderResult[A]): CoderResult[A] =
-        atTerminal(catchingException(f)).flatten
+        atTerminal(tryCatch.value(f)).flatten
 
     /** Equivalent to trackFailedPath with an IntIndexSegment */
     def atIndex[A](idx: Int)(f: CoderResult[A]): CoderResult[A] = trackFailedPath(IntIndexSegment(idx))(f)
@@ -604,10 +604,10 @@ object ScalaBigDecimalCoder extends StringSafeCoder[scala.math.BigDecimal] {
         }
 
     def encode(classLoader: ClassLoader, in: scala.math.BigDecimal) =
-        catchingException(JString(in.toString)) withFailureParameter Nil
+        tryCatch.value(JString(in.toString)) withFailureParameter Nil
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(scala.math.BigDecimal(in)) withFailureParameter Nil
+        tryCatch.value(scala.math.BigDecimal(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: scala.math.BigDecimal) =
         Okay(in.toString)
@@ -645,10 +645,10 @@ object BigIntCoder extends StringSafeCoder[BigInt] {
         Okay(JInt(in))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(BigInt(in)) withFailureParameter Nil
+        tryCatch.value(BigInt(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: BigInt) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.BYTES)
 
@@ -685,10 +685,10 @@ object BigIntegerCoder extends StringSafeCoder[BigInteger] {
         Okay(JInt(new BigInt(in)))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(new BigInteger(in)) withFailureParameter Nil
+        tryCatch.value(new BigInteger(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: BigInteger) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.BYTES)
 
@@ -706,7 +706,7 @@ object BigIntegerCoder extends StringSafeCoder[BigInteger] {
         }
 
     def encodeAvro(classLoader: ClassLoader, in: BigInteger, out: Encoder) =
-        catchingException {
+        tryCatch.value {
             val bytes = in.toByteArray
             val byteBuffer = ByteBuffer.allocate(bytes.length)
             byteBuffer.put(bytes).rewind
@@ -745,15 +745,15 @@ object BooleanCoder extends StringSafeCoder[Boolean] {
         }
 
     def encodeString(classLoader: ClassLoader, in: Boolean) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.BOOLEAN)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException(in.readBoolean()) withFailureParameter Nil
+        tryCatch.value(in.readBoolean()) withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Boolean, out: Encoder) =
-        catchingException(out.writeBoolean(in)) withFailureParameter Nil
+        tryCatch.value(out.writeBoolean(in)) withFailureParameter Nil
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
@@ -790,22 +790,22 @@ object ByteCoder extends StringSafeCoder[Byte] {
         Okay(JInt(BigInt(in)))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(java.lang.Byte.parseByte(in)) withFailureParameter Nil
+        tryCatch.value(java.lang.Byte.parseByte(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: Byte) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.createFixed("byte", "", "", 1)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException {
+        tryCatch.value {
             val bytes = Array.ofDim[Byte](1)
             in.readFixed(bytes, 0, 1)
             bytes(0)
         } withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Byte, out: Encoder) =
-        catchingException {
+        tryCatch.value {
             val bytes = Array.ofDim[Byte](1)
             bytes(0) = in
             out.writeFixed(bytes, 0, 1)
@@ -843,7 +843,7 @@ object CharCoder extends StringSafeCoder[Char] {
         }
 
     def encode(classLoader: ClassLoader, in: Char) =
-        catchingException(JString(in.toString)) withFailureParameter Nil
+        tryCatch.value(JString(in.toString)) withFailureParameter Nil
 
     def decodeString(classLoader: ClassLoader, in: String) =
         if (in.length == 1) {
@@ -853,19 +853,19 @@ object CharCoder extends StringSafeCoder[Char] {
         }
 
     def encodeString(classLoader: ClassLoader, in: Char) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.createFixed("char", "", "", 2)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException {
+        tryCatch.value {
             val bytes = Array.ofDim[Byte](2)
             in.readFixed(bytes, 0, 2)
             ((bytes(0) << 8) | bytes(1)).asInstanceOf[Char]
         } withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Char, out: Encoder) =
-        catchingException {
+        tryCatch.value {
             val bytes = Array.ofDim[Byte](2)
             bytes(0) = ((in >>> 8) & 0xff).asInstanceOf[Byte]
             bytes(1) = ((in >>> 0) & 0xff).asInstanceOf[Byte]
@@ -901,18 +901,18 @@ object DoubleCoder extends StringSafeCoder[Double] {
         Okay(JDouble(in))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(java.lang.Double.parseDouble(in)) withFailureParameter Nil
+        tryCatch.value(java.lang.Double.parseDouble(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: Double) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.DOUBLE)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException(in.readDouble()) withFailureParameter Nil
+        tryCatch.value(in.readDouble()) withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Double, out: Encoder) =
-        catchingException(out.writeDouble(in)) withFailureParameter Nil
+        tryCatch.value(out.writeDouble(in)) withFailureParameter Nil
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
@@ -944,18 +944,18 @@ object FloatCoder extends StringSafeCoder[Float] {
         Okay(JDouble(in))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(java.lang.Float.parseFloat(in)) withFailureParameter Nil
+        tryCatch.value(java.lang.Float.parseFloat(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: Float) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.FLOAT)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException(in.readFloat()) withFailureParameter Nil
+        tryCatch.value(in.readFloat()) withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Float, out: Encoder) =
-        catchingException(out.writeFloat(in)) withFailureParameter Nil
+        tryCatch.value(out.writeFloat(in)) withFailureParameter Nil
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
@@ -992,18 +992,18 @@ object IntCoder extends StringSafeCoder[Int] {
         Okay(JInt(BigInt(in)))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(java.lang.Integer.parseInt(in)) withFailureParameter Nil
+        tryCatch.value(java.lang.Integer.parseInt(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: Int) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.INT)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException(in.readInt()) withFailureParameter Nil
+        tryCatch.value(in.readInt()) withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Int, out: Encoder) =
-        catchingException(out.writeInt(in)) withFailureParameter Nil
+        tryCatch.value(out.writeInt(in)) withFailureParameter Nil
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
@@ -1043,18 +1043,18 @@ object LongCoder extends StringSafeCoder[Long] {
         Okay(JInt(BigInt(in)))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(java.lang.Long.parseLong(in)) withFailureParameter Nil
+        tryCatch.value(java.lang.Long.parseLong(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: Long) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.LONG)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException(in.readLong()) withFailureParameter Nil
+        tryCatch.value(in.readLong()) withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Long, out: Encoder) =
-        catchingException(out.writeLong(in)) withFailureParameter Nil
+        tryCatch.value(out.writeLong(in)) withFailureParameter Nil
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
@@ -1091,15 +1091,15 @@ object ShortCoder extends StringSafeCoder[Short] {
         Okay(JInt(BigInt(in)))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catchingException(java.lang.Short.parseShort(in)) withFailureParameter Nil
+        tryCatch.value(java.lang.Short.parseShort(in)) withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: Short) =
-        catchingException(in.toString) withFailureParameter Nil
+        tryCatch.value(in.toString) withFailureParameter Nil
 
     val avroSchema = Schema.createFixed("short", "", "", 2)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException {
+        tryCatch.value {
             val bytes = Array.ofDim[Byte](2)
             in.readFixed(bytes, 0, 2)
             (
@@ -1109,7 +1109,7 @@ object ShortCoder extends StringSafeCoder[Short] {
         } withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: Short, out: Encoder) =
-        catchingException {
+        tryCatch.value {
             val bytes = Array.ofDim[Byte](2)
             bytes(0) = ((in >>> 8) & 0xff).asInstanceOf[Byte]
             bytes(1) = ((in >>> 0) & 0xff).asInstanceOf[Byte]
@@ -1160,11 +1160,11 @@ object StringCoder extends StringSafeCoder[String] {
     val avroSchema = Schema.create(Schema.Type.STRING)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingException(in.readString(null).toString()) withFailureParameter Nil
+        tryCatch.value(in.readString(null).toString()) withFailureParameter Nil
 
     def encodeAvro(classLoader: ClassLoader, in: String, out: Encoder) =
         if (in == null) FailedG("cannot encode null string", Nil)
-        else catchingException(out.writeString(in)) withFailureParameter Nil
+        else tryCatch.value(out.writeString(in)) withFailureParameter Nil
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
@@ -1212,14 +1212,14 @@ abstract class DateCoder[T <: JavaDate] extends StringSafeCoder[T] {
         formatDate(in)
 
     private def parseDate(in: String, fmtStr: String) =
-        catchingException {
+        tryCatch.value {
             val dateFormat = new java.text.SimpleDateFormat(fmtStr)
             dateFormat.setLenient(false)
             dateFormat.parse(in)
         } withFailureParameter Nil
 
     private def formatDate(in: JavaDate) =
-        catchingException(new java.text.SimpleDateFormat(defaultFormatString).format(in)) withFailureParameter Nil
+        tryCatch.value(new java.text.SimpleDateFormat(defaultFormatString).format(in)) withFailureParameter Nil
 
     val avroSchema = Schema.create(Schema.Type.LONG)
 
@@ -1697,7 +1697,7 @@ abstract class ListLikeCoder[Elem, Coll](valueCoder: ComposableCoder[Elem]) exte
         in match {
             case JObject(fields) => (
                 fields
-                .mapResult(field => catchingException(field.name.toInt).map(num => (num, field.value)))
+                .mapResult(field => tryCatch.value(field.name.toInt).map(num => (num, field.value)))
                 .withFailureParameter(Nil)
                 .flatMap(pairs => makeFromValues(classLoader, pairs.sortBy(_._1).map(_._2)))
             )
@@ -2337,19 +2337,19 @@ case class ResultCoder[E, A] (
             clazz <- classByName[Throwable](classLoader, className)
             inst <- causeOpt match {
                 case Some(cause) =>
-                    catching[NoSuchMethodException].apply(clazz.getConstructor(classOf[String], classOf[Throwable]))
+                    tryCatching[NoSuchMethodException].value(clazz.getConstructor(classOf[String], classOf[Throwable]))
                         .whenFailed("throwable class " + className + " does not have (String, Throwable) constructor")
-                        .flatMap { ctor => catchingException(ctor.newInstance(message, cause)) }
+                        .flatMap { ctor => tryCatch.value(ctor.newInstance(message, cause)) }
 
                 case None =>
                     (
-                        catching[NoSuchMethodException].apply(clazz.getConstructor(classOf[String]))
+                        tryCatching[NoSuchMethodException].value(clazz.getConstructor(classOf[String]))
                             .whenFailed("throwable class " + className + " does not have a (String) constructor")
-                            .flatMap { ctor => catchingException(ctor.newInstance(message)) }
+                            .flatMap { ctor => tryCatch.value(ctor.newInstance(message)) }
                     ) orElse (
-                        catching[NoSuchMethodException].apply(clazz.getConstructor(classOf[String], classOf[Throwable]))
+                        tryCatching[NoSuchMethodException].value(clazz.getConstructor(classOf[String], classOf[Throwable]))
                             .whenFailed("throwable class " + className + " does not have a (String, Throwable) constructor")
-                            .flatMap { ctor => catchingException(ctor.newInstance(message, null)) }
+                            .flatMap { ctor => tryCatch.value(ctor.newInstance(message, null)) }
                     )
             }
         } yield inst
@@ -2512,8 +2512,8 @@ case class ResultCoder[E, A] (
         def decodeThrowable(): CoderResult[Throwable] =
             {
                 for {
-                    isA <- atProperty("isA")(catchingException(in.readString(null).toString) withFailureParameter Nil)
-                    message <- atProperty("message")(catchingException(in.readString(null).toString) withFailureParameter Nil)
+                    isA <- atProperty("isA")(tryCatch.value(in.readString(null).toString) withFailureParameter Nil)
+                    message <- atProperty("message")(tryCatch.value(in.readString(null).toString) withFailureParameter Nil)
                     causeOpt <- atProperty("cause") {
                         in.readIndex() match {
                             case 0 => decodeThrowable() map Some.apply
@@ -2799,7 +2799,7 @@ case class JavaEnumCoder[T <: Enum[T]](enumClass: Class[T]) extends StringSafeCo
         Okay(JString(in.toString))
 
     def decodeString(classLoader: ClassLoader, in: String) =
-        catching[IllegalArgumentException] apply Enum.valueOf(enumClass, in) whenFailed ("\"" + in + "\" is not a valid enumeration value") withFailureParameter Nil
+        tryCatching[IllegalArgumentException].value(Enum.valueOf(enumClass, in)) whenFailed ("\"" + in + "\" is not a valid enumeration value") withFailureParameter Nil
 
     def encodeString(classLoader: ClassLoader, in: T) =
         Okay(in.toString)
@@ -2824,7 +2824,7 @@ case class JavaEnumCoder[T <: Enum[T]](enumClass: Class[T]) extends StringSafeCo
         }
 
     def encodeAvro(classLoader: ClassLoader, in: T, out: Encoder) =
-        catchingException {
+        tryCatch.value {
             out.writeEnum(in.ordinal)
         } withFailureParameter Nil
 
@@ -2881,7 +2881,7 @@ case class ScalaEnumCoder[T <: Enumeration](enum: T) extends StringSafeCoder[T#V
         }
 
     def encodeAvro(classLoader: ClassLoader, in: T#Value, out: Encoder) =
-        catchingException {
+        tryCatch.value {
             out.writeEnum(ordinalsByEnum(in))
         } withFailureParameter Nil
 
@@ -3373,7 +3373,7 @@ case class ObjectCoder[T](
     /** Get the value of the field from the object instance, converting null to None and non-null to Some */
     private def getField(fieldCoding: FieldCoding, instance: T): CoderResult[Option[AnyRef]] =
         atProperty(fieldCoding.name) {
-            catchingException(fieldCoding.getter.invoke(instance)) match {
+            tryCatch.value(fieldCoding.getter.invoke(instance)) match {
                 case Okay(v: AnyRef) if v ne null => Okay(Some(v))
                 case Okay(null)                   => Okay(None)
                 case failed: FailedG[_]           => failed withFailureParameter Nil

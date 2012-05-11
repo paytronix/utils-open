@@ -233,7 +233,7 @@ object result extends resultLowPriorityImplicits
             if (!p(result)) Okay(result) else otherwise
 
         def asA[B](implicit m: Manifest[B]): Result[B] =
-            catching[ClassCastException] apply {
+            tryCatching[ClassCastException].value {
                 m.erasure.cast(result).asInstanceOf[B]
             } replaceFailureWith ("expected a " + m + " but got a " + (result.asInstanceOf[AnyRef] match {
                 case null => "null"
@@ -241,7 +241,7 @@ object result extends resultLowPriorityImplicits
             }))
 
         def asAG[F, B](clazz: Class[B], parameter: F): ResultG[F, B] =
-            catching[ClassCastException] apply {
+            tryCatching[ClassCastException].value {
                 clazz.cast(result).asInstanceOf[B]
             } replaceFailureWith ("expected a " + clazz.getName + " but got a " + (result.asInstanceOf[AnyRef] match {
                 case null => "null"
@@ -249,7 +249,7 @@ object result extends resultLowPriorityImplicits
             }), parameter)
 
         def asAG[F, B](clazz: Class[B], otherwise: ResultG[F, B]): ResultG[F, B] =
-            catching[ClassCastException] apply {
+            tryCatching[ClassCastException].value {
                 clazz.cast(result).asInstanceOf[B]
             } orElse otherwise
 
@@ -425,22 +425,60 @@ object result extends resultLowPriorityImplicits
             }
     }
 
-    /** Catch any Exception in a block, e.g. catchException { do some things } */
-    def catchingException: Catching[Unit, Nothing] =
-        catching[Exception]
+    /**
+     * Catch any [[java.lang.Exception]] in a block, yielding Failed when a [[java.lang.Exception]] is caught.
+     * Use `tryCatch.value` when the function yields some A which should be wrapped in Okay on success, and `tryCatch.result` if the function yields a
+     * [[com.paytronix.utils.scala.result.Result]].
+     *
+     * Examples:
+     * {{{
+     *     tryCatch.value { "foobar" }            == Okay("foobar")
+     *     tryCatch.value { Okay("foobar") }      == Okay(Okay("foobar"))
+     *     tryCatch.value { sys.error("oh no") }  == Failed(new RuntimeException("oh no"))
+     *     tryCatch.result { "foobar" }           // type error since String is not <: Result[_]
+     *     tryCatch.result { Okay("foobar") }     == Okay("foobar")
+     *     tryCatch.result { Failed("why") }      == Failed(new FailedException("why"))
+     *     tryCatch.result { sys.error("oh no") } == Failed(new RuntimeException("oh no"))
+     * }}}
+     */
+    def tryCatch: TryCatch[Unit, Nothing] =
+        tryCatching[Exception]
 
-    /** Catch throwable of type T in a block, e.g. catching[Exception] { do some things } */
-    def catching[T <: Throwable](implicit m: Manifest[T]): Catching[Unit, Nothing] =
-        Catching { case t if m.erasure.isInstance(t) => Failed(t) }
+    /**
+     * Catch throwable of type T in a block and yield Okay if no exception caught, Failed if an exception of the given type caught.
+     * Use `tryCatching[E].value` when the function yields some A which should be wrapped in Okay on success, and `tryCatching[E].result` if the function yields a
+     * [[com.paytronix.utils.scala.result.Result]].
+     *
+     * Examples:
+     * {{{
+     *     tryCatching[FailedException].value { "foobar" }                         == Okay("foobar")
+     *     tryCatching[FailedException].value { Okay("foobar") }                   == Okay(Okay("foobar"))
+     *     tryCatching[FailedException].value { throw new FailedException("why") } == Failed(new FailedException("why"))
+     *     tryCatching[FailedException].value { sys.error("oh no") }               // throws RuntimeException("oh no")
+     *     tryCatching[FailedException].result { "foobar" }                        // type error since String is not <: Result[_]
+     *     tryCatching[FailedException].result { Okay("foobar") }                  == Okay("foobar")
+     *     tryCatching[FailedException].result { Failed("why") }                   == Failed(new FailedException("why"))
+     *     tryCatching[FailedException].result { sys.error("oh no") }              // throws RuntimeException("oh no")
+     * }}}
+     * Example: tryCatching[FooException].value { do some things }
+     */
+    def tryCatching[T <: Throwable](implicit m: Manifest[T]): TryCatch[Unit, Nothing] =
+        TryCatch { case t if m.erasure.isInstance(t) => Failed(t) }
 
-    /** Catch only throwables of the given classes in a block */
-    def catchingExceptions[A](throwables: Class[_ <: Throwable]*): Catching[Unit, Nothing] =
-        Catching { case t if throwables.exists(_.isInstance(t)) => Failed(t) }
+    /**
+     * Catch only throwables of the given classes in a block, yielding Okay if no exception caught, Failed if one of those exception types caught.
+     * Example: tryCatching(classOf[FooException], classOf[BarException]).value { ... }
+     */
+
+    def tryCatching(throwables: Class[_ <: Throwable]*): TryCatch[Unit, Nothing] =
+        TryCatch { case t if throwables.exists(_.isInstance(t)) => Failed(t) }
 
     /** Generic catcher which turns exceptions into ResultGs via a partial function */
-    final case class Catching[+E, +A](catchPF: PartialFunction[Throwable, ResultG[E, A]]) {
-        def apply[B >: A](f: => B): ResultG[E, B] =
+    final case class TryCatch[+E, +A](catchPF: PartialFunction[Throwable, ResultG[E, A]]) {
+        def value[B >: A](f: => B): ResultG[E, B] =
             try { Okay(f) } catch catchPF
+        def result[B >: A, F >: E](f: => ResultG[F, B]): ResultG[F, B] =
+            try f catch catchPF
     }
 
     /**

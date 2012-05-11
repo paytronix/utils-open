@@ -17,7 +17,7 @@
 package com.paytronix.utils.lift
 
 import net.liftweb.common.{Box, Empty, Failure, Full}
-import com.paytronix.utils.validation.values.{ValidationError, ValidationFunction, missingValueError}
+import com.paytronix.utils.validation.base.{ValidationError, ValidationFunction, missingValueError}
 
 object validation {
     /** Apply some validation to the value inside a Box. */

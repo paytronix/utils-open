@@ -21,7 +21,7 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.NameTransformer
 import com.thoughtworks.paranamer.{AdaptiveParanamer, AnnotationParanamer, BytecodeReadingParanamer, CachingParanamer}
 
-import result.{Failed, Okay, Result, catching, catchingException, iterableResultOps}
+import result.{Failed, Okay, Result, iterableResultOps, tryCatch, tryCatching}
 
 object reflection {
     val paranamer = new CachingParanamer(new AdaptiveParanamer(new AnnotationParanamer, new BytecodeReadingParanamer))
@@ -37,19 +37,19 @@ object reflection {
     def findObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] = {
         for {
             clazz <- classByName(loader, name)
-            field <- catchingException(clazz.getField("MODULE$")) whenFailed (name + " is not a Scala object singleton (no MODULE$ field)")
+            field <- tryCatch.value(clazz.getField("MODULE$")) whenFailed (name + " is not a Scala object singleton (no MODULE$ field)")
             _ <- if (Modifier.isStatic(field.getModifiers)) Okay(()) else Failed(name + " is not a Scala object singleton (MODULE$ is not static)")
-            inst <- catchingException(field.get(null))
+            inst <- tryCatch.value(field.get(null))
         } yield inst
     }
 
     /** Look up a class by name, failing if the class is not found or does not conform at least to the given type */
     def classByName[A](classLoader: ClassLoader, name: String)(implicit m: Manifest[A]): Result[Class[A]] =
-        catchingException(Class.forName(name, true, classLoader).asSubclass(m.erasure).asInstanceOf[Class[A]])
+        tryCatch.value(Class.forName(name, true, classLoader).asSubclass(m.erasure).asInstanceOf[Class[A]])
 
     /** Instantiate a Class with its no-arg constructor, capturing exceptions */
     def instantiate[A](clazz: Class[A]): Result[A] =
-        catchingException(clazz.newInstance())
+        tryCatch.value(clazz.newInstance())
 
     /** Instantiate a class by name with its no-arg constructor, capturing exceptions */
     def instantiate(classLoader: ClassLoader, name: String): Result[AnyRef] =
@@ -58,7 +58,7 @@ object reflection {
     /**
      * Given the name of an object or class, try to find it as a scala object instance or failing that instantiate it.
      * Note that this is probably going to be confusing if used on enclosed objects, because it expects the encoded name of the object
-     * (e.g. foo.bar.Baz$Zip) but without the trailing $, since it will use the name without the $ for the instantiate case.
+     * (e.g. `foo.bar.Baz$$Zip`) but without the trailing $, since it will use the name without the $ for the instantiate case.
      */
     def findObjectInstanceOrInstantiate(loader: ClassLoader, name: String): Result[AnyRef] =
         findObjectInstance(loader, name + "$") orElse instantiate(loader, name)

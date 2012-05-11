@@ -23,7 +23,7 @@ import org.apache.avro.Schema
 import org.slf4j.{Logger, LoggerFactory}
 import com.paytronix.utils.extendedreflection.Builder
 import com.paytronix.utils.scala.log.resultLoggerOps
-import com.paytronix.utils.scala.result.catchingException
+import com.paytronix.utils.scala.result.tryCatch
 
 /** Class which uses coding reflection to generate Avro schemas. Used by the Maven plugin. */
 class AvroSchemaGenerator {
@@ -39,12 +39,12 @@ class AvroSchemaGenerator {
 			val clazz = Class.forName(className)
 			if (clazz.getAnnotation(classOf[GenerateSchema]) != null) {
 				logger.info("Generating schema for " + className)
-				catchingException {
+				tryCatch.result {
 					for {
 						typeR <- builder.typeRFor(clazz)
 						coder <- Coding.forType(clazz.getClassLoader, typeR)
 					} yield foundSchemas += coder.implementation.avroSchema
-				}.flatten.logError("Failed to generate schema for " + className)
+				}.logError("Failed to generate schema for " + className)
 			}
 		}
 

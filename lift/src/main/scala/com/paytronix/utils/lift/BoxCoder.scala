@@ -28,7 +28,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import com.paytronix.utils.extendedreflection
 import com.paytronix.utils.interchange.{AvroUtils, CoderSettings, Coding, ComposableCoder, OptionLikeCoder, UnitCoder}
 import com.paytronix.utils.scala.log.{loggerResultOps, resultLoggerOps}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, catchingException}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatch}
 
 import box.{boxToErrorHandlingBox, boxToNestedBox}
 import log.loggerBoxOps
@@ -62,7 +62,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                     implicit val builder = new extendedreflection.Builder(classLoader)
 
                     (for {
-                        typeR <- catchingException(builder.typeRFor(Class.forName(isAClassName, true, classLoader))).flatten
+                        typeR <- tryCatch.result(builder.typeRFor(Class.forName(isAClassName, true, classLoader)))
                         coder <- Coding.forType(classLoader, typeR)
                         param <- coder.decode(toDecode)
                     } yield param) match {
@@ -141,7 +141,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
             JObject(fields)
         }
 
-        catchingException {
+        tryCatch.value {
             valueCoder match {
                 case (_: OptionLikeCoder[_])|(_: UnitCoder.type) =>
                     in match {
@@ -206,8 +206,8 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
 
                             {
                                 for {
-                                    schema <- catchingException(new Schema.Parser().parse(schemaJSON))
-                                    typeR  <- catchingException(builder.typeRFor(Class.forName(isAClassName, true, classLoader))).flatten
+                                    schema <- tryCatch.value(new Schema.Parser().parse(schemaJSON))
+                                    typeR  <- tryCatch.result(builder.typeRFor(Class.forName(isAClassName, true, classLoader)))
                                     coder  <- Coding.forType(classLoader, typeR)
                                     param  <- coder.decodeAvro(schema, bytes)
                                 } yield baseFailure ~> param
@@ -222,7 +222,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
             }
         }
 
-        catchingException {
+        tryCatch.value {
             in.readIndex() match {
                 case 0 => valueCoder.decodeAvro(classLoader, in).map(Full.apply)
                 case 1 => Okay(Empty)
@@ -286,7 +286,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                 case e: Exception => FailedG(e, Nil)
             }
 
-        catchingException {
+        tryCatch.value {
             in match {
                 case Full(v) => {
                     out.writeIndex(0)
@@ -328,7 +328,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
 
                     {
                         for {
-                            typeR <- catchingException(builder.typeRFor(Class.forName(isAClassName, true, classLoader))).flatten
+                            typeR <- tryCatch.result(builder.typeRFor(Class.forName(isAClassName, true, classLoader)))
                             coder <- Coding.forType(classLoader, typeR)
                             param <- coder.decodeMongoDB(toDecode)
                         } yield param

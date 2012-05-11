@@ -26,7 +26,7 @@ import com.paytronix.utils.extendedreflection.{Builder, ClassR, ClassTypeR, Cons
 import com.paytronix.utils.scala.collection.zip
 import com.paytronix.utils.scala.log.resultLoggerOps
 import com.paytronix.utils.scala.reflection.{classAndAncestors, getTypeArguments, paranamer}
-import com.paytronix.utils.scala.result.{Failed, Okay, Result, catchingException, iterableResultOps, optionOps}
+import com.paytronix.utils.scala.result.{Failed, Okay, Result, iterableResultOps, optionOps, tryCatch}
 
 object Reflection {
     private val logger = LoggerFactory.getLogger(getClass)
@@ -124,7 +124,7 @@ object Reflection {
                         } withFailureParameter Nil
 
                         encoded <- atProperty(propR.name) {
-                            catchingException(propR.getter.reflectionModel.invoke(inst))
+                            tryCatch.value(propR.getter.reflectionModel.invoke(inst))
                             .whenFailed("failed to get property " + propR.name + " from singleton " + inst)
                             .withFailureParameter(Nil)
                             .flatMap(coder.forceEncode(classLoader, _))
