@@ -25,7 +25,7 @@ import java.util.concurrent.locks.{Condition, Lock, ReadWriteLock}
  */
 object concurrent
 {
-    /** Update an AtomicReference by applying an update to the value contained therein, and trying as many times as necessary */
+    /** Update a [[java.util.concurrent.atomic.AtomicReference]] by applying an update to the value contained therein, and trying as many times as necessary */
     def atomicUpdate[A](r: AtomicReference[A])(f: A => A): Unit = {
         def tryUpdate: Unit = {
             val expectedVal = r.get
@@ -38,7 +38,7 @@ object concurrent
         tryUpdate
     }
 
-    /** Wrapper around java.lang.ThreadLocal that provides a scoped set method */
+    /** Wrapper around [[java.lang.ThreadLocal]] that provides a scoped set method */
     trait ThreadLocal[A] {
         /** Initial value of the thread local */
         protected val initial: A
@@ -68,7 +68,7 @@ object concurrent
         }
     }
 
-    /** Wrapper around a java Lock to make it nicer to use from scala */
+    /** Wrapper around a [[java.util.concurrent.Lock]] to make it nicer to use from scala */
     class LockWrapper[A <: Lock](val underlying: A) {
         def apply[B](f: => B): B = {
             underlying.lock()
