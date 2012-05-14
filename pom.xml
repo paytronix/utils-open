@@ -1,0 +1,290 @@
+<?xml version="1.0" ?>
+<!--
+    Copyright 2012 Paytronix Systems, Inc.
+    All Rights Reserved
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>paytronix.utils.internal</groupId>
+    <artifactId>parent</artifactId>
+    <packaging>pom</packaging>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <name>Paytronix Internal Utils - Parent</name>
+
+    <prerequisites>
+        <maven>3.0</maven>
+    </prerequisites>
+
+    <modules>
+        <module>java</module>
+        <module>packaging</module>
+        <module>scala</module>
+        <module>standalone</module>
+    </modules>
+
+    <distributionManagement>
+        <repository>
+            <id>paytronix-releases</id>
+            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/releases</url>
+        </repository>
+
+        <snapshotRepository>
+            <id>paytronix-snapshots</id>
+            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <paytronix.utils.version>1.0.0-SNAPSHOT</paytronix.utils.version>
+        <scala.version>2.9.2</scala.version>
+        <scala.compatibility.version>2.9.2</scala.compatibility.version>
+        <lift.scala.compatibility.version>2.9.1</lift.scala.compatibility.version>
+        <lift.version>2.4</lift.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>1.0.1</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.notnoop.logging</groupId>
+                <artifactId>slf4j-configgy</artifactId>
+                <version>0.0.2-px</version>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>4.7</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.lag</groupId>
+                <artifactId>configgy</artifactId>
+                <version>2.0.0</version>
+                <exclusions>
+                    <!-- configgy erroneously includes a bogus dependency on vscaladoc 1.1-md-3, which doesn't apparently exist -->
+                    <exclusion>
+                        <groupId>org.scala-tools</groupId>
+                    <artifactId>vscaladoc</artifactId>
+                </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>net.liftweb</groupId>
+                <artifactId>lift-common_${lift.scala.compatibility.version}</artifactId>
+                <version>${lift.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.liftweb</groupId>
+                <artifactId>lift-util_${lift.scala.compatibility.version}</artifactId>
+                <version>${lift.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>${scala.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>log4j-over-slf4j</artifactId>
+                <version>1.6.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>1.6.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.squeryl</groupId>
+                <artifactId>squeryl_${scala.compatibility.version}</artifactId>
+                <version>0.9.5</version>
+            </dependency>
+            <dependency>
+                <groupId>org.specs2</groupId>
+                <artifactId>specs2_${scala.compatibility.version}</artifactId>
+                <version>1.9</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>extendedreflection</artifactId>
+                <version>${paytronix.utils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>interchange</artifactId>
+                <version>${paytronix.utils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>lift</artifactId>
+                <version>${paytronix.utils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>scala</artifactId>
+                <version>${paytronix.utils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.paytronix.utils</groupId>
+                <artifactId>validation</artifactId>
+                <version>${paytronix.utils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>paytronix.utils.internal</groupId>
+                <artifactId>java</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>paytronix.utils.internal</groupId>
+                <artifactId>scala</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>paytronix.utils.internal</groupId>
+                <artifactId>standalone</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <repositories>
+        <repository>
+            <id>paytronix-public</id>
+            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/public</url>
+        </repository>
+
+        <repository>
+            <id>paytronix-releases</id>
+            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/releases</url>
+        </repository>
+
+        <repository>
+            <id>paytronix-snapshots</id>
+            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/snapshots</url>
+        </repository>
+
+        <repository>
+            <id>oss.sonatype.org-releases</id>
+            <name>releases</name>
+            <url>http://oss.sonatype.org/content/repositories/releases</url>
+        </repository>
+
+        <repository>
+            <id>oss.sonatype.org-snapshots</id>
+            <name>snapshots</name>
+            <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+          <id>oss.sonatype.org-releases</id>
+          <name>releases</name>
+          <url>http://oss.sonatype.org/content/repositories/releases</url>
+        </pluginRepository>
+
+        <pluginRepository>
+          <id>oss.sonatype.org-snapshots</id>
+          <name>snapshots</name>
+          <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>net.alchim31.maven</groupId>
+                    <artifactId>scala-maven-plugin</artifactId>
+                    <version>3.0.1</version>
+                    <configuration>
+                        <scalaVersion>${scala.version}</scalaVersion>
+                        <jvmArgs>
+                            <jvmArg>-Xss2048K</jvmArg>
+                            <jvmArg>-Xmx1G</jvmArg>
+                        </jvmArgs>
+                        <args>
+                            <arg>-deprecation</arg>
+                            <arg>-unchecked</arg>
+                        </args>
+                        <testSourceDir>src/test/scala</testSourceDir>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>scala-compile-first</id>
+                            <phase>process-resources</phase>
+                            <goals>
+                                <goal>add-source</goal>
+                                <goal>compile</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>scala-test-compile</id>
+                            <phase>test-compile</phase>
+                            <goals>
+                                <goal>testCompile</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>2.3.2</version>
+                    <configuration>
+                        <args>
+                            <arg>-Xlint:deprecation</arg>
+                        </args>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>2.7</version>
+                    <configuration>
+                        <argLine>-Xmx512m</argLine>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-site-plugin</artifactId>
+                    <version>3.0</version>
+                    <configuration>
+                        <reportPlugins>
+                            <plugin>
+                                <artifactId>maven-project-info-reports-plugin</artifactId>
+                                <version>2.2</version>
+                            </plugin>
+                            <plugin>
+                                <groupId>net.alchim31.maven</groupId>
+                                <artifactId>scala-maven-plugin</artifactId>
+                                <version>3.0.1</version>
+                                <configuration>
+                                    <scalaVersion>${scala.version}</scalaVersion>
+                                    <jvmArgs>
+                                        <jvmArg>-Xss2048K</jvmArg>
+                                        <jvmArg>-Xmx1G</jvmArg>
+                                    </jvmArgs>
+                                    <args>
+                                        <arg>-deprecation</arg>
+                                        <arg>-unchecked</arg>
+                                    </args>
+                                </configuration>
+                            </plugin>
+                        </reportPlugins>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
