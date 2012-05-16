@@ -26,7 +26,7 @@ import com.paytronix.utils.extendedreflection.{Builder, ClassR, ClassTypeR, Cons
 import com.paytronix.utils.scala.collection.zip
 import com.paytronix.utils.scala.log.resultLoggerOps
 import com.paytronix.utils.scala.reflection.{classAndAncestors, getTypeArguments, paranamer}
-import com.paytronix.utils.scala.result.{Failed, Okay, Result, iterableResultOps, optionOps, tryCatch}
+import com.paytronix.utils.scala.result.{Failed, Okay, Result, iterableResultOps, optionOps, parameter, tryCatch}
 
 object Reflection {
     private val logger = LoggerFactory.getLogger(getClass)
@@ -35,8 +35,7 @@ object Reflection {
     def reflect(classLoader: ClassLoader, meth: Method)(implicit builder: Builder): Result[(ComposableCoder[Array[AnyRef]], ComposableCoder[_])] =
         for {
             classR      <- builder.classRFor(meth.getDeclaringClass)
-            methR       <- classR.allMethods.find { _.matches(meth) }.toResult
-                               .whenFailed("could not find method " + meth + " in class model " + classR.name.qualified)
+            methR       <- classR.allMethods.find { _.matches(meth) }.toResult | ("could not find method " + meth + " in class model " + classR.name.qualified)
             paramCoders <- reflectParameterCoders(classLoader, methR)
             resultCoder <- Coding.forTypeComposable(classLoader, methR.result)
         } yield (paramCoders, resultCoder)
@@ -45,8 +44,7 @@ object Reflection {
     def reflect(classLoader: ClassLoader, ctor: Constructor[_])(implicit builder: Builder): Result[ComposableCoder[Array[AnyRef]]] =
         for {
             classR      <- builder.classRFor(ctor.getDeclaringClass)
-            ctorR       <- classR.constructors.find { _.matches(ctor) }.toResult
-                               .whenFailed("could not find constructor " + ctor + " in class model " + classR.name.qualified)
+            ctorR       <- classR.constructors.find { _.matches(ctor) }.toResult | ("could not find constructor " + ctor + " in class model " + classR.name.qualified)
             paramCoders <- reflectParameterCoders(classLoader, ctorR)
         } yield paramCoders
 
@@ -54,8 +52,7 @@ object Reflection {
     private def reflectParameterCoders(classLoader: ClassLoader, methLikeR: MethodLikeR)(implicit builder: Builder): Result[ComposableCoder[Array[AnyRef]]] =
         methLikeR.parameters.mapResult { paramR =>
             for {
-                name  <- paramR.name.toResult
-                             .whenFailed("cannot code parameters of " + methLikeR + " because the parameter names are not known")
+                name  <- paramR.name.toResult | ("cannot code parameters of " + methLikeR + " because the parameter names are not known")
                 coder <- Coding.forTypeComposable(classLoader, paramR.typeR)
             } yield ArgumentCoding(name, if (paramR.annotations.exists(_.isInstanceOf[Nullable])) NullCoder(coder) else coder)
         } map { argCodings => ArgumentArrayCoder(false, argCodings.toList) }
@@ -116,17 +113,16 @@ object Reflection {
             fields <- formatFailedPath {
                 usableProperties.mapResult { propR =>
                     for {
-                        coder <- Coding.forTypeComposable(classLoader, propR.typeR) map { coder =>
+                        coder <- Coding.forTypeComposable(classLoader, propR.typeR).map { coder =>
                             if (propR.annotations.exists(_.isInstanceOf[Nullable]))
                                 NullCoder(coder)
                             else
                                 coder
-                        } withFailureParameter Nil
+                        } | parameter(Nil)
 
                         encoded <- atProperty(propR.name) {
                             tryCatch.value(propR.getter.reflectionModel.invoke(inst))
-                            .whenFailed("failed to get property " + propR.name + " from singleton " + inst)
-                            .withFailureParameter(Nil)
+                            .orElse(("failed to get property " + propR.name + " from singleton " + inst, Nil))
                             .flatMap(coder.forceEncode(classLoader, _))
                         }
                     } yield {
@@ -161,7 +157,7 @@ object Reflection {
                     .filterNot(constructorHasUnusableParameter)
                     .sortBy(_.parameters.length)
                     .lastOption.toResult
-                    .whenFailed("no constructors found for " + classR.name.qualified + " that can be used for coding")
+                    .orElse("no constructors found for " + classR.name.qualified + " that can be used for coding")
 
             case ctor :: Nil =>
                 // Check that the specifically annotated constructor makes sense

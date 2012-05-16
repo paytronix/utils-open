@@ -29,6 +29,8 @@ import com.paytronix.utils.scala.concurrent.atomicUpdate
 import com.paytronix.utils.scala.reflection.{classAndAncestors, findObjectInstance, findObjectInstanceOrInstantiate, getTypeArguments}
 import com.paytronix.utils.scala.result.{Failed, Okay, Result, ResultG, iterableResultOps, optionOps}
 
+import ResultG.resultAsReplacement
+
 /** Front end to coding, with Java friendly signatures */
 object JSONCoding {
     val logger = LoggerFactory.getLogger(getClass)
@@ -80,8 +82,7 @@ object Coding {
         def apply(contextClassLoader: ClassLoader, in: List[TypeR])(implicit builder: Builder): Result[ComposableCoder[_]] =
             in.zipWithIndex mapResult {
                 case (argTyR, i) =>
-                    Coding.forTypeComposable(contextClassLoader, argTyR)
-                        .whenFailed(description + ": failed to determine coder for type parameter " + i + " - " + argTyR)
+                    Coding.forTypeComposable(contextClassLoader, argTyR) | (description + ": failed to determine coder for type parameter " + i + " - " + argTyR)
             } map { _.toList } flatMap makeCoder
     }
 
@@ -231,7 +232,7 @@ object Coding {
                 in match {
                     case ClassTypeRFor(c) =>
                         findObjectInstanceOrInstantiate(classLoader, c.getName + "Coding") match {
-                            case ok: Okay[_] => Some(ok.asA[Coding].whenFailed("sidecar found for " + c.getName + " but it was not a subtype of Coding"))
+                            case ok: Okay[_] => Some(ok.asA[Coding] | ("sidecar found for " + c.getName + " but it was not a subtype of Coding"))
                             case _ => None
                         }
 
@@ -259,7 +260,7 @@ object Coding {
         lazy val coderUsingRegistryOrReflection = typeR match {
             case ClassTypeRFor(c) => registeredCoders.get.get(c) match {
                 case Some(f) => f(classLoader, Nil)
-                case None => coderForSingleton(c) orElse Reflection.reflectObjectCoder(classLoader, typeR.asInstanceOf[ClassTypeR])
+                case None => coderForSingleton(c) | resultAsReplacement(Reflection.reflectObjectCoder(classLoader, typeR.asInstanceOf[ClassTypeR]))
             }
 
             case ParameterizedTypeRWith(ClassTypeRFor(c), params) =>

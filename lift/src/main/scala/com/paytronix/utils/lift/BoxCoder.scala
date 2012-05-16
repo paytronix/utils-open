@@ -28,7 +28,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import com.paytronix.utils.extendedreflection
 import com.paytronix.utils.interchange.{AvroUtils, CoderSettings, Coding, ComposableCoder, OptionLikeCoder, UnitCoder}
 import com.paytronix.utils.scala.log.{loggerResultOps, resultLoggerOps}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatch}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, parameter, tryCatch}
 
 import box.{boxToErrorHandlingBox, boxToNestedBox}
 import log.loggerBoxOps
@@ -159,7 +159,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                         case f: Failure                        => Okay(encodeFailure(f))
                     }
             }
-        }.withFailureParameter(Nil).flatten
+        }.orElse(parameter(Nil)).flatten
     }
 
     // Avro encoding
@@ -211,7 +211,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                                     coder  <- Coding.forType(classLoader, typeR)
                                     param  <- coder.decodeAvro(schema, bytes)
                                 } yield baseFailure ~> param
-                            } withFailureParameter Nil
+                            } | parameter(Nil)
                         }
                     }
 
@@ -229,7 +229,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                 case 2 => decodeFailure()
                 case other => FailedG("read unknown union index " + other + " from Avro for Box", Nil)
             }
-        }.withFailureParameter(Nil).flatten
+        }.orElse(parameter(Nil)).flatten
     }
 
     def encodeAvro(classLoader: ClassLoader, in: Box[T], out: Encoder) = {
@@ -303,7 +303,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                     encodeFailure(failure)
                 }
             }
-        }.withFailureParameter(Nil).flatten
+        }.orElse(parameter(Nil)).flatten
     }
 
 

@@ -177,8 +177,8 @@ class Builder(val classLoader: ClassLoader) {
 
                 firstOrLast(toTry)(tryName => classByName[AnyRef](classLoader, tryName.encoded)).flatMap { clazz =>
                     sigFor(clazz).flatMap { sig =>
-                        sig.symbols.find { sym => pathOf(sym) == name.qualified }.toResult.whenFailed("did not find target " + esym)
-                    } whenFailed ("failed to locate external symbol " + name + " in " + clazz)
+                        sig.symbols.find { sym => pathOf(sym) == name.qualified }.toResult | ("did not find target " + esym)
+                    } | ("failed to locate external symbol " + name + " in " + clazz)
                 } orElse Okay(esym) // will fail if a package or java class, so just yield the original symbol if external resolution fails
 
             case other =>
@@ -195,7 +195,7 @@ class Builder(val classLoader: ClassLoader) {
             val sig.TypeRefType(prefix, unresolvedSymbol, args) = ref
             args.mapResult {
                 case sig.TypeRefType(_, tsym: sig.TypeSymbol, _) =>
-                    bindings.get(tsym.name).toResult whenFailed ("unknown type symbol binding " + tsym.name)
+                    bindings.get(tsym.name).toResult | ("unknown type symbol binding " + tsym.name)
                 case other => Okay(other)
             } flatMap { boundArgs =>
                 resolveSymbol(unresolvedSymbol) flatMap {
@@ -209,8 +209,7 @@ class Builder(val classLoader: ClassLoader) {
 
                             case poly@sig.PolyType(innerRef: sig.TypeRefType, symbols) =>
                                 val innerBindings = Map(((symbols zip boundArgs) map { case (sym, arg) => sym.name -> arg }): _*)
-                                resolveTypeRef(innerRef, innerBindings)
-                                    .whenFailed("failed to resolve type at " + in)
+                                resolveTypeRef(innerRef, innerBindings) | ("failed to resolve type at " + in)
 
                             case poly@sig.PolyType(inner, symbols) =>
                                 Okay(sig.TypeRefType(prefix, sisym, boundArgs))
@@ -279,12 +278,11 @@ class Builder(val classLoader: ClassLoader) {
             case (pt: reflect.ParameterizedType, Okay(sig.TypeRefType(_, symbol, args))) =>
                 for {
                     headTypeR <-
-                        typeRFor(pt.getRawType, Failed("no signature type for parameterized types")/* FIXME? */)
-                            .whenFailed("Failed to model parameterized type with head " + pt.getRawType.toString)
+                        typeRFor(pt.getRawType, Failed("no signature type for parameterized types")/* FIXME? */) | ("Failed to model parameterized type with head " + pt.getRawType.toString)
 
                     argTypeRs <- wrapRefArray(pt.getActualTypeArguments.zip(args).zipWithIndex).mapResult {
                         case ((refTyArg, sigTyArg), index) =>
-                            typeRFor(refTyArg, Okay(sigTyArg)) whenFailed (
+                            typeRFor(refTyArg, Okay(sigTyArg)) | (
                                 "Failed to model argument " + index + " of parameterized type with head " +
                                 pt.getRawType.toString + ": (" + refTyArg + ", " + sigTyArg + ")"
                             )
@@ -301,12 +299,11 @@ class Builder(val classLoader: ClassLoader) {
 
                 for {
                     headTypeR <-
-                        typeRFor(pt.getRawType, Failed("no signature type for parameterized types")/* FIXME? */)
-                            .whenFailed("Failed to model parameterized type with head " + pt.getRawType.toString)
+                        typeRFor(pt.getRawType, Failed("no signature type for parameterized types")/* FIXME? */) | ("Failed to model parameterized type with head " + pt.getRawType.toString)
 
                     argTypeRs <- wrapRefArray(pt.getActualTypeArguments.zipWithIndex).mapResult {
                         case (refTyArg, index) =>
-                            typeRFor(refTyArg, Failed("no signature type")) whenFailed (
+                            typeRFor(refTyArg, Failed("no signature type")) | (
                                 "Failed to model argument " + index + " of parameterized type with head " +
                                 pt.getRawType.toString + ": " + refTyArg
                             )
@@ -356,14 +353,14 @@ class Builder(val classLoader: ClassLoader) {
             }
 
             signatureClassFile <- (
-                tryCatch.value(ClassFileParser.parse(ByteCode(signatureClassBytes))) whenFailed (
+                tryCatch.value(ClassFileParser.parse(ByteCode(signatureClassBytes))) | (
                     "Failed to parse class " + sigLocationName.encoded +
                     " (looking for signature of " + clazzName.qualified + ")"
                 )
             )
 
             signatureAnnotation <- (
-                tryCatch.value(signatureClassFile.annotation("Lscala/reflect/ScalaSignature;")) whenFailed (
+                tryCatch.value(signatureClassFile.annotation("Lscala/reflect/ScalaSignature;")) | (
                     "Failed to parse ScalaSignature annotation from " + sigLocationName.encoded +
                      " (looking for signature of " + clazzName.qualified + ")"
                 )
@@ -463,11 +460,11 @@ class Builder(val classLoader: ClassLoader) {
     /** Find the reflection Method for a given MethodSymbol */
     private def methodForMethodSymbol(clazz: Class[_], msym: sig.MethodSymbol): Result[reflect.Method] =
         for {
-            ty <- tryCatch.value(msym.infoType).whenFailed("failed to get info for " + msym.name + " in " + clazz.getName)
+            ty <- tryCatch.value(msym.infoType) | ("failed to get info for " + msym.name + " in " + clazz.getName)
 
             meth <- clazz.getDeclaredMethods.filter(meth => meth.getName == msym.name && meth.getParameterTypes.length == msym.children.length) match {
                 case Array() => Failed("could not find method for " + msym + " with type " + ty + " in " + clazz.getName)
-                case meths if areMethodsCompatible(meths) => mostSpecificMethod(meths).toResult whenFailed "could not determine most specific method"
+                case meths if areMethodsCompatible(meths) => mostSpecificMethod(meths).toResult | "could not determine most specific method"
                 case _ => Failed("found more than one matching method for " + msym + " with type " + ty + " in " + clazz.getName +
                                   " and the matches are not compatible -- overloads are not presently resolved correctly")
             }
@@ -479,9 +476,9 @@ class Builder(val classLoader: ClassLoader) {
         clazz.getDeclaredConstructors.filter(ctor => ctor.getParameterTypes.length == msym.children.length) match {
             case Array() => Failed("could not find constructor for " + msym + " in " + clazz.getName)
             case ctors if !ctors.filter(publicCtor).isEmpty && areConstructorsCompatible(ctors.filter(publicCtor)) =>
-                mostSpecificConstructor(ctors.filter(publicCtor)).toResult whenFailed "could not determine most specific (public) constructor"
+                mostSpecificConstructor(ctors.filter(publicCtor)).toResult | "could not determine most specific (public) constructor"
             case ctors if areConstructorsCompatible(ctors) =>
-                mostSpecificConstructor(ctors).toResult whenFailed "could not determine most specific constructor"
+                mostSpecificConstructor(ctors).toResult | "could not determine most specific constructor"
             case _ => Failed("found more than one matching constructor for " + msym + " in " + clazz.getName +
                               " and the matches are not compatible -- overloads are not presently resolved correctly")
         }
@@ -526,12 +523,11 @@ class Builder(val classLoader: ClassLoader) {
             })
 
         val parameterNamesResult =
-            (meth.paranamerNames orElse sigParamInfo.map(_.map(_._1)))
-                .whenFailed("Failed to determine parameter names")
+            (meth.paranamerNames orElse sigParamInfo.map(_.map(_._1))) | "Failed to determine parameter names"
 
         wrapRefArray(genericParameterTypes).leftJoin(sigParamInfo).zipWithIndex.mapResult {
             case ((genTy, sigTyResult), index) =>
-                typeRFor(genTy, sigTyResult.map(_._2)) whenFailed ("Failed to model type of parameter " + index)
+                typeRFor(genTy, sigTyResult.map(_._2)) | ("Failed to model type of parameter " + index)
         }.map(paramTypeRs => {
             wrapRefArray(parameterAnnotations.zip(paramTypeRs)).leftJoin(parameterNamesResult).map {
                 case ((annotations, typeR), nameResult) => ParameterR(nameResult.toOption, typeR, annotations.toList)
@@ -542,9 +538,7 @@ class Builder(val classLoader: ClassLoader) {
     /** Make a MethodR using all available information at hand */
     private def makeMethodR(ownerNameR: NameR, clazz: Class[_], meth: reflect.Method, msymResult: Result[sig.MethodSymbol]): Result[MethodR] =
         for {
-            paramRs <-
-                makeParameterRs(clazz, WrapMethod(meth), msymResult)
-                    .whenFailed("Failed to model parameters for method " + meth + " of " + clazz.getName)
+            paramRs <- makeParameterRs(clazz, WrapMethod(meth), msymResult) | ("Failed to model parameters for method " + meth + " of " + clazz.getName)
             resultTypeR <- typeRFor (
                 meth.getGenericReturnType,
                 msymResult.flatMap {
@@ -559,7 +553,7 @@ class Builder(val classLoader: ClassLoader) {
                         }
                     }
                 }
-            ) whenFailed ("Failed to model return type of method " + meth + " of " + clazz.getName)
+            ) | ("Failed to model return type of method " + meth + " of " + clazz.getName)
         } yield MethodR(
             ownerName       = ownerNameR,
             name            = meth.getName,
@@ -638,8 +632,7 @@ class Builder(val classLoader: ClassLoader) {
                             getterMethR <- makeMethodR(ownerNameR, clazz, getterMeth, Okay(getterSym))
                         } yield {
                             val setterMethRResult = for {
-                                setterSym   <- sortedSyms.find { case (_, isSetter) => isSetter }.map { case (sym, _) => sym }.toResult
-                                                   .whenFailed("no setter found")
+                                setterSym   <- sortedSyms.find { case (_, isSetter) => isSetter }.map { case (sym, _) => sym }.toResult | "no setter found"
                                 setterMeth  <- methodForMethodSymbol(clazz, setterSym)
                                 setterMethR <- makeMethodR(ownerNameR, clazz, setterMeth, Okay(setterSym))
                             } yield setterMethR
@@ -736,7 +729,7 @@ class Builder(val classLoader: ClassLoader) {
                 val setterMethResult: Result[reflect.Method] = accessorMethods.find {
                     case (_, true, n) if name == n => true
                     case _ => false
-                }.map(_._1).toResult whenFailed ("no setter method found")
+                }.map(_._1).toResult | "no setter method found"
 
                 val fieldAnnotations = tryCatch.value(clazz.getDeclaredField(name).getAnnotations.toList) getOrElse Nil
 
@@ -817,11 +810,9 @@ class Builder(val classLoader: ClassLoader) {
 
             classR <- sigFor(clazz) match {
                 case Okay(sig) =>
-                    makeClassRUsingSig(clazz, sig, superClassR, interfaceClassRs)
-                        .whenFailed("Failed to make ClassR for " + clazz.getName + " using signature")
+                    makeClassRUsingSig(clazz, sig, superClassR, interfaceClassRs) | ("Failed to make ClassR for " + clazz.getName + " using signature")
                 case _ =>
-                    makeClassRUsingReflectionOnly(clazz, superClassR, interfaceClassRs)
-                        .whenFailed("Failed to make ClassR for " + clazz.getName + " using reflection only")
+                    makeClassRUsingReflectionOnly(clazz, superClassR, interfaceClassRs) | ("Failed to make ClassR for " + clazz.getName + " using reflection only")
             }
         } yield classR
     }

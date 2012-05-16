@@ -37,7 +37,7 @@ object reflection {
     def findObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] = {
         for {
             clazz <- classByName(loader, name)
-            field <- tryCatch.value(clazz.getField("MODULE$")) whenFailed (name + " is not a Scala object singleton (no MODULE$ field)")
+            field <- tryCatch.value(clazz.getField("MODULE$")) | (name + " is not a Scala object singleton (no MODULE$ field)")
             _ <- if (Modifier.isStatic(field.getModifiers)) Okay(()) else Failed(name + " is not a Scala object singleton (MODULE$ is not static)")
             inst <- tryCatch.value(field.get(null))
         } yield inst
@@ -114,7 +114,7 @@ object reflection {
      */
     def getTypeArguments(ty: Type): Result[Seq[Type]] =
         for {
-            pt <- Okay(ty).asA[ParameterizedType].replaceFailureWith(ty + " not a ParameterizedType")
+            pt <- Okay(ty).asA[ParameterizedType] | Failed(ty + " not a ParameterizedType")
             args <- wrapRefArray(pt.getActualTypeArguments).mapResult(reduceType)
         } yield args
 

@@ -131,8 +131,14 @@ object ResultTestSpecs extends Specification {
             okay.map(_ + "bar") must_== Okay("foobar")
         }
 
-        "orElse" in {
-            okay orElse Okay("bar") must_== okay
+        "| (orElse)" in {
+            (okay | "bar") must_== okay
+            (okay | parameter("bar")) must_== okay
+            (okay | MyFailedParameter("bar")) must_== okay
+            (okay | ("bar" -> Nil)) must_== okay
+            (okay | Failed("bar")) must_== okay
+            (okay | Okay("bar")) must_== okay
+            (okay | { case Failed(throwable) => Failed(throwable, "foo" + throwable.getMessage) }) must_== okay
         }
 
         "orNull" in {
@@ -150,22 +156,8 @@ object ResultTestSpecs extends Specification {
         // toOption tested in Result conversion
         // toBox tested in Result conversion
 
-        "whenFailed" in {
-            okay whenFailed "bar" must_== okay
-            okay whenFailed ("bar", 1) must_== okay
-        }
-
-        "withFailureParameter" in {
-            okay withFailureParameter 1 must_== okay
-        }
-
         "then" in {
             okay then Okay("bar") must_== Okay("bar")
-        }
-
-        "replaceFailureWith" in {
-            okay replaceFailureWith "bar" must_== okay
-            okay replaceFailureWith ("bar", 1) must_== okay
         }
 
         "isA" in {
@@ -253,9 +245,14 @@ object ResultTestSpecs extends Specification {
             failedInt.map(_ + "bar") must_== failedInt
         }
 
-        "orElse" in {
-            failedUnit orElse Okay("bar") must_== Okay("bar")
-            failedInt orElse Okay("bar") must_== Okay("bar")
+        "| (orElse)" in {
+            (failedInt | "bar") must (beFailedWith("bar", 1) and beFailedWithCause("failed message"))
+            (failedInt | parameter("bar")) must (beFailedWith("failed message", "bar") and beFailedWithoutCause)
+            (failedInt | MyFailedParameter("bar")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause)
+            (failedInt | ("bar" -> Nil)) must (beFailedWith("bar", Nil) and beFailedWithCause("failed message"))
+            (failedInt | Failed("bar")) must (beFailedWith("bar") and beFailedWithoutCause)
+            (failedInt | Okay("bar")) must_== Okay("bar")
+            (failedInt | { case Failed(throwable) => Failed(throwable, "foo" + throwable.getMessage) }) must (beFailed("failed message", "foofailed message") and beFailedWithoutCause)
         }
 
         "orNull" in {

@@ -40,6 +40,9 @@ object result extends resultLowPriorityImplicits
     /** Type of FailedG where no additional error parameter is given */
     type Failed = FailedG[Unit]
 
+    /** Trait of things that can be attached to FailedG as parameters. Required to use the lightweight `result | param` syntax but not required otherwise. */
+    trait FailedParameter
+
     /**
      * Like an Either that always carries a Throwable, or a Box without Empty that carries an error of type E or success of type A.
      * G suffix means "Generic".
@@ -107,8 +110,21 @@ object result extends resultLowPriorityImplicits
         /** If Okay, applies function to value and yields Okay with its result */
         def map[B](f: A => B): ResultG[E, B]
 
-        /** If Failed, yield the given alternative, otherwise identity */
-        def orElse[F, B >: A](alternative: => ResultG[F, B]): ResultG[F, B]
+        /**
+         * If Failed, then either modify the Failed somehow or replace with another Result.
+         *
+         * This operator can be used in a variety of ways:
+         *   - wrap a failure with a new explanatory message: `rslt | "explanation"`
+         *   - attach (or replace) a failure parameter that extends `FailedParameter`: `rslt | MyFailedParameter`
+         *   - attach (or replace) a failure parameter: `rslt | parameter(1)`
+         *   - wrap a failure with explanation and attach a parameter: `rslt | ("explanation" -> 1)`
+         *   - replace a failued with some default Result: `rslt | Okay("it's fine")`
+         *   - make a new failure based on the old one: `rslt | { case Failed(throwable) => FailedG(throwable, MyFailedParameter(throwable.getMessage)) }`
+         */
+        def | [F, B >: A] (f: FailedG[E] => ResultG[F, B]): ResultG[F, B]
+
+        /** Alias for `|` operator when you want a named method instead of an operator */
+        def orElse[F, B >: A] (f: FailedG[E] => ResultG[F, B]): ResultG[F, B] = this | f
 
         /** If Failed, yield null, otherwise yields the Okay value */
         def orNull[B >: A](implicit ev: Null <:< B): B
@@ -141,23 +157,8 @@ object result extends resultLowPriorityImplicits
             def withFilter(q: A => Boolean): WithFilter = new WithFilter(x => p(x) && q(x))
         }
 
-        /** If Failed, yield Failed with the given message and caused by the existing failure throwable and maintaining the existing Failed parameter */
-        def whenFailed(message: String): ResultG[E, A]
-
-        /** If Failed, yield FailedG with the given message and parameter, caused by the existing failure throwable */
-        def whenFailed[F](message: String, parameter: F): ResultG[F, A]
-
-        /** If Failed, add a parameter but leave the failure throwable alone */
-        def withFailureParameter[F](parameter: F): ResultG[F, A]
-
         /** If Okay, replace the value with the given alternative. Equivalent to flatMap(_ => alternative) */
         def then[F >: E, B](alternative: ResultG[F, B]): ResultG[F, B]
-
-        /** If Failed, discard the existing failure throwable and parameter and generate a new one */
-        def replaceFailureWith(message: String): Result[A]
-
-        /** If Failed, discard the existing failure throwable and parameter and generate a new one */
-        def replaceFailureWith[F](message: String, parameter: F): ResultG[F, A]
 
         /** Yield true iff Okay and the value conforms to the given type */
         def isA[B](implicit m: Manifest[B]): Boolean
@@ -200,7 +201,30 @@ object result extends resultLowPriorityImplicits
                 case Okay(value) => Seq(value)
                 case _ => Seq.empty
             }
+
+        /** Allow a string to be used with ResultG's `|` operator to wrap a failure with a new explanatory message. For example: `rslt | "explanation"` */
+        implicit def stringAsFailedMessage[E](s: String): FailedG[E] => FailedG[E] =
+            failed => FailedG(s, failed.throwable, failed.parameter)
+
+        /** Allow a FailedParameter to be used with ResultG's `|` operator to attach or replace a parameter. For example `rslt | MyFailedParameter("foo")` */
+        implicit def failedParameterAsParameter[E <: FailedParameter](parameter: E): FailedG[Any] => FailedG[E] =
+            failed => FailedG(failed.throwable, parameter)
+
+        /**
+         * Allow a pair (usually written with `->`) to be used with ResultG's `|` operator to wrap a failure with a new message and parameter.
+         * For example `rslt | ("explanation" -> param)`
+         */
+        implicit def pairAsFailed[E](pair: (String, E)): FailedG[Any] => FailedG[E] =
+            failed => FailedG(pair._1, failed.throwable, pair._2)
+
+        /** Allow a ResultG to be used with ResultG's `|` to replace a failure with some alternate. For example `rslt | Okay("default value")` */
+        implicit def resultAsReplacement[E, A](replacement: ResultG[E, A]): FailedG[Any] => ResultG[E, A] =
+            _ => replacement
     }
+
+    /** Allow any value to be used with ResultG's `|` to attach or replace a failure parameter. For example `rslt | parameter(1)` */
+    def parameter[E](parameter: E): FailedG[Any] => FailedG[E] =
+        failed => FailedG(failed.throwable, parameter)
 
     /** Result of a successful computation */
     final case class Okay[+A](result: A) extends ResultG[Nothing, A]
@@ -235,7 +259,7 @@ object result extends resultLowPriorityImplicits
         def asA[B](implicit m: Manifest[B]): Result[B] =
             tryCatching[ClassCastException].value {
                 m.erasure.cast(result).asInstanceOf[B]
-            } replaceFailureWith ("expected a " + m + " but got a " + (result.asInstanceOf[AnyRef] match {
+            } | Failed("expected a " + m + " but got a " + (result.asInstanceOf[AnyRef] match {
                 case null => "null"
                 case other => other.getClass.getName
             }))
@@ -243,7 +267,7 @@ object result extends resultLowPriorityImplicits
         def asAG[F, B](clazz: Class[B], parameter: F): ResultG[F, B] =
             tryCatching[ClassCastException].value {
                 clazz.cast(result).asInstanceOf[B]
-            } replaceFailureWith ("expected a " + clazz.getName + " but got a " + (result.asInstanceOf[AnyRef] match {
+            } | FailedG("expected a " + clazz.getName + " but got a " + (result.asInstanceOf[AnyRef] match {
                 case null => "null"
                 case other => other.getClass.getName
             }), parameter)
@@ -259,19 +283,14 @@ object result extends resultLowPriorityImplicits
         def isDefined: Boolean                                              = true
         def iterator: Iterator[A]                                           = Iterator.single(result)
         def map[B](f: A => B): Okay[B]                                      = Okay(f(result))
-        def orElse[E, B >: A](alternative: => ResultG[E, B]): ResultG[E, B] = this
+        def | [F, B >: A] (f: FailedG[Nothing] => ResultG[F, B]): ResultG[F, B] = this
         def orNull[B >: A](implicit ev: Null <:< B): B                      = result
         def orThrow: A                                                      = result
         override def productPrefix: String                                  = "Okay"
         def toList: List[A]                                                 = result :: Nil
         def toOption: Option[A]                                             = Some(result)
         def toEither: Right[Nothing, A]                                     = Right(result)
-        def whenFailed(message: String): Okay[A]                            = this
-        def whenFailed[F](message: String, parameter: F): Okay[A]           = this
-        def withFailureParameter[F](parameter: F): Okay[A]                  = this
         def then[E, B](alternative: ResultG[E, B]): ResultG[E, B]           = alternative
-        def replaceFailureWith(message: String): Okay[A]                    = this
-        def replaceFailureWith[F](message: String, parameter: F): Okay[A]   = this
         def isA[B](implicit m: Manifest[B]): Boolean                        = m.erasure.isInstance(result)
         def pass(f: ResultG[Nothing, A] => Any): Okay[A]                    = { f(this); this }
         def flatten[E, B](implicit ev: A => ResultG[E, B]): ResultG[E, B]   = ev(result)
@@ -299,19 +318,14 @@ object result extends resultLowPriorityImplicits
         def isDefined: Boolean                                                    = false
         def iterator: Iterator[Nothing]                                           = Iterator.empty
         def map[B](f: Nothing => B): FailedG[E]                                   = this
-        def orElse[F, B](alternative: => ResultG[F, B]): ResultG[F, B]            = alternative
+        def | [F, B] (f: FailedG[E] => ResultG[F, B]): ResultG[F, B]              = f(this)
         def orNull[B](implicit ev: Null <:< B): B                                 = ev(null)
         override def productPrefix: String                                        = "Failed"
         def toList: List[Nothing]                                                 = Nil
         def toOption: Option[Nothing]                                             = None
         def toEither: Left[(Throwable, E), Nothing]                               = Left((throwable, parameter))
         def orThrow: Nothing                                                      = throw throwable
-        def whenFailed(message: String): FailedG[E]                               = FailedG(new FailedException(message, throwable), parameter)
-        def whenFailed[F](message: String, parameter: F): FailedG[F]              = FailedG(new FailedException(message, throwable), parameter)
-        def withFailureParameter[F](parameter: F): FailedG[F]                     = FailedG(throwable, parameter)
         def then[F >: E, B](alternative: ResultG[F, B]): FailedG[F]               = this
-        def replaceFailureWith(message: String): Failed                           = Failed(message)
-        def replaceFailureWith[F](message: String, parameter: F): FailedG[F]      = FailedG(message, parameter)
         def isA[B](implicit m: Manifest[B]): Boolean                              = false
         def asA[B](implicit m: Manifest[B]): Failed                               = Failed(throwable)
         def asAG[F >: E, B](clazz: Class[B], parameter: F): ResultG[F, B]         = this
@@ -380,18 +394,18 @@ object result extends resultLowPriorityImplicits
         /** Construct a FailedG using the given throwable and no argument (unit) */
         def apply(throwable: Throwable): Failed = FailedG(throwable, ())
 
-        /** Extract a failure message from a Result */
-        def unapply(in: Result[_]): Option[String] =
+        /** Extract a cause throwable from a Result */
+        def unapply(in: Result[_]): Option[Throwable] =
             in match {
-                case FailedG(throwable, _) => Option(throwable.getMessage) orElse Some("unknown error")
+                case FailedG(throwable, _) => Some(throwable)
                 case _                     => None
             }
 
-        object WithThrowable {
-            /** Extract a failure throwable from a Result */
-            def unapply(in: Result[_]): Option[Throwable] =
+        object Message {
+            /** Extract a failure message from a Result */
+            def unapply(in: Result[_]): Option[String] =
                 in match {
-                    case FailedG(throwable, _) => Some(throwable)
+                    case FailedG(throwable, _) => Option(throwable.getMessage) orElse Some("unknown error")
                     case _                     => None
                 }
         }
