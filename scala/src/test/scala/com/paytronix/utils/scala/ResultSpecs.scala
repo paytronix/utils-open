@@ -16,426 +16,360 @@
 
 package com.paytronix.utils.scala
 
-import org.specs._
-import org.specs.matcher.Matcher
-import org.specs.runner.JUnit4
+import org.specs2.SpecificationWithJUnit
+import org.specs2.matcher.{AnyMatchers, Matcher, StandardMatchResults}
 
-import result.{Failed, FailedG, Okay, Result, ResultG, eitherOps, eitherOpsG, optionOps, tryCatch, tryCatching}
+import result.{
+    Failed, FailedG, FailedParameter, Okay, Result, ResultG, eitherOps, eitherOpsG, optionOps, parameter, tryCatch, tryCatching
+}
 
-class ResultTestSpecsAsTest extends JUnit4(ResultTestSpecs)
+object ResultMatchers extends AnyMatchers with StandardMatchResults {
 
-object ResultTestSpecs extends Specification {
-    case class beFailedWith[E](message: String, parameter: E) extends Matcher[ResultG[E, _]] {
-        def apply(actual: => ResultG[E, _]) = {
-            val failedMessage = PartialFunction.condOpt(actual) {
-                case FailedG(throwable, actualParameter) if message != throwable.getMessage && parameter != actualParameter =>
+    def beFailedWith(message: String): Matcher[ResultG[Unit, _]] =
+        beFailedWith(message, ())
+
+    def beFailedWith[E](message: String, parameter: E): Matcher[ResultG[E, _]] =
+        beLike {
+            case FailedG(throwable, actualParameter) if message != throwable.getMessage && parameter != actualParameter =>
+                ko (
                     "expected message \"" + message + "\" does not match actual message \"" + throwable.getMessage + "\" and" +
-                    " expected parameter \"" + String.valueOf(parameter) + "\" does not match actual parameter \"" + String.valueOf(actualParameter) + "\""
+                    " expected parameter \"" + String.valueOf(parameter) + "\" does not match actual parameter \"" +
+                    String.valueOf(actualParameter) + "\""
+                )
 
-                case FailedG(throwable, _) if message != throwable.getMessage =>
-                    "expected message \"" + message + "\" does not match actual message \"" + throwable.getMessage + "\""
+            case FailedG(throwable, _) if message != throwable.getMessage =>
+                ko("expected message \"" + message + "\" does not match actual message \"" + throwable.getMessage + "\"")
 
-                case FailedG(_, actualParameter) if parameter != actualParameter =>
-                    "expected parameter \"" + String.valueOf(parameter) + "\" does not match actual parameter \"" + String.valueOf(actualParameter) + "\""
+            case FailedG(_, actualParameter) if parameter != actualParameter =>
+                ko (
+                    "expected parameter \"" + String.valueOf(parameter) + "\" does not match actual parameter \"" +
+                    String.valueOf(actualParameter) + "\""
+                )
 
-                case Okay(_) =>
-                    "expected failure with message \"" + message + "\" and parameter \"" + String.valueOf(parameter) + "\", but got success"
-            }
+            case Okay(_) =>
+                ko (
+                    "expected failure with message \"" + message + "\" and parameter \"" + String.valueOf(parameter) +
+                    "\", but got success"
+                )
 
-            (!failedMessage.isDefined, "ok", failedMessage getOrElse "")
+            case _ => ok
         }
-    }
 
-    object beFailedWith {
-        def apply(message: String): beFailedWith[Unit] = beFailedWith(message, ())
-    }
+    def beFailedWithCause(message: String): Matcher[ResultG[_, _]] =
+        beLike {
+            case FailedG(throwable, _) if throwable.getCause == null =>
+                ko (
+                    "expected cause message \"" + message + "\", but failure has no cause (message is \"" +
+                    throwable.getMessage + "\")"
+                )
 
-    case class beFailedWithCause(message: String) extends Matcher[ResultG[_, _]] {
-        def apply(actual: => ResultG[_, _]) = {
-            val failedMessage = PartialFunction.condOpt(actual) {
-                case FailedG(throwable, _) if throwable.getCause == null =>
-                    "expected cause message \"" + message + "\", but failure has no cause (message is \"" + throwable.getMessage + "\")"
+            case FailedG(throwable, _) if throwable.getCause.getMessage != message =>
+                ko (
+                    "expected cause message \"" + message + "\" does not match actual cause message \"" +
+                    throwable.getCause.getMessage + "\""
+                )
 
-                case FailedG(throwable, _) if throwable.getCause.getMessage != message =>
-                    "expected cause message \"" + message + "\" does not match actual cause message \"" + throwable.getCause.getMessage + "\""
+            case Okay(_) =>
+                ko("expected failure with cause message \"" + message + "\", but got success")
 
-                case Okay(_) =>
-                    "expected failure with cause message \"" + message + "\", but got success"
-            }
-
-            (!failedMessage.isDefined, "ok", failedMessage getOrElse "")
+            case _ => ok
         }
-    }
 
-    case object beFailedWithoutCause extends Matcher[ResultG[_, _]] {
-        def apply(actual: => ResultG[_, _]) = {
-            val failedMessage = PartialFunction.condOpt(actual) {
-                case FailedG(throwable, _) if throwable.getCause != null =>
-                    "expected no cause to failure, but got \"" + throwable.getCause + "\""
+    def beFailedWithoutCause: Matcher[ResultG[_, _]] =
+        beLike {
+            case FailedG(throwable, _) if throwable.getCause != null =>
+                ko("expected no cause to failure, but got \"" + throwable.getCause + "\"")
 
-                case Okay(_) =>
-                    "expected failure without cause, but got success"
-            }
+            case Okay(_) =>
+                ko("expected failure without cause, but got success")
 
-            (!failedMessage.isDefined, "ok", failedMessage getOrElse "")
+            case _ => ok
         }
-    }
+}
+
+object ResultFixtures {
+    val okay: ResultG[Nothing, String] = Okay("foo")
+    val failedUnit: ResultG[Unit, String] = Failed("failed message")
+    val failedInt: ResultG[Int, String] = FailedG("failed message", 1)
 
     class ExceptionA(message: String) extends RuntimeException(message)
     class ExceptionB(message: String) extends RuntimeException(message)
 
-    "Okay" should {
-        val okay: ResultG[Nothing, String] = Okay("foo")
+    final case class MyFailedParameter(s: String) extends FailedParameter
+}
 
-        "collect" in {
-            okay.collect { case "foo" => 1 } must_== Okay(1)
-            okay.collect { case "bar" => 1 } must beFailedWith("partial function did not apply to value")
-        }
+import ResultMatchers._
+import ResultFixtures._
 
-        "filter" in {
-            okay.filter(_ == "foo") must_== okay
-            okay.filter(_ == "bar") must beFailedWith("value did not pass filter")
-        }
+class OkaySpecTest extends SpecificationWithJUnit { def is =
+    "Okay should" ^
+    "collect" ! {
+        { okay.collect { case "foo" => 1 } must_== Okay(1) } and
+        { okay.collect { case "bar" => 1 } must beFailedWith("partial function did not apply to value") }
+    } ^
+    "filter" ! {
+        { okay.filter(_ == "foo") must_== okay } and
+        { okay.filter(_ == "bar") must beFailedWith("value did not pass filter") }
+    } ^
+    "filterNot" ! {
+        { okay.filterNot(_ == "foo") must beFailedWith("value did not pass filter") } and
+        { okay.filterNot(_ == "bar") must_== okay }
+    } ^
+    "flatMap" ! {
+        { okay.flatMap(s => Okay(s + "bar")) must_== Okay("foobar") } and
+        { okay.flatMap(s => Failed("foo")) must beFailedWith("foo") }
+    } ^
+    "foreach" ! {
+        var isGood = false
+        okay.foreach(s => isGood = s == "foo")
+        isGood must beTrue
+    } ^
+    "getOrElse" ! {
+        okay getOrElse "bar" must_== "foo"
+    } ^
+    "isDefined" ! {
+        okay.isDefined must beTrue
+    } ^
+    "iterator" ! {
+        val iter = okay.iterator
 
-        "filterNot" in {
-            okay.filterNot(_ == "foo") must beFailedWith("value did not pass filter")
-            okay.filterNot(_ == "bar") must_== okay
-        }
+        { iter.hasNext must beTrue } and
+        { iter.next must_== "foo" }
+    } ^
+    "map" ! {
+        okay.map(_ + "bar") must_== Okay("foobar")
+    } ^
+    "| (orElse)" ! {
+        { (okay | "bar") must_== okay }
+        { (okay | parameter("bar")) must_== okay }
+        { (okay | MyFailedParameter("bar")) must_== okay }
+        { (okay | ("bar" -> Nil)) must_== okay }
+        { (okay | Failed("bar")) must_== okay }
+        { (okay | Okay("bar")) must_== okay }
+        { (okay | { case Failed(throwable) => FailedG(throwable, "foo" + throwable.getMessage) }) must_== okay }
+    } ^
+    "orNull" ! {
+        okay.orNull must_== "foo"
+    } ^
+    "productPrefix" ! {
+        okay.productPrefix must_== "Okay"
+    } ^
+    "toList" ! {
+        okay.toList must_== List("foo")
+    } ^
+    // toOption tested in Result conversion
+    // toEither tested in Result conversion
+    "then" ! {
+        okay then Okay("bar") must_== Okay("bar")
+    } ^
+    "isA" ! {
+        { okay.isA[String] must beTrue  } and
+        { okay.isA[Int]    must beFalse } and
+        { okay.isA[AnyRef] must beTrue  }
+    } ^
+    "asA" ! {
+        { okay.asA[String] must_== okay } and
+        { okay.asA[Int]    must beFailedWith("expected a Int but got a java.lang.String") } and
+        { okay.asA[AnyRef] must_== okay }
+    } ^
+    "pass" ! {
+        var result: ResultG[Unit, String] = null
 
-        "flatMap" in {
-            okay.flatMap(s => Okay(s + "bar")) must_== Okay("foobar")
-            okay.flatMap(s => Failed("foo")) must beFailedWith("foo")
-        }
-
-        "foreach" in {
-            var isGood = false
-            okay.foreach(s => isGood = s == "foo")
-            isGood must beTrue
-        }
-
-        "getOrElse" in {
-            okay getOrElse "bar" must_== "foo"
-        }
-
-        "isDefined" in {
-            okay.isDefined must beTrue
-        }
-
-        "iterator" in {
-            val iter = okay.iterator
-            iter.hasNext must beTrue
-            iter.next must_== "foo"
-        }
-
-        "map" in {
-            okay.map(_ + "bar") must_== Okay("foobar")
-        }
-
-        "| (orElse)" in {
-            (okay | "bar") must_== okay
-            (okay | parameter("bar")) must_== okay
-            (okay | MyFailedParameter("bar")) must_== okay
-            (okay | ("bar" -> Nil)) must_== okay
-            (okay | Failed("bar")) must_== okay
-            (okay | Okay("bar")) must_== okay
-            (okay | { case Failed(throwable) => Failed(throwable, "foo" + throwable.getMessage) }) must_== okay
-        }
-
-        "orNull" in {
-            okay.orNull must_== "foo"
-        }
-
-        "productPrefix" in {
-            okay.productPrefix must_== "Okay"
-        }
-
-        "toList" in {
-            okay.toList must_== List("foo")
-        }
-
-        // toOption tested in Result conversion
-        // toBox tested in Result conversion
-
-        "then" in {
-            okay then Okay("bar") must_== Okay("bar")
-        }
-
-        "isA" in {
-            okay.isA[String] must beTrue
-            okay.isA[Int] must beFalse
-            okay.isA[AnyRef] must beTrue
-        }
-
-        "asA" in {
-            okay.asA[String] must_== okay
-            okay.asA[Int] must beFailedWith("expected a Int but got a java.lang.String")
-            okay.asA[AnyRef] must_== okay
-        }
-
-        "pass" in {
-            var result: ResultG[Unit, String] = null
-            okay pass (result = _) must_== okay
-            result must_== okay
-        }
-
-        "flatten" in {
-            Okay(okay).flatten must_== okay
-            Okay(Failed("foo")).flatten must beFailedWith("foo")
-        }
-
+        { okay pass (result = _) must_== okay } and
+        { result must_== okay }
+    } ^
+    "flatten" ! {
+        { Okay(okay).flatten must_== okay } and
+        { Okay(Failed("foo")).flatten must beFailedWith("foo") }
     }
+}
 
-    "FailedG" should {
-        val failedUnit: ResultG[Unit, String] = Failed("failed message")
-        val failedInt: ResultG[Int, String] = FailedG("failed message", 1)
+class FailedGSpecTest extends SpecificationWithJUnit { def is =
+    "FailedG should" ^
+    "collect" ! {
+        { failedUnit.collect { case "foo" => 1 } must beFailedWith("failed message") } and
+        { failedUnit.collect { case "bar" => 1 } must beFailedWith("failed message") } and
+        { failedInt.collect { case "foo" => 1 } must beFailedWith("failed message") } and
+        { failedInt.collect { case "bar" => 1 } must beFailedWith("failed message") }
+    } ^
+    "filter" ! {
+        { failedUnit.filter(_ == "foo") must beFailedWith("failed message") } and
+        { failedUnit.filter(_ == "bar") must beFailedWith("failed message") } and
+        { failedInt.filter(_ == "foo") must beFailedWith("failed message") } and
+        { failedInt.filter(_ == "bar") must beFailedWith("failed message") }
+    } ^
+    "filterNot" ! {
+        { failedUnit.filterNot(_ == "foo") must beFailedWith("failed message") } and
+        { failedUnit.filterNot(_ == "bar") must beFailedWith("failed message") } and
+        { failedInt.filterNot(_ == "foo") must beFailedWith("failed message") } and
+        { failedInt.filterNot(_ == "bar") must beFailedWith("failed message") }
+    } ^
+    "flatMap" ! {
+        { failedUnit.flatMap(s => Okay(s + "bar")) must beFailedWith("failed message", ()) } and
+        { failedUnit.flatMap(s => Failed("foo")) must beFailedWith("failed message", ()) } and
+        { failedInt.flatMap(s => Okay(s + "bar")) must beFailedWith("failed message", 1) } and
+        { failedInt.flatMap(s => FailedG("foo", 2)) must beFailedWith("failed message", 1) }
+    } ^
+    "foreach" ! {
+        var isGood = true
 
-        "collect" in {
-            failedUnit.collect { case "foo" => 1 } must beFailedWith("failed message")
-            failedUnit.collect { case "bar" => 1 } must beFailedWith("failed message")
-            failedInt.collect { case "foo" => 1 } must beFailedWith("failed message")
-            failedInt.collect { case "bar" => 1 } must beFailedWith("failed message")
-        }
+        { failedUnit.foreach(s => isGood = false); isGood must_== true } and
+        { failedInt.foreach(s => isGood = false); isGood must_== true }
+    } ^
+    "getOrElse" ! {
+        { failedUnit getOrElse "bar" must_== "bar" } and
+        { failedInt getOrElse "bar" must_== "bar" }
+    } ^
+    "isDefined" ! {
+        { failedUnit.isDefined must beFalse } and
+        { failedInt.isDefined must beFalse }
+    } ^
+    "iterator" ! {
+        failedUnit.iterator.hasNext must beFalse
+    } ^
+    "map" ! {
+        { failedUnit.map(_ + "bar") must_== failedUnit } and
+        { failedInt.map(_ + "bar") must_== failedInt }
+    } ^
+    "| (orElse)" ! {
+        { (failedInt | "bar") must (beFailedWith("bar", 1) and beFailedWithCause("failed message")) } and
+        { (failedInt | parameter("bar")) must (beFailedWith("failed message", "bar") and beFailedWithoutCause) } and
+        { (failedInt | MyFailedParameter("bar")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause) } and
+        { (failedInt | ("bar" -> Nil)) must (beFailedWith("bar", Nil) and beFailedWithCause("failed message")) } and
+        { (failedInt | Failed("bar")) must (beFailedWith("bar") and beFailedWithoutCause) } and
+        { (failedInt | Okay("bar")) must_== Okay("bar") } and
+        { (failedInt | { case FailedG(throwable, _) => FailedG(throwable, "foo" + throwable.getMessage) }) must beFailedWith("failed message", "foofailed message") and beFailedWithoutCause }
+    } ^
+    "orNull" ! {
+        { failedUnit.orNull must beNull } and
+        { failedInt.orNull  must beNull }
+    } ^
+    "productPrefix" ! {
+        { failedUnit.productPrefix must_== "Failed" } and
+        { failedInt.productPrefix  must_== "Failed" }
+    } ^
+    "toList" ! {
+        { failedUnit.toList must_== Nil } and
+        { failedInt.toList  must_== Nil }
+    } ^
+    // toOption tested in Result conversion
+    // toBox tested in Result conversion
+    "then" ! {
+        { failedUnit then Okay("bar") must_== failedUnit } and
+        { failedInt then Okay("bar")  must_== failedInt }
+    } ^
+    "isA" ! {
+        { failedUnit.isA[String] must beFalse } and
+        { failedUnit.isA[Int]    must beFalse } and
+        { failedUnit.isA[AnyRef] must beFalse } and
+        { failedInt.isA[String]  must beFalse } and
+        { failedInt.isA[Int]     must beFalse } and
+        { failedInt.isA[AnyRef]  must beFalse }
+    } ^
+    "asA" ! {
+        { failedUnit.asA[String] must beFailedWith("failed message") } and
+        { failedUnit.asA[Int]    must beFailedWith("failed message") } and
+        { failedUnit.asA[AnyRef] must beFailedWith("failed message") } and
+        { failedInt.asA[String]  must beFailedWith("failed message") } and
+        { failedInt.asA[Int]     must beFailedWith("failed message") } and
+        { failedInt.asA[AnyRef]  must beFailedWith("failed message") }
+    } ^
+    "pass" ! {
+        var resultUnit: ResultG[Unit, String] = null
+        var resultInt: ResultG[Int, String] = null
 
-        "filter" in {
-            failedUnit.filter(_ == "foo") must beFailedWith("failed message")
-            failedUnit.filter(_ == "bar") must beFailedWith("failed message")
-            failedInt.filter(_ == "foo") must beFailedWith("failed message")
-            failedInt.filter(_ == "bar") must beFailedWith("failed message")
-        }
-
-        "filterNot" in {
-            failedUnit.filterNot(_ == "foo") must beFailedWith("failed message")
-            failedUnit.filterNot(_ == "bar") must beFailedWith("failed message")
-            failedInt.filterNot(_ == "foo") must beFailedWith("failed message")
-            failedInt.filterNot(_ == "bar") must beFailedWith("failed message")
-        }
-
-        "flatMap" in {
-            failedUnit.flatMap(s => Okay(s + "bar")) must beFailedWith("failed message", ())
-            failedUnit.flatMap(s => Failed("foo")) must beFailedWith("failed message", ())
-            failedInt.flatMap(s => Okay(s + "bar")) must beFailedWith("failed message", 1)
-            failedInt.flatMap(s => FailedG("foo", 2)) must beFailedWith("failed message", 1)
-        }
-
-        "foreach" in {
-            var isGood = true
-            failedUnit.foreach(s => isGood = false)
-            isGood must_== true
-            failedInt.foreach(s => isGood = false)
-            isGood must_== true
-        }
-
-        "getOrElse" in {
-            failedUnit getOrElse "bar" must_== "bar"
-            failedInt getOrElse "bar" must_== "bar"
-        }
-
-        "isDefined" in {
-            failedUnit.isDefined must beFalse
-            failedInt.isDefined must beFalse
-        }
-
-        "iterator" in {
-            val iter = failedUnit.iterator
-            iter.hasNext must beFalse
-        }
-
-        "map" in {
-            failedUnit.map(_ + "bar") must_== failedUnit
-            failedInt.map(_ + "bar") must_== failedInt
-        }
-
-        "| (orElse)" in {
-            (failedInt | "bar") must (beFailedWith("bar", 1) and beFailedWithCause("failed message"))
-            (failedInt | parameter("bar")) must (beFailedWith("failed message", "bar") and beFailedWithoutCause)
-            (failedInt | MyFailedParameter("bar")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause)
-            (failedInt | ("bar" -> Nil)) must (beFailedWith("bar", Nil) and beFailedWithCause("failed message"))
-            (failedInt | Failed("bar")) must (beFailedWith("bar") and beFailedWithoutCause)
-            (failedInt | Okay("bar")) must_== Okay("bar")
-            (failedInt | { case Failed(throwable) => Failed(throwable, "foo" + throwable.getMessage) }) must (beFailed("failed message", "foofailed message") and beFailedWithoutCause)
-        }
-
-        "orNull" in {
-            failedUnit.orNull must beNull
-            failedInt.orNull must beNull
-        }
-
-        "productPrefix" in {
-            failedUnit.productPrefix must_== "Failed"
-            failedInt.productPrefix must_== "Failed"
-        }
-
-        "toList" in {
-            failedUnit.toList must_== Nil
-            failedInt.toList must_== Nil
-        }
-
-        // toOption tested in Result conversion
-        // toBox tested in Result conversion
-
-        "whenFailed" in {
-            failedUnit whenFailed "bar" must (beFailedWith("bar") and beFailedWithCause("failed message"))
-            failedInt whenFailed "bar" must (beFailedWith("bar", 1) and beFailedWithCause("failed message"))
-            failedUnit whenFailed ("bar", 2) must (beFailedWith("bar", 2) and beFailedWithCause("failed message"))
-            failedInt whenFailed ("bar", 2) must (beFailedWith("bar", 2) and beFailedWithCause("failed message"))
-        }
-
-        "withFailureParameter" in {
-            failedUnit withFailureParameter 2 must beFailedWith("failed message", 2)
-            failedInt withFailureParameter 2 must beFailedWith("failed message", 2)
-        }
-
-        "then" in {
-            failedUnit then Okay("bar") must_== failedUnit
-            failedInt then Okay("bar") must_== failedInt
-        }
-
-        "replaceFailureWith" in {
-            failedUnit replaceFailureWith "bar" must (beFailedWith("bar") and beFailedWithoutCause)
-            failedInt replaceFailureWith "bar" must (beFailedWith("bar") and beFailedWithoutCause)
-            failedUnit replaceFailureWith ("bar", 2) must (beFailedWith("bar", 2) and beFailedWithoutCause)
-            failedInt replaceFailureWith ("bar", 2) must (beFailedWith("bar", 2) and beFailedWithoutCause)
-        }
-
-        "isA" in {
-            failedUnit.isA[String] must beFalse
-            failedUnit.isA[Int] must beFalse
-            failedUnit.isA[AnyRef] must beFalse
-            failedInt.isA[String] must beFalse
-            failedInt.isA[Int] must beFalse
-            failedInt.isA[AnyRef] must beFalse
-        }
-
-        "asA" in {
-            failedUnit.asA[String] must beFailedWith("failed message")
-            failedUnit.asA[Int] must beFailedWith("failed message")
-            failedUnit.asA[AnyRef] must beFailedWith("failed message")
-            failedInt.asA[String] must beFailedWith("failed message")
-            failedInt.asA[Int] must beFailedWith("failed message")
-            failedInt.asA[AnyRef] must beFailedWith("failed message")
-        }
-
-        "pass" in {
-            var resultUnit: ResultG[Unit, String] = null
-            var resultInt: ResultG[Int, String] = null
-            failedUnit pass (resultUnit = _) must_== failedUnit
-            resultUnit must_== failedUnit
-            failedInt pass (resultInt = _) must_== failedInt
-            resultInt must_== failedInt
-        }
-
-        "flatten" in {
-            (Failed("foo"): Result[Result[String]]).flatten must beFailedWith("foo")
-            Okay(failedUnit).flatten must_== failedUnit
-            Okay(failedInt).flatten must_== failedInt
-        }
+        { failedUnit pass (resultUnit = _) must_== failedUnit } and
+        { resultUnit must_== failedUnit } and
+        { failedInt pass (resultInt = _) must_== failedInt } and
+        { resultInt must_== failedInt }
+    } ^
+    "flatten" ! {
+        { (Failed("foo"): Result[Result[String]]).flatten must beFailedWith("foo") } and
+        { Okay(failedUnit).flatten must_== failedUnit } and
+        { Okay(failedInt).flatten must_== failedInt }
     }
+}
 
-    "ResultG" should {
-        "work in the simplest of for comprehensions (map only)" in {
-            (for (str <- Okay("foo"))               yield str + "bar") must_== Okay("foobar")
-            (for (str <- (Failed("foo"): Result[String])) yield str + "bar") must beFailedWith("foo")
-        }
+class ResultGSpecTest extends SpecificationWithJUnit { def is =
+    "ResultG" ^
+    "work in the simplest of for comprehensions (map only)" ! {
+        { (for (str <- Okay("foo"))               yield str + "bar") must_== Okay("foobar") } and
+        { (for (str <- (Failed("foo"): Result[String])) yield str + "bar") must beFailedWith("foo") }
+    } ^
+    "work in simple for comprehensions (map and flatMap)" ! {
+        { (for (foo <- Okay("foo");               bar <- Okay("bar"))       yield foo + bar) must_== Okay("foobar") } and
+        { (for (foo <- (Failed("foo"): Result[String]); bar <- Okay("bar")) yield foo + bar) must beFailedWith("foo") } and
+        { (for (foo <- Okay("foo");               bar <- Failed("bar"))     yield foo + bar) must beFailedWith("bar") }
+    } ^
+    "work in complicated for comprehensions (map, flatMap, and filter)" ! {
+        { (for (foo <- Okay("foo"); if foo.length == 3; bar <- Okay("bar")) yield foo + bar) must_== Okay("foobar") } and
+        { (for (foo <- Okay("foo"); if foo.length == 4; bar <- Okay("bar")) yield foo + bar) must beFailedWith("value did not pass filter") }
+    } ^
+    "work in side effecting for comprehensions (foreach)" ! {
+        var result: String = null
 
-        "work in simple for comprehensions (map and flatMap)" in {
-            (for (foo <- Okay("foo");               bar <- Okay("bar")) yield foo + bar) must_== Okay("foobar")
-            (for (foo <- (Failed("foo"): Result[String]); bar <- Okay("bar")) yield foo + bar) must beFailedWith("foo")
-            (for (foo <- Okay("foo");               bar <- Failed("bar"))    yield foo + bar) must beFailedWith("bar")
-        }
-
-        "work in complicated for comprehensions (map, flatMap, and filter)" in {
-            {
-                for {
-                    foo <- Okay("foo")
-                    if foo.length == 3
-                    bar <- Okay("bar")
-                } yield foo + bar
-            } must_== Okay("foobar")
-
-            {
-                for {
-                    foo <- Okay("foo")
-                    if foo.length == 4
-                    bar <- Okay("bar")
-                } yield foo + bar
-            } must beFailedWith("value did not pass filter")
-        }
-
-        "work in side effecting for comprehensions (foreach)" in {
-            var result: String = null
-            (for (foo <- Okay("foo")) { result = foo; foo }) must_== ()
-            result must_== "foo"
-        }
+        { (for (foo <- Okay("foo")) { result = foo; foo }) must_== () } and
+        { result must_== "foo" }
     }
+}
 
-    "Result conversion" should {
-        "convert non-null to Okay" in {
-            ResultG("foo") must_== Okay("foo")
-        }
-
-        "convert null to Failed(\"value was null\")" in {
-            ResultG(null) must beFailedWith("value was null")
-        }
-
-        "convert None to Failed(\"option was none\")" in {
-            None.toResult must beFailedWith("option was none")
-        }
-
-        "convert Some to Okay" in {
-            Some("foo").toResult must_== Okay("foo")
-        }
-
-        "convert Okay to Some" in {
-            Okay("foo").toOption must beSome("foo")
-        }
-
-        "convert Failed to None" in {
-            Failed("foo").toOption must beNone
-        }
-
-        "convert Left(throwable) into Failed" in {
-            val t = new RuntimeException("foo")
-            Left(t).toResult must_== Failed(t)
-        }
-
-        "convert Left((throwable, param)) into FailedG" in {
-            val t = new RuntimeException("foo")
-            val p = "bar"
-            Left((t, p)).toResult must_== FailedG(t, p)
-        }
-
-        "convert Right into Okay" in {
-            Right("bar").toResult must_== Okay("bar")
-        }
-
-        "convert Okay into Right" in {
-            Okay("bar").toEither must_== Right("bar")
-        }
-
-        "convert FailedG into Left" in {
-            val t = new RuntimeException("foo")
-            FailedG(t, "bar").toEither must_== Left(t, "bar")
-        }
+class ResultConversionSpecTest extends SpecificationWithJUnit { def is =
+    "Result conversion" ^
+    "convert non-null to Okay" ! {
+        ResultG("foo") must_== Okay("foo")
+    } ^
+    "convert null to Failed(\"value was null\")" ! {
+        ResultG(null) must beFailedWith("value was null")
+    } ^
+    "convert None to Failed(\"option was none\")" ! {
+        None.toResult must beFailedWith("option was none")
+    } ^
+    "convert Some to Okay" ! {
+        Some("foo").toResult must_== Okay("foo")
+    } ^
+    "convert Okay to Some" ! {
+        Okay("foo").toOption must beSome("foo")
+    } ^
+    "convert Failed to None" ! {
+        Failed("foo").toOption must beNone
+    } ^
+    "convert Left(throwable) into Failed" ! {
+        val t = new RuntimeException("foo")
+        Left(t).toResult must_== Failed(t)
+    } ^
+    "convert Left((throwable, param)) into FailedG" ! {
+        val t = new RuntimeException("foo")
+        val p = "bar"
+        Left((t, p)).toResult must_== FailedG(t, p)
+    } ^
+    "convert Right into Okay" ! {
+        Right("bar").toResult must_== Okay("bar")
+    } ^
+    "convert Okay into Right" ! {
+        Okay("bar").toEither must_== Right("bar")
+    } ^
+    "convert FailedG into Left" ! {
+        val t = new RuntimeException("foo")
+        FailedG(t, "bar").toEither must_== Left(t, "bar")
     }
+}
 
-    "Catching" should {
-        "catch any Exception" in {
-            tryCatch.value { "foo" } must_== Okay("foo")
-            tryCatch.value { throw new RuntimeException("foo") } must beFailedWith("foo")
-            tryCatch.value { throw new Throwable("foo") } must throwA[Throwable]
-        }
-
-        "catch only a specific Exception" in {
-            tryCatching[ExceptionA].value { "foo" } must_== Okay("foo")
-            tryCatching[ExceptionA].value { throw new ExceptionA("foo") } must beFailedWith("foo")
-            tryCatching[ExceptionA].value { throw new ExceptionB("foo") } must throwA[ExceptionB]
-        }
-
-        "catch only specific Exceptions" in {
-            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { "foo" } must_== Okay("foo")
-            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionA("foo") } must beFailedWith("foo")
-            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionB("foo") } must beFailedWith("foo")
-            tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new UnsupportedOperationException("foo") } must throwA[UnsupportedOperationException]
-        }
+class CatchingSpecTest extends SpecificationWithJUnit { def is =
+    "Catching should" ^
+    "catch any Exception" ! {
+        { tryCatch.value { "foo" } must_== Okay("foo") } and
+        { tryCatch.value { throw new RuntimeException("foo") } must beFailedWith("foo") } and
+        { tryCatch.value { throw new Throwable("foo") } must throwA[Throwable] }
+    } ^
+    "catch only a specific Exception" ! {
+        { tryCatching[ExceptionA].value { "foo" } must_== Okay("foo") } and
+        { tryCatching[ExceptionA].value { throw new ExceptionA("foo") } must beFailedWith("foo") } and
+        { tryCatching[ExceptionA].value { throw new ExceptionB("foo") } must throwA[ExceptionB] }
+    } ^
+    "catch only specific Exceptions" ! {
+        { tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { "foo" } must_== Okay("foo") } and
+        { tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionA("foo") } must beFailedWith("foo") } and
+        { tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionB("foo") } must beFailedWith("foo") } and
+        { tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new UnsupportedOperationException("foo") } must throwA[UnsupportedOperationException] }
     }
 }

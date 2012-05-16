@@ -24,20 +24,16 @@ import scala.math.{BigDecimal => ScalaBigDecimal}
 import net.liftweb.json.Implicits.{int2jvalue, string2jvalue}
 import net.liftweb.json.JsonAST.{JArray, JNothing, JObject, JValue}
 import net.liftweb.json.JsonDSL.{jobject2assoc, pair2Assoc, pair2jvalue}
-import org.specs._
-import org.specs.runner.JUnit4
+import org.specs2.SpecificationWithJUnit
+import org.specs2.execute.{Result => SpecsResult}
 import com.paytronix.utils.extendedreflection.Builder
 import com.paytronix.utils.interchange._
-import com.paytronix.utils.scala.result.{Failed, Okay, Result}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, parameter}
 
 import fixtures._
 import Helpers._
 
-class CodingTestSpecsAsTest extends JUnit4(CodingTestSpecs)
-
-object CodingTestSpecs extends Specification {
-    noDetailedDiffs()
-
+object CodingFixtures {
     class BigIntTV          extends TestValue[BigInt]              { val test: BigInt              = null     }
     class BigIntegerTV      extends TestValue[BigInteger]          { val test: BigInteger          = null     }
     class BooleanTV         extends TestValue[Boolean]             { val test: Boolean             = false    }
@@ -115,227 +111,205 @@ object CodingTestSpecs extends Specification {
     class EnclosedCaseClassTV extends TestValue[EnclosingClass#EnclosedCaseClass] {
         val test: EnclosingClass#EnclosedCaseClass = null
     }
+}
 
-    "Coding frontend" should {
-        Coding.reset.before
+import CodingFixtures._
 
-        "support quick decode" in {
+class CodingFrontendSpecTest extends SpecificationWithJUnit {
+    def is =
+        "Coding frontend should" ^
+        "support quick decode" ! resetCoding {
             Coding.decode[CaseClass](("foo" -> 1) ~ ("bar" -> "baz") ~ ("zip" -> "qux")) must_== Okay(CaseClass(1, "baz", Some("qux")))
+        } ^
+        "support quick encode" ! resetCoding {
+            Coding.encode(CaseClass(1, "baz", Some("qux"))) | parameter(Nil) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz") ~ ("zip" -> "qux"))
         }
+}
 
-        "support quick encode" in {
-            Coding.encode(CaseClass(1, "baz", Some("qux"))) withFailureParameter Nil must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz") ~ ("zip" -> "qux"))
-        }
-    }
+class CoderDetectionSpecTest extends SpecificationWithJUnit {
+    import fixtures._
+    import Coders._
 
-    "Coder detection" should {
-        import fixtures._
-        import Coders._
-
-        Coding.reset.before
-
-        "work for scalar types" in {
-            new BigIntTV().coder          must_== Okay(BigIntCoder)
-            new BigIntegerTV().coder      must_== Okay(BigIntegerCoder)
-            new BooleanTV().coder         must_== Okay(BooleanCoder)
-            new ByteTV().coder            must_== Okay(ByteCoder)
-            new CharTV().coder            must_== Okay(CharCoder)
-            new DoubleTV().coder          must_== Okay(DoubleCoder)
-            new FloatTV().coder           must_== Okay(FloatCoder)
-            new IntTV().coder             must_== Okay(IntCoder)
-            new JValueTV().coder          must_== Okay(JValueCoder)
-            new JavaBigDecimalTV().coder  must_== Okay(JavaBigDecimalCoder)
-            new JavaDateTV().coder        must_== Okay(JavaDateCoder)
-            new LongTV().coder            must_== Okay(LongCoder)
-            new ScalaBigDecimalTV().coder must_== Okay(ScalaBigDecimalCoder)
-            new ShortTV().coder           must_== Okay(ShortCoder)
-            new StringTV().coder          must_== Okay(StringCoder)
-        }
-
-        "work for java boxed types" in {
-            new BoxedBooleanTV().coder   must_== Okay(BooleanCoder)
-            new BoxedByteTV().coder      must_== Okay(ByteCoder)
-            new BoxedCharacterTV().coder must_== Okay(CharCoder)
-            new BoxedIntegerTV().coder   must_== Okay(IntCoder)
-            new BoxedLongTV().coder      must_== Okay(LongCoder)
-            new BoxedShortTV().coder     must_== Okay(ShortCoder)
-        }
-
-        "work for optional types" in {
-            new OptionIntTV().coder    must_== Okay(OptionCoder(IntCoder))
-            new ResultStringTV().coder must_== Okay(ResultCoder(UnitCoder, StringCoder))
-            new ResultUnitTV().coder   must_== Okay(ResultCoder(UnitCoder, UnitCoder))
-        }
-
-        "work for Either" in {
+    def is =
+        "Coder detection should" ^
+        "work for scalar types" ! resetCoding {
+            { new BigIntTV().coder          must_== Okay(BigIntCoder) } and
+            { new BigIntegerTV().coder      must_== Okay(BigIntegerCoder) } and
+            { new BooleanTV().coder         must_== Okay(BooleanCoder) } and
+            { new ByteTV().coder            must_== Okay(ByteCoder) } and
+            { new CharTV().coder            must_== Okay(CharCoder) } and
+            { new DoubleTV().coder          must_== Okay(DoubleCoder) } and
+            { new FloatTV().coder           must_== Okay(FloatCoder) } and
+            { new IntTV().coder             must_== Okay(IntCoder) } and
+            { new JValueTV().coder          must_== Okay(JValueCoder) } and
+            { new JavaBigDecimalTV().coder  must_== Okay(JavaBigDecimalCoder) } and
+            { new JavaDateTV().coder        must_== Okay(JavaDateCoder) } and
+            { new LongTV().coder            must_== Okay(LongCoder) } and
+            { new ScalaBigDecimalTV().coder must_== Okay(ScalaBigDecimalCoder) } and
+            { new ShortTV().coder           must_== Okay(ShortCoder) } and
+            { new StringTV().coder          must_== Okay(StringCoder) }
+        } ^
+        "work for java boxed types" ! resetCoding {
+            { new BoxedBooleanTV().coder   must_== Okay(BooleanCoder) } and
+            { new BoxedByteTV().coder      must_== Okay(ByteCoder) } and
+            { new BoxedCharacterTV().coder must_== Okay(CharCoder) } and
+            { new BoxedIntegerTV().coder   must_== Okay(IntCoder) } and
+            { new BoxedLongTV().coder      must_== Okay(LongCoder) } and
+            { new BoxedShortTV().coder     must_== Okay(ShortCoder) }
+        } ^
+        "work for optional types" ! resetCoding {
+            { new OptionIntTV().coder    must_== Okay(OptionCoder(IntCoder)) } and
+            { new ResultStringTV().coder must_== Okay(ResultCoder(UnitCoder, StringCoder)) } and
+            { new ResultUnitTV().coder   must_== Okay(ResultCoder(UnitCoder, UnitCoder)) }
+        } ^
+        "work for Either" ! resetCoding {
             new EitherTV().coder must_== Okay(EitherCoder(StringCoder, IntCoder))
-        }
-
-        "work for simple collection types" in {
-            new JavaListStringTV().coder must_== Okay(JavaListCoder(StringCoder))
-            new ListStringTV().coder     must_== Okay(ScalaListCoder(StringCoder))
-        }
-
-        "work for map types" in {
-            new JavaMapTV().coder      must_== Okay(JavaMapCoder(StringCoder, IntCoder))
-            new ImmutableMapTV().coder must_== Okay(ScalaImmutableMapCoder(StringCoder, IntCoder))
-            new MutableMapTV().coder   must_== Okay(ScalaMutableMapCoder(StringCoder, IntCoder))
-        }
-
-        "work for set types" in {
-            new ImmutableSetTV().coder must_== Okay(ScalaImmutableSetCoder(StringCoder))
-            new MutableSetTV().coder must_== Okay(ScalaMutableSetCoder(StringCoder))
-        }
-
-        "work for tuple types" in {
-            new Tuple1TV().coder must_== Okay(Tuple1Coder(ByteCoder))
-            new Tuple2TV().coder must_== Okay(Tuple2Coder(ByteCoder, CharCoder))
-            new Tuple3TV().coder must_== Okay(Tuple3Coder(ByteCoder, CharCoder, ShortCoder))
-            new Tuple4TV().coder must_== Okay(Tuple4Coder(ByteCoder, CharCoder, ShortCoder, IntCoder))
-            new Tuple5TV().coder must_== Okay(Tuple5Coder(ByteCoder, CharCoder, ShortCoder, IntCoder, LongCoder))
-            new Tuple6TV().coder must_== Okay(Tuple6Coder(ByteCoder, CharCoder, ShortCoder, IntCoder, LongCoder, StringCoder))
-        }
-
-        "work for object types" in {
-            new BasicClassTV().coder    must_== Okay(basicClassCoder)
-            new CaseClassTV().coder     must_== Okay(caseClassCoder)
-            new ComposedClassTV().coder must_== Okay(composedClassCoder)
-            new POJOClassTV().coder     must_== Okay(pojoClassCoder)
-        }
-
-        "work for nested object types" in {
+        } ^
+        "work for simple collection types" ! {
+            { new JavaListStringTV().coder must_== Okay(JavaListCoder(StringCoder)) } and
+            { new ListStringTV().coder     must_== Okay(ScalaListCoder(StringCoder)) }
+        } ^
+        "work for map types" ! resetCoding {
+            { new JavaMapTV().coder      must_== Okay(JavaMapCoder(StringCoder, IntCoder)) } and
+            { new ImmutableMapTV().coder must_== Okay(ScalaImmutableMapCoder(StringCoder, IntCoder)) } and
+            { new MutableMapTV().coder   must_== Okay(ScalaMutableMapCoder(StringCoder, IntCoder)) }
+        } ^
+        "work for set types" ! resetCoding {
+            { new ImmutableSetTV().coder must_== Okay(ScalaImmutableSetCoder(StringCoder)) } and
+            { new MutableSetTV().coder must_== Okay(ScalaMutableSetCoder(StringCoder)) }
+        } ^
+        "work for tuple types" ! resetCoding {
+            { new Tuple1TV().coder must_== Okay(Tuple1Coder(ByteCoder)) } and
+            { new Tuple2TV().coder must_== Okay(Tuple2Coder(ByteCoder, CharCoder)) } and
+            { new Tuple3TV().coder must_== Okay(Tuple3Coder(ByteCoder, CharCoder, ShortCoder)) } and
+            { new Tuple4TV().coder must_== Okay(Tuple4Coder(ByteCoder, CharCoder, ShortCoder, IntCoder)) } and
+            { new Tuple5TV().coder must_== Okay(Tuple5Coder(ByteCoder, CharCoder, ShortCoder, IntCoder, LongCoder)) } and
+            { new Tuple6TV().coder must_== Okay(Tuple6Coder(ByteCoder, CharCoder, ShortCoder, IntCoder, LongCoder, StringCoder)) }
+        } ^
+        "work for object types" ! resetCoding {
+            { new BasicClassTV().coder    must_== Okay(basicClassCoder) } and
+            { new CaseClassTV().coder     must_== Okay(caseClassCoder) } and
+            { new ComposedClassTV().coder must_== Okay(composedClassCoder) } and
+            { new POJOClassTV().coder     must_== Okay(pojoClassCoder) }
+        } ^
+        "work for nested object types" ! resetCoding {
             new WrapperTV().coder must_== Okay(wrapperCoder)
-        }
-
-        "work for methods" in {
+        } ^
+        "work for methods" ! resetCoding {
             val meth = classOf[MethodAndCtor].getMethods.find(_.getName == "method").head
 
-            Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._1) must_== Okay(methodAndCtorArgumentCoder)
-            Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._2) must_== Okay(StringCoder)
-        }
-
-        "work for methods of traits without @Named" in {
+            { Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._1) must_== Okay(methodAndCtorArgumentCoder) } and
+            { Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._2) must_== Okay(StringCoder) }
+        } ^
+        "work for methods of traits without @Named" ! resetCoding {
             val meth = classOf[MethodTrait].getMethods.find(_.getName == "method").head
 
-            Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._1) must_== Okay(methodAndCtorArgumentCoder)
-            Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._2) must_== Okay(StringCoder)
-        }
-
-        "work for methods of traits with @Named" in {
+            { Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._1) must_== Okay(methodAndCtorArgumentCoder) } and
+            { Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._2) must_== Okay(StringCoder) }
+        } ^
+        "work for methods of traits with @Named" ! resetCoding {
             val meth = classOf[NamedMethodTrait].getMethods.find(_.getName == "method").head
 
-            Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._1) must_== Okay(methodAndCtorArgumentCoder)
-            Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._2) must_== Okay(StringCoder)
-        }
-
-        "work for classes implementing traits with types refined to primitives (yes, this is crazy!)" in {
+            { Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._1) must_== Okay(methodAndCtorArgumentCoder) } and
+            { Reflection.reflect(meth.getDeclaringClass.getClassLoader, meth).map(_._2) must_== Okay(StringCoder) }
+        } ^
+        "work for classes implementing traits with types refined to primitives (yes, this is crazy!)" ! resetCoding {
             val clazz = classOf[PrimitiveRefinementTestClass]
 
-            def check(name: String, expected: ComposableCoder[_]): Unit = {
+            def check(name: String, expected: ComposableCoder[_]): SpecsResult = {
                 val meth = clazz.getMethod(name)
                 val result = Reflection.reflect(clazz.getClassLoader, meth)
 
                 result.map(_._2) must_== Okay(expected)
             }
 
-            check("aUnit", UnitCoder)
-            check("aBoolean", BooleanCoder)
-            check("aByte", ByteCoder)
-            check("aShort", ShortCoder)
-            check("aChar", CharCoder)
-            check("aInt", IntCoder)
-            check("aLong", LongCoder)
-            check("aFloat", FloatCoder)
+            check("aUnit", UnitCoder) and
+            check("aBoolean", BooleanCoder) and
+            check("aByte", ByteCoder) and
+            check("aShort", ShortCoder) and
+            check("aChar", CharCoder) and
+            check("aInt", IntCoder) and
+            check("aLong", LongCoder) and
+            check("aFloat", FloatCoder) and
             check("aDouble", DoubleCoder)
-        }
-
-        "work for constructors" in {
+        } ^
+        "work for constructors" ! resetCoding {
             val ctor = classOf[MethodAndCtor].getConstructors.head
             Reflection.reflect(ctor.getDeclaringClass.getClassLoader, ctor) must_== Okay(methodAndCtorArgumentCoder)
-        }
-
-        "work for parameterized types in parameterized types" in {
+        } ^
+        "work for parameterized types in parameterized types" ! resetCoding {
             new NestedOptionTV().coder must_== Okay(OptionCoder(OptionCoder(OptionCoder(StringCoder))))
-        }
-
-        "work for classes enclosed in objects" in {
-            new WrappedClassTV().coder must_== Okay(wrappedClassCoder)
-            new SubWrappedClassTV().coder must_== Okay(subWrappedClassCoder)
-        }
-
-        "fail to code The Uncodable" in {
-            new UncodableTV().coder must not(verify(_.isDefined))
-        }
-
-        "not attempt to code lazy vals" in {
+        } ^
+        "work for classes enclosed in objects" ! resetCoding {
+            { new WrappedClassTV().coder must_== Okay(wrappedClassCoder) } and
+            { new SubWrappedClassTV().coder must_== Okay(subWrappedClassCoder) }
+        } ^
+        "fail to code The Uncodable" ! resetCoding {
+            new UncodableTV().coder must beLike { case FailedG(_, _) => ok }
+        } ^
+        "not attempt to code lazy vals" ! resetCoding {
             new ClassWithLazyValTV().coder must_== Okay(classWithLazyValCoder)
-        }
-
-        "not attempt to code @NotCoded vars" in {
+        } ^
+        "not attempt to code @NotCoded vars" ! resetCoding {
             new ClassWithNotCodedVarTV().coder must_== Okay(classWithNotCodedVarCoder)
-        }
-
-        "work for enums" in {
-            new ScalaEnumWrapperTV().coder must_== Okay(scalaEnumWrapperCoder)
-            new JavaEnumWrapperTV().coder must_== Okay(javaEnumWrapperCoder)
-        }
-
-        "properly exclude constructors with non-property arguments" in {
+        } ^
+        "work for enums" ! resetCoding {
+            { new ScalaEnumWrapperTV().coder must_== Okay(scalaEnumWrapperCoder) } and
+            { new JavaEnumWrapperTV().coder must_== Okay(javaEnumWrapperCoder) }
+        } ^
+        "properly exclude constructors with non-property arguments" ! resetCoding {
             new ClassWithMultipleConstructorsTV().coder must_== Okay(classWithMultipleConstructorsCoder)
+        } ^
+        "properly fail when an incorrect constructor is forced" ! resetCoding {
+            new ClassWithIllegalConstructorTV().coder must beLike { case FailedG(_, _) => ok }
+        } ^
+        "property fail for inner classes" ! resetCoding {
+            new EnclosedCaseClassTV().coder must beLike { case FailedG(_, _) => ok }
         }
+}
 
-        "properly fail when an incorrect constructor is forced" in {
-            new ClassWithIllegalConstructorTV().coder must not(verify(_.isDefined))
-        }
+class CoderRegistrationSpecTest extends SpecificationWithJUnit {
+    import fixtures._
+    import Coders._
 
-        "property fail for inner classes" in {
-            new EnclosedCaseClassTV().coder must not(verify(_.isDefined))
-        }
-    }
-
-    "Coder registration" should {
-        import fixtures._
-        import Coders._
-
-        Coding.reset.before
-
-        "allow specific registration" in {
+    def is =
+        "Coder registration should" ^
+        "allow specific registration" ! resetCoding {
             val clazz = classOf[CaseClass]
             Coding.register(clazz, Coding.registration("CaseClass", () => pojoClassCoder))
             builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(pojoClassCoder)
-        }
-
-        "override automatic reflection" in {
+        } ^
+        "override automatic reflection" ! resetCoding {
             val clazz = classOf[CaseClass]
-            builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(caseClassCoder)
-            Cache.reset
-            Coding.register(clazz, Coding.registration("CaseClass", () => pojoClassCoder))
-            builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(pojoClassCoder)
-        }
 
-        "use sidecars when present" in {
+            { builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(caseClassCoder) } and
+            {
+                Cache.reset
+                Coding.register(clazz, Coding.registration("CaseClass", () => pojoClassCoder))
+                builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(pojoClassCoder)
+            }
+        } ^
+        "use sidecars when present" ! resetCoding {
             // assert this to make sure that we're really testing something
             val clazz = classOf[CaseClassWithSideCar]
-            builder.typeRFor(clazz).flatMap(Reflection.reflectObjectCoder(clazz.getClassLoader, _)) must_== Okay(caseClassWithSideCarReflectedCoder)
-            builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(caseClassWithSideCarExplicitCoder)
+
+            { builder.typeRFor(clazz).flatMap(Reflection.reflectObjectCoder(clazz.getClassLoader, _)) must_== Okay(caseClassWithSideCarReflectedCoder) } and
+            { builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(caseClassWithSideCarExplicitCoder) }
         }
-    }
+}
 
+class CoderDiagnosticsSpecTest extends SpecificationWithJUnit {
+    import Coders._
+    val cl = this.getClass.getClassLoader
 
-    "Coder diagnostics" should {
-        import Coders._
-
-        val cl = this.getClass.getClassLoader
-
-        "work for manual coding" in {
-            Coder(cl, wrapperCoder).decode(JObject(Nil)) must beLike { case Failed("At cc: required but missing") => true }
-            Coder(cl, wrapperCoder).decode(("cc" -> ("bar" -> "baz"))) must beLike { case Failed("At cc.foo: required but missing") => true }
-        }
-
-        "work for automatic coding" in {
+    def is =
+        "Coder diagnostics should" ^
+        "work for manual coding" ! {
+            { Coder(cl, wrapperCoder).decode(JObject(Nil)) must beLike { case Failed.Message("At cc: required but missing") => ok } } and
+            { Coder(cl, wrapperCoder).decode(("cc" -> ("bar" -> "baz"))) must beLike { case Failed.Message("At cc.foo: required but missing") => ok } }
+        } ^
+        "work for automatic coding" ! {
             val v: JValue = ("a" -> ("k" -> ("b" -> JArray(("d" -> "foo") :: Nil))))
-            Coding.decode[DiagnosticTestOuterClass](v) must beLike { case Failed("At a[\"k\"].b[0].c: required but missing") => true }
+            Coding.decode[DiagnosticTestOuterClass](v) must beLike { case Failed.Message("At a[\"k\"].b[0].c: required but missing") => ok }
         }
-
-    }
 }

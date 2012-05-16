@@ -18,83 +18,26 @@ package com.paytronix.utils.extendedreflection
 
 import scala.tools.scalap.scalax.rules.{scalasig => sig}
 import ch.qos.logback.classic.BasicConfigurator
-import org.specs._
-import org.specs.runner.JUnit4
+import org.specs2.SpecificationWithJUnit
 import com.paytronix.utils.scala.result.{ResultG, Okay}
-
-class ExtendedReflectionTestSpecsAsTest extends JUnit4(ExtendedReflectionTestSpecs)
 
 object Shared {
     implicit val builder = new Builder(getClass.getClassLoader)
 }
 
-object ExtendedReflectionTestSpecs extends Specification {
-    import Shared.builder
-    import Helpers._
+import Shared.builder
+import Helpers._
 
-    val UnitClass = classOf[Unit]
-    val BooleanClass = classOf[Boolean]
-    val ByteClass = classOf[Byte]
-    val ShortClass = classOf[Short]
-    val CharClass = classOf[Char]
-    val IntClass = classOf[Int]
-    val LongClass = classOf[Long]
-    val FloatClass = classOf[Float]
-    val DoubleClass = classOf[Double]
-    val JavaListClass = classOf[java.util.List[_]]
-    val OptionClass = classOf[Option[_]]
-    val StringClass = classOf[String]
-    val Tuple2Class = classOf[Tuple2[_,_]]
+class PlainScalaClassSpecTest extends SpecificationWithJUnit {
+    lazy val targetClassRResult = builder.classRFor(classOf[PlainScalaClass])
+    implicit def targetClassR = targetClassRResult.orThrow
 
-    def ownedByLibraryInterface(cmr: ClassMemberR): Boolean = cmr.ownerName.qualified match {
-        case "java.lang.Object"|"scala.Product"|"scala.Equals" => true
-        case _ => false
-    }
-
-    def withConstructor(numParams: Int)(f: ConstructorR => Unit)(implicit classR: ClassR): Unit = {
-        val ctorROption = classR.constructors.find(_.parameters.length == numParams)
-        ctorROption must verify(_.isDefined)
-        ctorROption.get.ownerName.qualified must_== classR.name.qualified
-        f(ctorROption.get)
-    }
-
-    def withProperty(f: PropertyR => Unit)(implicit propInfo: (String, TypeRMatcher), classR: ClassR): Unit =
-        withPropertyNamed(propInfo._1)(f)
-
-    def withPropertyNamed(n: String)(f: PropertyR => Unit)(implicit classR: ClassR): Unit =
-        withAnyPropertyNamed(n)(propR => {
-            propR.ownerName.qualified must_== classR.name.qualified
-            f(propR)
-        })
-
-    def withAnyPropertyNamed(n: String)(f: PropertyR => Unit)(implicit classR: ClassR): Unit = {
-        val propROption = classR.properties.find(_.name == n)
-        propROption must verify(_.isDefined)
-        f(propROption.get)
-    }
-
-    def withMethod(n: String, numParams: Int)(f: MethodR => Unit)(implicit classR: ClassR): Unit =
-        withAnyMethod(n, numParams)(methR => {
-            methR.ownerName.qualified must_== classR.name.qualified
-            f(methR)
-        })
-
-    def withAnyMethod(n: String, numParams: Int)(f: MethodR => Unit)(implicit classR: ClassR): Unit = {
-        val methROption = classR.methods.find(methR => methR.name == n && methR.parameters.length == numParams)
-        methROption must verify(_.isDefined)
-        f(methROption.get)
-    }
-
-
-    "Extended reflection on a plain Scala class" should {
-        lazy val targetClassRResult = builder.classRFor(classOf[PlainScalaClass])
-        implicit def targetClassR = targetClassRResult.orThrow
-
-        "not fail" in {
-            targetClassRResult must verify(_.isDefined)
-        }
-
-        "model only the expected members" in {
+    def is =
+        "Extended reflection on a plain Scala class should" ^
+        "not fail" ! {
+            targetClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model only the expected members" ! {
             targetClassR.members.filterNot(ownedByLibraryInterface).map(_.name) must_== List(
                 "<init>",
                 "<init>",
@@ -138,368 +81,327 @@ object ExtendedReflectionTestSpecs extends Specification {
                 "methodWithMisleadingName_$eq",
                 "setMethodWithMisleadingName"
             )
-        }
-
-
-
-        "model the zero arg constructor" in {
-            withConstructor(0)(ctor => {
+        } ^
+        "model the zero arg constructor" ! {
+            withConstructor(0) { ctor =>
                 ctor.annotations must beEmpty
-            })
-        }
-
-        "model the one arg constructor" in {
-            withConstructor(1)(ctor => {
-                ctor.annotations must beEmpty
-                ctor must haveParametersLike("i" -> IntClass)
-            })
-        }
-
-        "model the three arg constructor" in {
-            withConstructor(3)(ctor => {
-                ctor.annotations must beEmpty
-                ctor must haveParametersLike("ctorParam" -> IntClass, "ctorValParam" -> StringClass, "ctorVarParam" -> (OptionClass, StringClass))
-            })
-        }
-
-        "model a val" in {
+            }
+        } ^
+        "model the one arg constructor" ! {
+            withConstructor(1) { ctor =>
+                { ctor.annotations must beEmpty } and
+                { ctor must haveParametersLike("i" -> IntClass) }
+            }
+        } ^
+        "model the three arg constructor" ! {
+            withConstructor(3) { ctor =>
+                { ctor.annotations must beEmpty } and
+                { ctor must haveParametersLike("ctorParam" -> IntClass, "ctorValParam" -> StringClass, "ctorVarParam" -> (OptionClass, StringClass)) }
+            }
+        } ^
+        "model a val" ! {
             implicit val property = ("aValInt", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a var with an Option type" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a var with an Option type" ! {
             implicit val property = ("aVarOptionString", (OptionClass, StringClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must beValidSetter
-                prop.others must beEmpty
-            })
-        }
-
-        "model a def with no argument list" in {
-            withMethod("aDefDouble", 0)(meth => {
-                meth.annotations must beEmpty
-                meth must haveResultLike(DoubleClass)
-            })
-        }
-
-        "model a lazy val" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must beValidSetter } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a def with no argument list" ! {
+            withMethod("aDefDouble", 0) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveResultLike(DoubleClass) }
+            }
+        } ^
+        "model a lazy val" ! {
             implicit val property = ("aLazyValString", StringClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a nullary function" in {
-            withMethod("aNullaryFunction", 0)(meth => {
-                meth.annotations must beEmpty
-                meth must haveResultLike(UnitClass)
-            })
-        }
-
-        "model a function of Int" in {
-            withMethod("aFunctionOfInt", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("in" -> IntClass)
-                meth must haveResultLike(IntClass)
-            })
-        }
-
-        "model a function of Option[String]" in {
-            withMethod("aFunctionOfOptionString", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("in" -> (OptionClass, StringClass))
-                meth must haveResultLike((OptionClass, StringClass))
-            })
-        }
-
-        "model a function of Int and String" in {
-            withMethod("aFunctionOfIntAndString", 2)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass, "s" -> StringClass)
-                meth must haveResultLike((Tuple2Class, IntClass, StringClass))
-            })
-        }
-
-        "model an overloaded function with one argument" in {
-            withMethod("anOverloadedFunction", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass)
-                meth must haveResultLike(IntClass)
-            })
-        }
-
-        "model an overloaded function with two arguments" in {
-            withMethod("anOverloadedFunction", 2)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass, "s" -> StringClass)
-                meth must haveResultLike(StringClass)
-            })
-        }
-
-        "model a @BeanProperty val" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a nullary function" ! {
+            withMethod("aNullaryFunction", 0) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveResultLike(UnitClass) }
+            }
+        } ^
+        "model a function of Int" ! {
+            withMethod("aFunctionOfInt", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("in" -> IntClass) }
+                { meth must haveResultLike(IntClass) }
+            }
+        } ^
+        "model a function of Option[String]" ! {
+            withMethod("aFunctionOfOptionString", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("in" -> (OptionClass, StringClass)) } and
+                { meth must haveResultLike((OptionClass, StringClass)) }
+            }
+        } ^
+        "model a function of Int and String" ! {
+            withMethod("aFunctionOfIntAndString", 2) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass, "s" -> StringClass) } and
+                { meth must haveResultLike((Tuple2Class, IntClass, StringClass)) }
+            }
+        } ^
+        "model an overloaded function with one argument" ! {
+            withMethod("anOverloadedFunction", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass) } and
+                { meth must haveResultLike(IntClass) }
+            }
+        } ^
+        "model an overloaded function with two arguments" ! {
+            withMethod("anOverloadedFunction", 2) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass, "s" -> StringClass) } and
+                { meth must haveResultLike(StringClass) }
+            }
+        } ^
+        "model a @BeanProperty val" ! {
             implicit val property = ("aBeanPropertyVal", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beLike {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beLike {
                     case bpgetter :: Nil =>
                         bpgetter must beValidBeanGetter
-                }
-            })
-        }
-
-        "model a @BeanProperty var" in {
+                } }
+            }
+        } ^
+        "model a @BeanProperty var" ! {
             implicit val property = ("aBeanPropertyVar", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
-                prop.getter must beValidGetter
-                prop.setter must beValidSetter
-                prop.others must beLike {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
+                { prop.getter must beValidGetter } and
+                { prop.setter must beValidSetter } and
+                { prop.others must beLike {
                     case bpgetter :: bpsetter :: Nil =>
                         bpgetter must beValidBeanGetter
                         Okay(bpsetter) must beValidBeanSetter
-                }
-            })
-        }
-
-        "model a @BeanProperty lazy val" in {
+                } }
+            }
+        } ^
+        "model a @BeanProperty lazy val" ! {
             implicit val property = ("aBeanPropertyLazyVal", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beLike {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beLike {
                     case bpgetter :: Nil =>
                         bpgetter must beValidBeanGetter
-                }
-            })
-        }
-
-        "model a @BooleanBeanProperty val" in {
+                } }
+            }
+        } ^
+        "model a @BooleanBeanProperty val" ! {
             implicit val property = ("aBooleanBeanPropertyVal", BooleanClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beLike {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beLike {
                     case bpgetter :: Nil =>
                         bpgetter must beValidBooleanBeanGetter
-                }
-            })
-        }
-
-        "model a @BooleanBeanProperty var" in {
+                } }
+            }
+        } ^
+        "model a @BooleanBeanProperty var" ! {
             implicit val property = ("aBooleanBeanPropertyVar", BooleanClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
-                prop.getter must beValidGetter
-                prop.setter must beValidSetter
-                prop.others must beLike {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
+                { prop.getter must beValidGetter } and
+                { prop.setter must beValidSetter } and
+                { prop.others must beLike {
                     case bpgetter :: bpsetter :: Nil =>
                         bpgetter must beValidBooleanBeanGetter
                         Okay(bpsetter) must beValidBeanSetter
-                }
-            })
-        }
-
-        "model a @BooleanBeanProperty lazy val" in {
+                } }
+            }
+        } ^
+        "model a @BooleanBeanProperty lazy val" ! {
             implicit val property = ("aBooleanBeanPropertyLazyVal", BooleanClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beLike {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and // currently extended reflection doesn't capture scala-only annotations (StaticAnnotation)
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beLike {
                     case bpgetter :: Nil =>
                         bpgetter must beValidBooleanBeanGetter
-                }
-            })
-        }
-
-        "model an annotated constructor" in {
-            withConstructor(2)(ctor => {
-                ctor.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                ctor must haveParametersLike("i" -> IntClass, "s" -> StringClass)
-            })
-        }
-
-        "model an annotated method" in {
-            withMethod("anAnnotatedMethod", 2)(meth => {
-                meth.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                meth must haveParametersLike("i" -> IntClass, "s" -> StringClass)
-                meth.parameters.find(_.name == Some("s")) must beLike {
+                } }
+            }
+        } ^
+        "model an annotated constructor" ! {
+            withConstructor(2) { ctor =>
+                { ctor.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { ctor must haveParametersLike("i" -> IntClass, "s" -> StringClass) }
+            }
+        } ^
+        "model an annotated method" ! {
+            withMethod("anAnnotatedMethod", 2) { meth =>
+                { meth.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { meth must haveParametersLike("i" -> IntClass, "s" -> StringClass) } and
+                { meth.parameters.find(_.name == Some("s")) must beLike {
                     case Some(paramR) => paramR.annotations must beLike {
-                        case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
+                        case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
                     }
-                }
-                meth must haveResultLike((Tuple2Class, IntClass, StringClass))
-            })
-        }
-
-        "model an annotated val" in {
+                } } and
+                { meth must haveResultLike((Tuple2Class, IntClass, StringClass)) }
+            }
+        } ^
+        "model an annotated val" ! {
             implicit val property = ("anAnnotatedVal", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model an annotated var" in {
+            withProperty { prop =>
+                { prop.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model an annotated var" ! {
             implicit val property = ("anAnnotatedVar", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                prop.getter must beValidGetter
-                prop.setter must beValidSetter
-                prop.others must beEmpty
-            })
-        }
-
-        "properly cache ClassRs" in {
-            val ctx = new Builder(getClass.getClassLoader)
-            if (ctx.classRFor(classOf[PlainScalaClass]) ne ctx.classRFor(classOf[PlainScalaClass])) {
-                fail("First instance of ClassR was not returned again for a second call")
-            } else {
-                true must_== true // to avoid "skipped"
+            withProperty { prop =>
+                { prop.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must beValidSetter } and
+                { prop.others must beEmpty }
             }
-        }
-
-        "properly cache signatures" in {
+        } ^
+        "properly cache ClassRs" ! {
             val ctx = new Builder(getClass.getClassLoader)
-            if (ctx.sigFor(classOf[PlainScalaClass]) ne ctx.sigFor(classOf[PlainScalaClass])) {
-                fail("First instance of ScalaSig was not returned again for a second call")
-            } else {
+            if (ctx.classRFor(classOf[PlainScalaClass]) != ctx.classRFor(classOf[PlainScalaClass]))
+                ko("First instance of ClassR was not returned again for a second call")
+            else
                 true must_== true // to avoid "skipped"
-            }
-        }
-
-        "model non-public vals" in {
+        } ^
+        "properly cache signatures" ! {
+            val ctx = new Builder(getClass.getClassLoader)
+            if (ctx.sigFor(classOf[PlainScalaClass]) != ctx.sigFor(classOf[PlainScalaClass]))
+                ko("First instance of ScalaSig was not returned again for a second call")
+            else
+                true must_== true // to avoid "skipped"
+        } ^
+        "model non-public vals" ! {
             implicit val property = ("aPrivateVal", IntClass: TypeRMatcher)
             val propROption = targetClassR.nonPublicProperties.find(_.name == property._1)
-            propROption must verify(_.isDefined)
-            val propR = propROption.get
-            propR.ownerName.qualified must_== targetClassR.name.qualified
-            propR.annotations must beEmpty
-            propR.getter must beValidGetter
-            propR.setter must notBePresent
-            propR.others must beEmpty
-            propR.isPublic must_== false
-            propR.getter.isPublic must_== false
-        }
-
-        "model non-public vars" in {
+            propROption must beLike { case Some(propR) =>
+                { propR.ownerName.qualified must_== targetClassR.name.qualified } and
+                { propR.annotations must beEmpty } and
+                { propR.getter must beValidGetter } and
+                { propR.setter must notBePresent } and
+                { propR.others must beEmpty } and
+                { propR.isPublic must_== false } and
+                { propR.getter.isPublic must_== false }
+            }
+        } ^
+        "model non-public vars" ! {
             implicit val property = ("aPrivateVar", IntClass: TypeRMatcher)
             val propROption = targetClassR.nonPublicProperties.find(_.name == property._1)
-            propROption must verify(_.isDefined)
-            val propR = propROption.get
-            propR.ownerName.qualified must_== targetClassR.name.qualified
-            propR.annotations must beEmpty
-            propR.getter must beValidGetter
-            propR.setter must beValidSetter
-            propR.others must beEmpty
-            propR.isPublic must_== false
-            propR.getter.isPublic must_== false
-            propR.setter.orThrow.isPublic must_== false
-        }
-
-        "model non-public defs" in {
+            propROption must beLike { case Some(propR) =>
+                { propR.ownerName.qualified must_== targetClassR.name.qualified } and
+                { propR.annotations must beEmpty } and
+                { propR.getter must beValidGetter } and
+                { propR.setter must beValidSetter } and
+                { propR.others must beEmpty  } and
+                { propR.isPublic must_== false } and
+                { propR.getter.isPublic must_== false } and
+                { propR.setter.orThrow.isPublic must_== false }
+            }
+        } ^
+        "model non-public defs" ! {
             val methROption = targetClassR.nonPublicMethods.find(_.name == "aPrivateDef")
-            methROption must verify(_.isDefined)
-            val methR = methROption.get
-            methR.ownerName.qualified must_== targetClassR.name.qualified
-            methR.annotations must beEmpty
-            methR.isPublic must_== false
-            methR.parameters must beEmpty
-            methR must haveResultLike(IntClass)
-        }
-
-        "model methods with names that make them look like setters" in {
-            withMethod("setMethodWithMisleadingName", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass)
-                meth must haveResultLike(UnitClass)
-            })
-            withMethod("methodWithMisleadingName_$eq", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass)
-                meth must haveResultLike(UnitClass)
-            })
-        }
-
-        "model Option[Boolean]" in {
+            methROption must beLike { case Some(methR) =>
+                { methR.ownerName.qualified must_== targetClassR.name.qualified } and
+                { methR.annotations must beEmpty } and
+                { methR.isPublic must_== false } and
+                { methR.parameters must beEmpty } and
+                { methR must haveResultLike(IntClass) }
+            }
+        } ^
+        "model methods with names that make them look like setters" ! {
+            withMethod("setMethodWithMisleadingName", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass) } and
+                { meth must haveResultLike(UnitClass) }
+            }
+            withMethod("methodWithMisleadingName_$eq", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass) } and
+                { meth must haveResultLike(UnitClass) }
+            }
+        } ^
+        "model Option[Boolean]" ! {
             implicit val property = ("aValOptionBoolean", (OptionClass, BooleanClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Byte]" in {
+        } ^
+        "model Option[Byte]" ! {
             implicit val property = ("aValOptionByte", (OptionClass, ByteClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Char]" in {
+        } ^
+        "model Option[Char]" ! {
             implicit val property = ("aValOptionChar", (OptionClass, CharClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Double]" in {
+        } ^
+        "model Option[Double]" ! {
             implicit val property = ("aValOptionDouble", (OptionClass, DoubleClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Float]" in {
+        } ^
+        "model Option[Float]" ! {
             implicit val property = ("aValOptionFloat", (OptionClass, FloatClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Int]" in {
+        } ^
+        "model Option[Int]" ! {
             implicit val property = ("aValOptionInt", (OptionClass, IntClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Long]" in {
+        } ^
+        "model Option[Long]" ! {
             implicit val property = ("aValOptionLong", (OptionClass, LongClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Short]" in {
+        } ^
+        "model Option[Short]" ! {
             implicit val property = ("aValOptionShort", (OptionClass, ShortClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
-        }
-
-        "model Option[Unit]" in {
+        } ^
+        "model Option[Unit]" ! {
             implicit val property = ("aValOptionUnit", (OptionClass, UnitClass): TypeRMatcher)
             withProperty(_.getter must beValidGetter)
         }
-    }
+}
 
-    "Extended reflection on a Scala case class" should {
-        lazy val targetClassRResult = builder.classRFor(classOf[CaseClass])
-        implicit def targetClassR = targetClassRResult.orThrow
+class ScalaCaseClassSpecTest extends SpecificationWithJUnit {
+    lazy val targetClassRResult = builder.classRFor(classOf[CaseClass])
+    implicit def targetClassR = targetClassRResult.orThrow
 
-        "not fail" in {
-            targetClassRResult must verify(_.isDefined)
-        }
-
-        "model only the expected members" in {
+    def is =
+        "Extended reflection on a Scala case class should" ^
+        "not fail" ! {
+            targetClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model only the expected members" ! {
             targetClassR.members.filterNot(ownedByLibraryInterface).map(_.name) must_== List(
                 "<init>",
 
@@ -511,70 +413,65 @@ object ExtendedReflectionTestSpecs extends Specification {
                 "aDefDouble",
                 "aFunctionOfInt"
             )
-        }
-
-        "model the constructor" in {
-            withConstructor(1)(ctor => {
-                ctor.annotations must beEmpty
-                ctor must haveParametersLike("ctorParam" -> IntClass)
-            })
-        }
-
-        "model a val" in {
+        } ^
+        "model the constructor" ! {
+            withConstructor(1) { ctor =>
+                { ctor.annotations must beEmpty } and
+                { ctor must haveParametersLike("ctorParam" -> IntClass) }
+            }
+        } ^
+        "model a val" ! {
             implicit val property = ("aValInt", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a var with an Option type" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a var with an Option type" ! {
             implicit val property = ("aVarOptionString", (OptionClass, StringClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must beValidSetter
-                prop.others must beEmpty
-            })
-        }
-
-        "model a def with no argument list" in {
-            withMethod("aDefDouble", 0)(meth => {
-                meth.annotations must beEmpty
-                meth must haveResultLike(DoubleClass)
-            })
-        }
-
-        "model a lazy val" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must beValidSetter } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a def with no argument list" ! {
+            withMethod("aDefDouble", 0) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveResultLike(DoubleClass) }
+            }
+        } ^
+        "model a lazy val" ! {
             implicit val property = ("aLazyValString", StringClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a function of Int" ! {
+            withMethod("aFunctionOfInt", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("in" -> IntClass) } and
+                { meth must haveResultLike(IntClass) }
+            }
         }
+}
 
-        "model a function of Int" in {
-            withMethod("aFunctionOfInt", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("in" -> IntClass)
-                meth must haveResultLike(IntClass)
-            })
-        }
-    }
+class ScalaComposedClassSpecTest extends SpecificationWithJUnit {
+    lazy val mixedClassRResult = builder.classRFor(classOf[MixedClass])
+    implicit def mixedClassR = mixedClassRResult.orThrow
 
-    "Extended reflection on a Scala composed class" should {
-        lazy val mixedClassRResult = builder.classRFor(classOf[MixedClass])
-        implicit def mixedClassR = mixedClassRResult.orThrow
-
-        "not fail" in {
-            mixedClassRResult must verify(_.isDefined)
-        }
-
-        "model only the expected members" in {
+    def is =
+        "Extended reflection on a Scala composed class should" ^
+        "not fail" ! {
+            mixedClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model only the expected members" ! {
             mixedClassR.members.filterNot(ownedByLibraryInterface).map(_.name) must_== List(
                 "<init>",
 
@@ -582,80 +479,73 @@ object ExtendedReflectionTestSpecs extends Specification {
                 "secondMethod",
                 "thirdMethod"
             )
-        }
-
-        "model the interfaces" in {
-            mixedClassR.interfaces must exist(_.name.qualified == NameR(classOf[FirstMixin].getName).qualified)
-            mixedClassR.interfaces must exist(_.name.qualified == NameR(classOf[SecondMixin].getName).qualified)
-        }
-
-        "model the constructor" in {
-            withConstructor(0)(ctor => {
+        } ^
+        "model the interfaces" ! {
+            { mixedClassR.interfaces must have (_.name.qualified must_== NameR(classOf[FirstMixin].getName).qualified) } and
+            { mixedClassR.interfaces must have (_.name.qualified must_== NameR(classOf[SecondMixin].getName).qualified) }
+        } ^
+        "model the constructor" ! {
+            withConstructor(0) { ctor =>
                 ctor.annotations must beEmpty
-            })
+            }
+        } ^
+        "model the first method" ! {
+            withAnyMethod("firstMethod", 1) { meth =>
+                { meth.ownerName.qualified must_== NameR(classOf[FirstMixin].getName).qualified } and
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("in" -> StringClass) } and
+                { meth must haveResultLike(StringClass) }
+            }
+        } ^
+        "model the second method" ! {
+            withAnyMethod("secondMethod", 1) { meth =>
+                { meth.ownerName.qualified must_== NameR(classOf[SecondMixin].getName).qualified } and
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("in" -> IntClass) } and
+                { meth must haveResultLike(IntClass) }
+            }
+        } ^
+        "model the third method" ! {
+            withMethod("thirdMethod", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("in" -> DoubleClass) } and
+                { meth must haveResultLike(DoubleClass) }
+            }
         }
+}
 
-        "model the first method" in {
-            withAnyMethod("firstMethod", 1)(meth => {
-                meth.ownerName.qualified must_== NameR(classOf[FirstMixin].getName).qualified
-                meth.annotations must beEmpty
-                meth must haveParametersLike("in" -> StringClass)
-                meth must haveResultLike(StringClass)
-            })
-        }
+class ObjectEnclosingClassSpecTest extends SpecificationWithJUnit {
+    lazy val targetClassRResult = builder.classRFor(classOf[EnclosingObject.SubEnclosingObject.CaseClass])
+    implicit def targetClassR = targetClassRResult.orThrow
 
-        "model the second method" in {
-            withAnyMethod("secondMethod", 1)(meth => {
-                meth.ownerName.qualified must_== NameR(classOf[SecondMixin].getName).qualified
-                meth.annotations must beEmpty
-                meth must haveParametersLike("in" -> IntClass)
-                meth must haveResultLike(IntClass)
-            })
-        }
-
-        "model the third method" in {
-            withMethod("thirdMethod", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("in" -> DoubleClass)
-                meth must haveResultLike(DoubleClass)
-            })
-        }
-    }
-
-    "Extended reflection on a class enclosed in an object" should {
-        lazy val targetClassRResult = builder.classRFor(classOf[EnclosingObject.SubEnclosingObject.CaseClass])
-        implicit def targetClassR = targetClassRResult.orThrow
-
-        "not fail" in {
-            targetClassRResult must verify(_.isDefined)
-        }
-
-        "model only the expected members" in {
+    def is =
+        "Extended reflection on a class enclosed in an object should" ^
+        "not fail" ! {
+            targetClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model only the expected members" ! {
             targetClassR.members.filterNot(ownedByLibraryInterface).map(_.name) must_== List(
                 "<init>",
 
                 "ctorParam"
             )
-        }
-
-
-        "model the one arg constructor" in {
-            withConstructor(1)(ctor => {
-                ctor.annotations must beEmpty
-                ctor must haveParametersLike("ctorParam" -> IntClass)
-            })
-        }
-
-        "model a val" in {
+        } ^
+        "model the one arg constructor" ! {
+            withConstructor(1) { ctor =>
+                { ctor.annotations must beEmpty } and
+                { ctor must haveParametersLike("ctorParam" -> IntClass) }
+            }
+        } ^
+        "model a val" ! {
             implicit val property = ("ctorParam", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
         }
-    }
+}
 
     /* 2010-09-17 RMM: Don't need this to work at the moment since we can't support instantiation of inner classes for JSON decoding anyway.
 
@@ -663,11 +553,11 @@ object ExtendedReflectionTestSpecs extends Specification {
         lazy val targetClassRResult = builder.classRFor(classOf[EnclosingObject.SubEnclosingClass#CaseClass])
         implicit def targetClassR = targetClassRResult.orThrow
 
-        "not fail" in {
+        "not fail" ! {
             targetClassRResult must verify(_.isDefined)
         }
 
-        "model only the expected members" in {
+        "model only the expected members" ! {
             targetClassR.members.filterNot(ownedByLibraryInterface).map(_.name) must_== List(
                 "<init>",
 
@@ -676,14 +566,14 @@ object ExtendedReflectionTestSpecs extends Specification {
         }
 
 
-        "model the one arg constructor" in {
+        "model the one arg constructor" ! {
             withConstructor(1)(ctor => {
                 ctor.annotations must beEmpty
                 ctor must haveParametersLike("ctorParam" -> IntClass)
             })
         }
 
-        "model a val" in {
+        "model a val" ! {
             implicit val property = ("ctorParam", IntClass: TypeRMatcher)
             withProperty(prop => {
                 prop.annotations must beEmpty
@@ -695,15 +585,15 @@ object ExtendedReflectionTestSpecs extends Specification {
     }
     */
 
-    "Extended reflection on a plain Java class" should {
-        lazy val targetClassRResult = builder.classRFor(classOf[PlainJavaClass])
-        implicit def targetClassR = targetClassRResult.orThrow
+class PlainJavaClassSpecTest extends SpecificationWithJUnit {
+    lazy val targetClassRResult = builder.classRFor(classOf[PlainJavaClass])
+    implicit def targetClassR = targetClassRResult.orThrow
 
-        "not fail" in {
-            targetClassRResult must verify(_.isDefined)
-        }
-
-        "model only the expected members" in {
+    def is = "Extended reflection on a plain Java class should" ^
+        "not fail" ! {
+            targetClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model only the expected members" ! {
             targetClassR.members.filterNot(ownedByLibraryInterface).map(_.name) must_== List(
                 "<init>",
                 "<init>",
@@ -720,247 +610,229 @@ object ExtendedReflectionTestSpecs extends Specification {
                 "anAnnotatedIntMethod",
                 "setMethodWithMisleadingName"
             )
-        }
-
-        "model the zero arg constructor" in {
-            withConstructor(0)(ctor => {
+        } ^
+        "model the zero arg constructor" ! {
+            withConstructor(0) { ctor =>
                 ctor.annotations must beEmpty
-            })
-        }
-
-        "model the one arg constructor" in {
-            withConstructor(1)(ctor => {
+            }
+        } ^
+        "model the one arg constructor" ! {
+            withConstructor(1) { ctor =>
                 ctor.annotations must beEmpty
                 ctor must haveParametersLike("i" -> IntClass)
-            })
-        }
-
-        "model the two arg constructor" in {
-            withConstructor(2)(ctor => {
-                ctor.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                ctor must haveParametersLike("i" -> IntClass, "s" -> StringClass)
-                ctor.parameters.find(_.name == Some("s")) must beLike {
+            }
+        } ^
+        "model the two arg constructor" ! {
+            withConstructor(2) { ctor =>
+                { ctor.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { ctor must haveParametersLike("i" -> IntClass, "s" -> StringClass) } and
+                { ctor.parameters.find(_.name == Some("s")) must beLike {
                     case Some(paramR) => paramR.annotations must beLike {
-                        case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
+                        case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
                     }
-                }
-            })
-        }
-
-        "model a read only int bean property" in {
+                } }
+            }
+        } ^
+        "model a read only int bean property" ! {
             implicit val property = ("aReadOnlyInt", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidBeanGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a read write int bean property" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidBeanGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a read write int bean property" ! {
             implicit val property = ("aReadWriteInt", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidBeanGetter
-                prop.setter must beValidBeanSetter
-                prop.others must beEmpty
-            })
-        }
-
-        "model a read write List<String> bean property" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidBeanGetter } and
+                { prop.setter must beValidBeanSetter } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a read write List<String> bean property" ! {
             implicit val property = ("aReadWriteListOfString", (JavaListClass, StringClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidBeanGetter
-                prop.setter must beValidBeanSetter
-                prop.others must beEmpty
-            })
-        }
-
-        "model a read only boolean bean property" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidBeanGetter } and
+                { prop.setter must beValidBeanSetter } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a read only boolean bean property" ! {
             implicit val property = ("aReadOnlyBoolean", BooleanClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidBooleanBeanGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model an annotated int bean property (annotated at field level)" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidBooleanBeanGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model an annotated int bean property (annotated at field level)" ! {
             implicit val property = ("anAnnotatedInt", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                prop.getter must beValidBeanGetter
-                prop.setter must beValidBeanSetter
-                prop.others must beEmpty
-            })
-        }
-
-        "model an annotated int bean property (annotated at getter level)" in {
+            withProperty { prop =>
+                { prop.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { prop.getter must beValidBeanGetter } and
+                { prop.setter must beValidBeanSetter } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model an annotated int bean property (annotated at getter level)" ! {
             implicit val property = ("intWithAnnotatedReader", IntClass: TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                prop.getter must beValidBeanGetter
-                prop.setter must beValidBeanSetter
-                prop.others must beEmpty
-            })
+            withProperty { prop =>
+                { prop.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { prop.getter must beValidBeanGetter } and
+                { prop.setter must beValidBeanSetter } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a normal method" ! {
+            withMethod("aNormalMethod", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass) } and
+                { meth must haveResultLike(UnitClass) }
+            }
+        } ^
+        "model an annotated method" ! {
+            withMethod("anAnnotatedIntMethod", 0) { meth =>
+                { meth.annotations must beLike {
+                    case annot :: Nil => annot must beLike { case _: TestAnnotation => ok }
+                } } and
+                { meth must haveResultLike(IntClass) }
+            }
+        } ^
+        "model method with a name that makes it look like a setter" ! {
+            withMethod("setMethodWithMisleadingName", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass) } and
+                { meth must haveResultLike(UnitClass) }
+            }
         }
+}
 
-        "model a normal method" in {
-            withMethod("aNormalMethod", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass)
-                meth must haveResultLike(UnitClass)
-            })
-        }
+class JavaInterfaceWithoutNamedSpecTest extends SpecificationWithJUnit {
+    lazy val targetClassRResult = builder.classRFor(classOf[JavaInterfaceWithoutNamed])
+    implicit def targetClassR = targetClassRResult.orThrow
 
-        "model an annotated method" in {
-            withMethod("anAnnotatedIntMethod", 0)(meth => {
-                meth.annotations must beLike {
-                    case annot :: Nil => annot must beLike { case (_: TestAnnotation) => true }
-                }
-                meth must haveResultLike(IntClass)
-            })
-        }
-
-        "model method with a name that makes it look like a setter" in {
-            withMethod("setMethodWithMisleadingName", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass)
-                meth must haveResultLike(UnitClass)
-            })
-        }
-    }
-
-    "Extended reflection on a plain Java interface (without @Named)" should {
-        lazy val targetClassRResult = builder.classRFor(classOf[JavaInterfaceWithoutNamed])
-        implicit def targetClassR = targetClassRResult.orThrow
-
-        "not fail" in {
-            targetClassRResult must verify(_.isDefined)
-        }
-
-        "model only the expected members" in {
+    def is =
+        "Extended reflection on a plain Java interface (without @Named) should" ^
+        "not fail" ! {
+            targetClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model only the expected members" ! {
             targetClassR.members.map(_.name) must_== List(
                 "doSomething"
             )
+        } ^
+        "model the method" ! {
+            withMethod("doSomething", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike(IntClass) } and
+                { meth must haveResultLike(UnitClass) }
+            }
         }
+}
 
-        "model the method" in {
-            withMethod("doSomething", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike(IntClass)
-                meth must haveResultLike(UnitClass)
-            })
-        }
-    }
+class JavaInterfaceWithNamedSpecTest extends SpecificationWithJUnit {
+    lazy val targetClassRResult = builder.classRFor(classOf[JavaInterfaceWithNamed])
+    implicit def targetClassR = targetClassRResult.orThrow
 
-    "Extended reflection on a plain Java interface (with @Named)" should {
-        lazy val targetClassRResult = builder.classRFor(classOf[JavaInterfaceWithNamed])
-        implicit def targetClassR = targetClassRResult.orThrow
-
-        "not fail" in {
-            targetClassRResult must verify(_.isDefined)
-        }
-
-        "model only the expected members" in {
+    def is =
+        "Extended reflection on a plain Java interface (with @Named) should" ^
+        "not fail" ! {
+            targetClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model only the expected members" ! {
             targetClassR.members.map(_.name) must_== List(
                 "doSomething"
             )
+        } ^
+        "model the method" ! {
+            withMethod("doSomething", 1) { meth =>
+                { meth.annotations must beEmpty } and
+                { meth must haveParametersLike("i" -> IntClass) } and
+                { meth must haveResultLike(UnitClass) }
+            }
         }
+}
 
-        "model the method" in {
-            withMethod("doSomething", 1)(meth => {
-                meth.annotations must beEmpty
-                meth must haveParametersLike("i" -> IntClass)
-                meth must haveResultLike(UnitClass)
-            })
-        }
-    }
+class TypeAliasSpecTest extends SpecificationWithJUnit {
+    lazy val targetClassRResult = builder.classRFor(classOf[TypeTester])
+    implicit def targetClassR = targetClassRResult.orThrow
 
-    "Extended reflection should resolve type aliases" should {
-        lazy val targetClassRResult = builder.classRFor(classOf[TypeTester])
-        implicit def targetClassR = targetClassRResult.orThrow
-
-        "not fail" in {
-            targetClassRResult must verify(_.isDefined)
-        }
-
-        "model a type alias with no arguments (f)" in {
+    def is =
+        "Extended reflection should resolve type aliases should" ^
+        "not fail" ! {
+            targetClassRResult must beLike { case Okay(_) => ok }
+        } ^
+        "model a type alias with no arguments (f)" ! {
             implicit val property = ("f", (classOf[P[_]], StringClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a type alias with one argument (g)" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a type alias with one argument (g)" ! {
             implicit val property = ("g", (classOf[Q[_, _]], IntClass, StringClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a type alias with two arguments with one ignored (h)" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a type alias with two arguments with one ignored (h)" ! {
             implicit val property = ("h", (classOf[Q[_, _]], ByteClass, StringClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a type alias with one argument to an external type alias (i)" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a type alias with one argument to an external type alias (i)" ! {
             implicit val property = ("i", (classOf[ResultG[_, _]], UnitClass, FloatClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a type alias with one argument to an external class (j)" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a type alias with one argument to an external class (j)" ! {
             implicit val property = ("j", (classOf[ResultG[_, _]], StringClass, DoubleClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a type alias in a nested object (k)" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a type alias in a nested object (k)" ! {
             implicit val property = ("k", (classOf[P[_]], StringClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
-        }
-
-        "model a class-local type alias (l)" in {
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
+        } ^
+        "model a class-local type alias (l)" ! {
             implicit val property = ("l", (classOf[ResultG[_, _]], UnitClass, CharClass): TypeRMatcher)
-            withProperty(prop => {
-                prop.annotations must beEmpty
-                prop.getter must beValidGetter
-                prop.setter must notBePresent
-                prop.others must beEmpty
-            })
+            withProperty { prop =>
+                { prop.annotations must beEmpty } and
+                { prop.getter must beValidGetter } and
+                { prop.setter must notBePresent } and
+                { prop.others must beEmpty }
+            }
         }
-    }
 }

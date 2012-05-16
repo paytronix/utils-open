@@ -16,21 +16,63 @@
 
 package com.paytronix.utils.extendedreflection
 
-import org.specs.matcher.Matcher
+import org.specs2.matcher.{Matcher, MatchResult, MustMatchers, StandardMatchResults}
 import com.paytronix.utils.scala.result.{Result, Okay}
 
-object Helpers {
-    implicit def matchResultToExtendedMatchResult(in: (Boolean, String, String)): ExtendedMatchResult = ExtendedMatchResult(in)
-    implicit def extendedMatchResultToMatchResult(in: ExtendedMatchResult): (Boolean, String, String) = in.in
+object Helpers extends MustMatchers with StandardMatchResults {
+    val UnitClass = classOf[Unit]
+    val BooleanClass = classOf[Boolean]
+    val ByteClass = classOf[Byte]
+    val ShortClass = classOf[Short]
+    val CharClass = classOf[Char]
+    val IntClass = classOf[Int]
+    val LongClass = classOf[Long]
+    val FloatClass = classOf[Float]
+    val DoubleClass = classOf[Double]
+    val JavaListClass = classOf[java.util.List[_]]
+    val OptionClass = classOf[Option[_]]
+    val StringClass = classOf[String]
+    val Tuple2Class = classOf[Tuple2[_,_]]
 
-    final case class ExtendedMatchResult(in: (Boolean, String, String)) {
-        /** Allows easy composition of matchers */
-        def >> (other: => ExtendedMatchResult): ExtendedMatchResult =
-            in match {
-                case (true, _, _) => other
-                case _ => this
-            }
+    def ownedByLibraryInterface(cmr: ClassMemberR): Boolean = cmr.ownerName.qualified match {
+        case "java.lang.Object"|"scala.Product"|"scala.Equals" => true
+        case _ => false
     }
+
+    def withConstructor[A](numParams: Int)(f: ConstructorR => A)(implicit classR: ClassR): A = {
+        val ctorROption = classR.constructors.find(_.parameters.length == numParams)
+        ctorROption must beLike { case Some(_) => ok }
+        ctorROption.get.ownerName.qualified must_== classR.name.qualified
+        f(ctorROption.get)
+    }
+
+    def withProperty[A](f: PropertyR => A)(implicit propInfo: (String, TypeRMatcher), classR: ClassR): A =
+        withPropertyNamed(propInfo._1)(f)
+
+    def withPropertyNamed[A](n: String)(f: PropertyR => A)(implicit classR: ClassR): A =
+        withAnyPropertyNamed(n)(propR => {
+            propR.ownerName.qualified must_== classR.name.qualified
+            f(propR)
+        })
+
+    def withAnyPropertyNamed[A](n: String)(f: PropertyR => A)(implicit classR: ClassR): A = {
+        val propROption = classR.properties.find(_.name == n)
+        propROption must beLike { case Some(_) => ok }
+        f(propROption.get)
+    }
+
+    def withMethod[A](n: String, numParams: Int)(f: MethodR => A)(implicit classR: ClassR): A =
+        withAnyMethod(n, numParams)(methR => {
+            methR.ownerName.qualified must_== classR.name.qualified
+            f(methR)
+        })
+
+    def withAnyMethod[A](n: String, numParams: Int)(f: MethodR => A)(implicit classR: ClassR): A = {
+        val methROption = classR.methods.find(methR => methR.name == n && methR.parameters.length == numParams)
+        methROption must beLike { case Some(_) => ok }
+        f(methROption.get)
+    }
+
 
     sealed abstract class TypeRMatcher {
         def apply(in: TypeR): Boolean
@@ -74,50 +116,52 @@ object Helpers {
 
     // These functions have "first" and "rest" to not run into overloading / erasure issues
     def haveParametersLike(first: (String, TypeRMatcher), rest: (String, TypeRMatcher)*): Matcher[MethodLikeR] =
-        ParametersMatcher((first :: rest.toList).map { case (n, m) => (Some(n), m) }: _*)
+        matchParameters((first :: rest.toList).map { case (n, m) => (Some(n), m) }: _*)
     def haveParametersLike(first: TypeRMatcher, rest: TypeRMatcher*): Matcher[MethodLikeR] =
-        ParametersMatcher((first :: rest.toList).map(m => (None, m)): _*)
+        matchParameters((first :: rest.toList).map(m => (None, m)): _*)
 
-    case class ParametersMatcher(m: (Option[String], TypeRMatcher)*) extends Matcher[MethodLikeR] {
-        def apply(mlikeR: => MethodLikeR) =
-            if (mlikeR.parameters.length != m.length) (false, "ok", "wrong number of parameters for " + mlikeR + ", expected " + m.length)
-            else mlikeR.parameters.zip(m).zipWithIndex.foldLeft((true, "ok", "ko"))((prev, tup) => prev >> (tup match {
-                case ((paramR, (nameToMatch@Some(_), _)), index) if paramR.name != nameToMatch =>
-                    (false, "ok", "expected parameter " + index + " (" + paramR + ") of " + mlikeR + " to be named " + nameToMatch +
-                     " but is named " + paramR.name)
+    def matchParameters(m: (Option[String], TypeRMatcher)*): Matcher[MethodLikeR] =
+        (mlikeR: MethodLikeR) =>
+            (
+                if (mlikeR.parameters.length != m.length) ko("wrong number of parameters for " + mlikeR + ", expected " + m.length)
+                else ok
+            ) and (
+                mlikeR.parameters.zip(m).zipWithIndex.foldLeft[MatchResult[None.type]](ok) { (prev, tup) =>
+                    prev and (tup match {
+                        case ((paramR, (nameToMatch@Some(_), _)), index) if paramR.name != nameToMatch =>
+                            ko("expected parameter " + index + " (" + paramR + ") of " + mlikeR + " to be named " + nameToMatch + " but is named " + paramR.name)
 
-                case ((paramR, (_, typeMatcher)), index) if !typeMatcher(paramR.typeR) =>
-                    (false, "ok", "expected type of parameter " + index + " (" + paramR + ") of " + mlikeR + " to match " + typeMatcher)
+                        case ((paramR, (_, typeMatcher)), index) if !typeMatcher(paramR.typeR) =>
+                            ko("expected type of parameter " + index + " (" + paramR + ") of " + mlikeR + " to match " + typeMatcher)
 
-                case _ => (true, "ok", "ko")
-            }))
-    }
+                        case _ =>
+                            ok
+                    })
+                }
+            )
 
-    case class haveResultLike(m: TypeRMatcher) extends Matcher[MethodR] {
-        def apply(methR: => MethodR) =
-            (m(methR.result), "ok", "result type of " + methR + " doesn't match " + m)
-    }
+    def haveResultLike(m: TypeRMatcher): Matcher[MethodR] =
+        (methR: MethodR) =>
+            if (m(methR.result)) ok
+            else ko("result type of " + methR + " doesn't match " + m)
 
     def beValidGetter(implicit propInfo: (String, TypeRMatcher)): Matcher[MethodR] =
-        ValidGetterMatcher(propInfo._1, propInfo._2)
+        validGetter(propInfo._1, propInfo._2)
     def beValidGetter(n: String, m: TypeRMatcher): Matcher[MethodR] =
-        ValidGetterMatcher(n, m)
+        validGetter(n, m)
 
     def beValidBeanGetter(implicit propInfo: (String, TypeRMatcher)): Matcher[MethodR] =
-        ValidGetterMatcher("get" + upcaseFirst(propInfo._1), propInfo._2)
+        validGetter("get" + upcaseFirst(propInfo._1), propInfo._2)
     def beValidBeanGetter(n: String, m: TypeRMatcher): Matcher[MethodR] =
-        ValidGetterMatcher("get" + upcaseFirst(n), m)
+        validGetter("get" + upcaseFirst(n), m)
 
     def beValidBooleanBeanGetter(implicit propInfo: (String, TypeRMatcher)): Matcher[MethodR] =
-        ValidGetterMatcher("is" + upcaseFirst(propInfo._1), propInfo._2)
+        validGetter("is" + upcaseFirst(propInfo._1), propInfo._2)
     def beValidBooleanBeanGetter(n: String, m: TypeRMatcher): Matcher[MethodR] =
-        ValidGetterMatcher("is" + upcaseFirst(n), m)
+        validGetter("is" + upcaseFirst(n), m)
 
-    case class ValidGetterMatcher(n: String, m: TypeRMatcher) extends Matcher[MethodR] {
-        def apply(methR: => MethodR) =
-            if (methR.name != n)       (false, "ok", "expected getter named " + n + " but is " + methR.name)
-            else haveResultLike(m)(methR)
-    }
+    def validGetter(n: String, m: TypeRMatcher): Matcher[MethodR] =
+        (methR: MethodR) => (methR.name must_== n) and (methR must haveResultLike(m))
 
     def upcaseFirst(in: String) = in match {
         case "" => ""
@@ -125,33 +169,29 @@ object Helpers {
     }
 
     def beValidSetter(implicit propInfo: (String, TypeRMatcher)): Matcher[Result[MethodR]] =
-        ValidSetterMatcher(propInfo._1 + "_$eq", propInfo._2)
+        validSetter(propInfo._1 + "_$eq", propInfo._2)
     def beValidSetter(n: String, m: TypeRMatcher): Matcher[Result[MethodR]] =
-        ValidSetterMatcher(n + "_$eq", m)
+        validSetter(n + "_$eq", m)
 
     def beValidBeanSetter(implicit propInfo: (String, TypeRMatcher)): Matcher[Result[MethodR]] =
-        ValidSetterMatcher("set" + upcaseFirst(propInfo._1), propInfo._2)
+        validSetter("set" + upcaseFirst(propInfo._1), propInfo._2)
     def beValidBeanSetter(n: String, m: TypeRMatcher): Matcher[Result[MethodR]] =
-        ValidSetterMatcher("set" + upcaseFirst(n), m)
+        validSetter("set" + upcaseFirst(n), m)
 
-    case class ValidSetterMatcher(n: String, m: TypeRMatcher) extends Matcher[Result[MethodR]] {
-        def apply(b: => Result[MethodR]) = b match {
-            case Okay(methR) if methR.name != n =>
-                (false, "ok", "expected setter named " + n + " but is " + methR.name)
-
+    def validSetter(n: String, m: TypeRMatcher): Matcher[Result[MethodR]] =
+        beLike {
             case Okay(methR) =>
-                haveResultLike(classOf[Unit])(methR) >> haveParametersLike(m)(methR)
+                (methR.name must_== n) and
+                (methR must (haveResultLike(classOf[Unit]) and haveParametersLike(m)))
 
             case _ =>
-                (false, "ok", "setter " + n + " is not present, but should be")
+                ko("setter " + n + " is not present, but should be")
         }
 
-    }
 
-    object notBePresent extends Matcher[Result[_]] {
-        def apply(b: => Result[_]) = b match {
-            case Okay(v) => (false, "ok", "should not be Okay, but was and contained " + v)
-            case _ => (true, "ok", "ko")
+    def notBePresent: Matcher[Result[_]] =
+        beLike {
+            case Okay(v) => ko("should not be Okay, but was and contained " + v)
+            case _ => ok
         }
-    }
 }

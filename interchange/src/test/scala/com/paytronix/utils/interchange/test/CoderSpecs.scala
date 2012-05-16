@@ -25,87 +25,26 @@ import net.liftweb.json.Implicits.{double2jvalue, int2jvalue, string2jvalue}
 import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString, JValue}
 import net.liftweb.json.JsonDSL.{jobject2assoc, pair2Assoc, pair2jvalue}
 import org.slf4j.{Logger, LoggerFactory}
-import org.specs._
-import org.specs.matcher.Matcher
-import org.specs.runner.JUnit4
+import org.specs2.{SpecificationFeatures, SpecificationWithJUnit}
+import org.specs2.execute.{Result => SpecsResult}
+import org.specs2.matcher.Matcher
+import org.specs2.specification.{Around, Example}
 import com.paytronix.utils.interchange._
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG}
 
 import ComposableCoder.CoderResult
 import Helpers._
 
-class CoderTestSpecsAsTest extends JUnit4(CoderTestSpecs)
-
-object AvroDiagnostics {
-    // for some bizarre and presumably terrible reason, CoderTestSpecs gets reinitialized even though it's an object singleton.
-    // I blame reflection.
-    val avroDiagnostics: Buffer[String] = new ArrayBuffer
-}
-
-object CoderTestSpecs extends Specification {
+object MoreHelpers extends SpecificationFeatures {
     val log = LoggerFactory.getLogger(getClass)
 
-    import AvroDiagnostics.avroDiagnostics
-
-    // change to true to give quite a lot of detail on the Avro encodings
-    val debugAvro = false
-
-    doAfterSpec {
-        if (debugAvro) {
-            log.info("Avro diagnostic information:\nCoder\tAvro bytes\tJSON bytes\t% of JSON\tJSON content\n" + avroDiagnostics.mkString("\n"))
-        }
-    }
-
     val percentFormat = new DecimalFormat("#,##0.00")
-
-    noDetailedDiffs()
 
     val cl = getClass.getClassLoader
 
     val testObject = ("foo" -> 1) ~ ("bar" -> "baz") ~ ("zip" -> "qux")
 
-    val testCollectionJValue = JArray(JString("one")::JString("two")::JString("three")::Nil)
-
-    def avroRoundTrip[T](inst: ComposableCoder[T], value: T): Unit =
-        avroRoundTrip(Coder(cl, inst), value)
-
-    def avroRoundTrip[T](inst: ComposableCoder[T], value: T, expectation: Result[T] => Unit): Unit =
-        avroRoundTrip(Coder(cl, inst), value, expectation)
-
-    def avroRoundTrip[T](inst: Coder[T], value: T): Unit =
-        avroRoundTrip[T](inst, value, (decoded: Result[T]) => {
-            if (!decoded.isDefined) decoded.asInstanceOf[FailedG[_]].throwable.printStackTrace()
-            decoded must verify(_.isDefined)
-            if (value.asInstanceOf[AnyRef] ne null) decoded.orThrow must_== value
-            else decoded.orThrow must verify(_.asInstanceOf[AnyRef] eq null)
-
-            ()
-        })
-
-    def avroRoundTrip[T](inst: Coder[T], value: T, expectation: Result[T] => Unit): Unit = {
-        val encoded = inst.encodeAvro(value)
-        encoded must verify(_.isDefined)
-
-        if (debugAvro) {
-            encoded.foreach(bytes => {
-                val encodedJSON = inst.encode(value).map(json).getOrElse("<failed to encode to JSON>")
-                val avroLength = bytes.length
-                val jsonLength = encodedJSON.length
-                avroDiagnostics += (inst.implementation.getClass.getName +
-                                    "\t" + avroLength +
-                                    "\t" + jsonLength +
-                                    "\t" + percentFormat.format((bytes.length: Double) / (jsonLength: Double) * 100.0) +
-                                    "\t" + encodedJSON)
-            })
-        }
-
-        val decoded = encoded.flatMap(inst.decodeAvro(inst.avroSchema, _))
-
-        expectation(decoded)
-
-        ()
-    }
-
+    val testCollectionJValue = JArray(JString("one") :: JString("two") :: JString("three") :: Nil)
 
     def simpleTest[T] (
         name: String,
@@ -113,64 +52,59 @@ object CoderTestSpecs extends Specification {
         normalValues: List[(T, JValue)],
         stringDecodeValues: List[(T, String)],
         outOfBoundJValues: List[JValue]
-    ) = name should {
-        for ((from, to) <- normalValues) {
-            ("basically encode " + name + " (" + to + ")") in {
+    ) = (name + " should") ^
+        normalValues.map { case (from, to) =>
+            ("basically encode " + name + " (" + to + ")") ! {
                 inst.encode(from) must matchEncodedJson(to)
             }
-        }
-
-        for ((to, from) <- normalValues) {
-            ("basically decode " + name + " (" + from + ")") in {
+        } ^
+        normalValues.map { case (to, from) =>
+            ("basically decode " + name + " (" + from + ")") ! {
                 inst.decode(from) must_== Okay(to)
             }
-        }
-
-        for ((v, _) <- normalValues) {
-            ("basically round trip " + name + " via Avro (" + v + ")") in {
+        } ^
+        normalValues.map { case (v, _) =>
+            ("basically round trip " + name + " via Avro (" + v + ")") ! {
                 avroRoundTrip(inst, v)
             }
-        }
-
-        if (!stringDecodeValues.isEmpty) {
-            for ((to, from) <- stringDecodeValues) {
-                ("decode JStrings " + name + " (" + from + ")") in {
-                    inst.decode(JString(from)) must_== Okay(to)
-                }
-            }
-
-            for ((to, from) <- stringDecodeValues) {
-                ("decode Strings " + name + " (" + from + ")") in {
-                    inst.implementation must verify(_.isInstanceOf[StringSafeCoder[_]])
-                    val stringInst = inst.implementation.asInstanceOf[StringSafeCoder[T]]
-                    stringInst.decodeString(cl, from) must_== Okay(to)
-                }
-            }
-
-            for ((from, to) <- stringDecodeValues) {
-                ("encode Strings " + name + " (" + from + ")") in {
-                    inst.implementation must verify(_.isInstanceOf[StringSafeCoder[_]])
-                    val stringInst = inst.implementation.asInstanceOf[StringSafeCoder[T]]
-                    stringInst.encodeString(cl, from) must_== Okay(to)
-                }
-            }
-        }
-
-        if (!outOfBoundJValues.isEmpty) {
-            for (outOfBoundJValue <- outOfBoundJValues) {
-                ("fail to decode invalid JValues " + name + " (" + json(outOfBoundJValue) + ")") in {
-                    case class beFailure(checkedValue: JValue) extends Matcher[Result[_]] {
-                        def apply(v: => Result[_]) = (!v.isDefined,
-                                                   "failed decoding " + checkedValue + ", as it should",
-                                                   "should have failed decoding " + checkedValue + ", instead gave " + v)
+        } ^ (
+            if (!stringDecodeValues.isEmpty) {
+                stringDecodeValues.map { case (to, from) =>
+                    ("decode JStrings " + name + " (" + from + ")") ! {
+                        inst.decode(JString(from)) must_== Okay(to)
                     }
-                    inst.decode(outOfBoundJValue) must beFailure(outOfBoundJValue)
+                } ++
+                stringDecodeValues.map { case (to, from) =>
+                    ("decode Strings " + name + " (" + from + ")") ! {
+                        inst.implementation must beLike {
+                            case stringInst: StringSafeCoder[_] =>
+                                stringInst.decodeString(cl, from) must_== Okay(to)
+                        }
+                    }
+                } ++
+                stringDecodeValues.map { case (from, to) =>
+                    ("encode Strings " + name + " (" + from + ")") ! {
+                        inst.implementation must beLike {
+                            case stringInst: StringSafeCoder[_] =>
+                                stringInst.encodeString(cl, from) must_== Okay(to)
+                        }
+                    }
                 }
-            }
-        }
+            } else Nil
+        ) ^ (
+            if (!outOfBoundJValues.isEmpty) {
+                outOfBoundJValues.map { outOfBoundJValue =>
+                    ("fail to decode invalid JValues " + name + " (" + json(outOfBoundJValue) + ")") ! {
+                        def beFailure(checkedValue: JValue): Matcher[Result[_]] =
+                            (v: Result[_]) =>
+                                if (!v.isDefined) ok("failed decoding " + checkedValue + ", as it should")
+                                else ko("should have failed decoding " + checkedValue + ", instead gave " + v)
 
-        ()
-    }
+                        inst.decode(outOfBoundJValue) must beFailure(outOfBoundJValue)
+                    }
+                }
+            } else Nil
+        )
 
     val byteMin  = BigInt(java.lang.Byte.MIN_VALUE.toString)
     val byteMax  = BigInt(java.lang.Byte.MAX_VALUE.toString)
@@ -181,47 +115,66 @@ object CoderTestSpecs extends Specification {
     val shortMin = BigInt(java.lang.Short.MIN_VALUE.toString)
     val shortMax = BigInt(java.lang.Short.MAX_VALUE.toString)
 
-    simpleTest (
+    val simpleMapJValue = ("one" -> 1) ~ ("two" -> 2)
+    val simpleMapJValue2 = JArray((("key" -> "one") ~ ("value" -> 1)) :: (("key" -> "two") ~ ("value" -> 2)) :: Nil)
+    val complexMapJValue = JArray((("key" -> (("foo" -> "bar") ~ ("baz" -> 1))) ~ ("value" -> "foobarbaz1")) ::
+                                  (("key" -> (("qux" -> "foo") ~ ("zip" -> 1))) ~ ("value" -> "quxfoozip1")) :: Nil)
+}
+
+import MoreHelpers._
+
+class JavaBigDecimalCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="JavaBigDecimalCoder",
         inst=Coder(cl, JavaBigDecimalCoder),
         normalValues=(new java.math.BigDecimal("1.123"), JString("1.123")) :: (new java.math.BigDecimal("-1.123"), JString("-1.123")) :: Nil,
         stringDecodeValues=(new java.math.BigDecimal("1.123"), "1.123") :: (new java.math.BigDecimal("-1.123"), "-1.123") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class ScalaBigDecimalCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="ScalaBigDecimalCoder",
         inst=Coder(cl, ScalaBigDecimalCoder),
         normalValues=(scala.math.BigDecimal("1.123"), JString("1.123")) :: (scala.BigDecimal("-1.123"), JString("-1.123")) :: Nil,
         stringDecodeValues=(scala.math.BigDecimal("1.123"), "1.123") :: (scala.math.BigDecimal("-1.123"), "-1.123") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class BigIntCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="BigIntCoder",
         inst=Coder(cl, BigIntCoder),
         normalValues=(BigInt("1"), JInt(BigInt("1"))) :: (BigInt("-1"), JInt(BigInt("-1"))) :: Nil,
         stringDecodeValues=(BigInt("1"), "1") :: (BigInt("-1"), "-1") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class BigIntegerCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="BigIntegerCoder",
         inst=Coder(cl, BigIntegerCoder),
         normalValues=(new BigInteger("1"), JInt(BigInt("1"))) :: (new BigInteger("-1"), JInt(BigInt("-1"))) :: Nil,
         stringDecodeValues=(new BigInteger("1"), "1") :: (new BigInteger("-1"), "-1") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class BooleanCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="BooleanCoder",
         inst=Coder(cl, BooleanCoder),
         normalValues=(true, JBool(true)) :: (false, JBool(false)) :: Nil,
         stringDecodeValues=(true, "true") :: (false, "false") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JString("foo") :: JInt(BigInt(1)) :: Nil
     )
+}
 
-    simpleTest (
+class ByteCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="ByteCoder",
         inst=Coder(cl, ByteCoder),
         normalValues=List[(Byte, JValue)](
@@ -233,24 +186,30 @@ object CoderTestSpecs extends Specification {
         stringDecodeValues=List[(Byte, String)]((1, "1"), (-1, "-1")),
         outOfBoundJValues=JNothing :: JNull :: JInt(byteMin - 1) :: JInt(byteMax + 1) :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class CharCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="CharCoder",
         inst=Coder(cl, CharCoder),
         normalValues=('a', JString("a")) :: ('\u0000', JString("\u0000")) :: Nil,
         stringDecodeValues=('a', "a") :: ('\u0000', "\u0000") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class DoubleCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="DoubleCoder",
         inst=Coder(cl, DoubleCoder),
         normalValues=(1.0, JDouble(1.0)) :: (-1.0, JDouble(-1.0)) :: (0.1, JDouble(0.1)) :: Nil,
         stringDecodeValues=(1.0, "1.0") :: (-1.0, "-1.0") :: (0.1, "0.1") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class IntCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="IntCoder",
         inst=Coder(cl, IntCoder),
         normalValues=List[(Int, JValue)](
@@ -262,8 +221,10 @@ object CoderTestSpecs extends Specification {
         stringDecodeValues=List[(Int, String)]((1, "1"), (-1, "-1")),
         outOfBoundJValues=JNothing :: JNull :: JInt(intMin - 1) :: JInt(intMax +1) :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class LongCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="LongCoder",
         inst=Coder(cl, LongCoder),
         normalValues=List[(Long, JValue)](
@@ -275,8 +236,10 @@ object CoderTestSpecs extends Specification {
         stringDecodeValues=List[(Long, String)]((1L, "1"), (-1L, "-1")),
         outOfBoundJValues=JNothing :: JNull :: JInt(longMin - 1) :: JInt(longMax + 1) :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class ShortCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="ShortCoder",
         inst=Coder(cl, ShortCoder),
         normalValues=List[(Short, JValue)](
@@ -288,16 +251,20 @@ object CoderTestSpecs extends Specification {
         stringDecodeValues=List[(Short, String)]((1, "1"), (-1, "-1")),
         outOfBoundJValues=JNothing :: JNull :: JInt(shortMin - 1) :: JInt(shortMax + 1) :: JString("foo") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class StringCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="StringCoder",
         inst=Coder(cl, StringCoder),
         normalValues=("foo", JString("foo")) :: ("", JString("")) :: Nil,
         stringDecodeValues=Nil,
         outOfBoundJValues=JNothing :: JNull :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class JavaDateCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="JavaDateCoder",
         inst=Coder(cl, JavaDateCoder),
         normalValues=List[(java.util.Date, JString)](
@@ -308,8 +275,10 @@ object CoderTestSpecs extends Specification {
         ),
         outOfBoundJValues=JNothing :: JNull :: JString("not a valid date!") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class JavaSqlDateCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="JavaSqlDateCoder",
         inst=Coder(cl, JavaSqlDateCoder),
         normalValues=List[(java.sql.Date, JString)](
@@ -322,677 +291,636 @@ object CoderTestSpecs extends Specification {
         ),
         outOfBoundJValues=JNothing :: JNull :: JString("not a valid date!") :: JBool(false) :: Nil
     )
+}
 
-    simpleTest (
+class JavaEnumCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="JavaEnumCoder",
         inst=Coder(cl, fixtures.Coders.javaEnumCoder),
         normalValues=(fixtures.JavaEnum.ONE, JString("ONE")) :: (fixtures.JavaEnum.TWO, JString("TWO")) :: Nil,
         stringDecodeValues=(fixtures.JavaEnum.ONE, "ONE") :: (fixtures.JavaEnum.TWO, "TWO") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JBool(false) :: JString("FOUR") :: JString("") :: Nil
     )
+}
 
-    simpleTest (
+class ScalaEnumCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
         name="ScalaEnumCoder",
         inst=Coder(cl, fixtures.Coders.scalaEnumCoder),
         normalValues=(fixtures.ScalaEnum.ONE, JString("ONE")) :: (fixtures.ScalaEnum.TWO, JString("TWO")) :: Nil,
         stringDecodeValues=(fixtures.ScalaEnum.ONE, "ONE") :: (fixtures.ScalaEnum.TWO, "TWO") :: Nil,
         outOfBoundJValues=JNothing :: JNull :: JBool(false) :: JString("FOUR") :: JString("") :: Nil
     )
+}
 
-    "InsecureCoder" should {
-        CoderSettings.reset.before
-
-        val testCoder = InsecureCoder(StringCoder, Failed("boom!"))
-
-        "not work in an insecure context" in {
+class InsecureCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder = InsecureCoder(StringCoder, Failed("boom!"))
+    def is =
+        "InsecureCoder should" ^
+        "not work in an insecure context" ! resetCoderSettings {
             CoderSettings.isInsecureContext.set(true)
-            testCoder.decode(cl, JString("foo")) must not(verify(_.isDefined))
-        }
-
-        "work in a secure context" in {
-            testCoder.decode(cl, JString("foo")) must verify(_.isDefined)
-        }
-    }
-
-    "FailCoder" should {
-        "always fail properly" in {
-            Coder(cl, FailCoder[Unit](Failed("test"))).decode(JObject(Nil)).asInstanceOf[FailedG[_]].throwable.getCause.getMessage must_== "test"
-        }
-    }
-
-    "CollectionCoder" should {
-        val testCoder: CollectionCoder[String, Set[String]] = CollectionCoder(StringCoder)
-
-        val testSet = Set("one", "two", "three")
-
-        "basically encode" in {
-            testCoder.encode(cl, testSet) must matchEncodedJson(testCollectionJValue)
-        }
-
-        "basically decode" in {
-            testCoder.decode(cl, testCollectionJValue) must_== Okay(testSet)
-        }
-
-        "round trip via Avro" in {
-            avroRoundTrip(testCoder, testSet)
-        }
-    }
-
-    "JavaListCoder" should {
-        val testCoder = JavaListCoder(StringCoder)
-
-        val testList = Arrays.asList("one", "two", "three")
-
-        "basically encode" in {
-            testCoder.encode(cl, testList) must matchEncodedJson(testCollectionJValue)
-        }
-
-        "basically decode" in {
-            testCoder.decode(cl, testCollectionJValue) must_== Okay(testList)
-        }
-
-        "round trip via Avro" in {
-            avroRoundTrip(testCoder, testList)
-        }
-    }
-
-    val simpleMapJValue = ("one" -> 1) ~ ("two" -> 2)
-    val simpleMapJValue2 = JArray((("key" -> "one") ~ ("value" -> 1)) :: (("key" -> "two") ~ ("value" -> 2)) :: Nil)
-    val complexMapJValue = JArray((("key" -> (("foo" -> "bar") ~ ("baz" -> 1))) ~ ("value" -> "foobarbaz1")) ::
-                                  (("key" -> (("qux" -> "foo") ~ ("zip" -> 1))) ~ ("value" -> "quxfoozip1")) :: Nil)
-
-    "JavaMapCoder" should {
-        val simpleMapCoder = JavaMapCoder(StringCoder, IntCoder)
-        val complexMapCoder = JavaMapCoder(JValueCoder, StringCoder)
-
-        val simpleMap = new java.util.HashMap[String, Int]
-        simpleMap.put("one", 1)
-        simpleMap.put("two", 2)
-        val complexMap = new java.util.LinkedHashMap[JValue, String]
-        complexMap.put(("foo" -> "bar") ~ ("baz" -> 1), "foobarbaz1")
-        complexMap.put(("qux" -> "foo") ~ ("zip" -> 1), "quxfoozip1")
-
-        "encode simple keys" in {
-            simpleMapCoder.encode(cl, simpleMap) must matchEncodedJson(simpleMapJValue)
-        }
-
-        "decode simple keys" in {
-            simpleMapCoder.decode(cl, simpleMapJValue) must_== Okay(simpleMap)
-        }
-
-        "encode complex keys" in {
-            complexMapCoder.encode(cl, complexMap) must matchEncodedJson(complexMapJValue)
-        }
-
-        "decode complex keys" in {
-            complexMapCoder.decode(cl, complexMapJValue) must_== Okay(complexMap)
-        }
-
-        "decode pairs even for a simple keys" in {
-            simpleMapCoder.decode(cl, simpleMapJValue2) must_== Okay(simpleMap)
-        }
-
-        "round trip via Avro for simple keys" in {
-            avroRoundTrip(simpleMapCoder, simpleMap)
-        }
-
-        "round trip via Avro for complex keys" in {
-            avroRoundTrip(complexMapCoder, complexMap)
-        }
-    }
-
-    "ScalaImmutableMapMapCoder" should {
-        val simpleMapCoder = ScalaImmutableMapCoder(StringCoder, IntCoder)
-        val complexMapCoder = ScalaImmutableMapCoder(JValueCoder, StringCoder)
-
-        val simpleMap = scala.collection.immutable.Map[String, Int]("one" -> 1, "two" -> 2)
-        val complexMap = scala.collection.immutable.Map[JValue, String]((("foo" -> "bar") ~ ("baz" -> 1)) -> "foobarbaz1",
-                                                                        (("qux" -> "foo") ~ ("zip" -> 1)) -> "quxfoozip1")
-
-        "encode simple keys" in {
-            simpleMapCoder.encode(cl, simpleMap) must matchEncodedJson(simpleMapJValue)
-        }
-
-        "decode simple keys" in {
-            simpleMapCoder.decode(cl, simpleMapJValue) must_== Okay(simpleMap)
-        }
-
-        "encode complex keys" in {
-            complexMapCoder.encode(cl, complexMap) must matchEncodedJson(complexMapJValue)
-        }
-
-        "decode complex keys" in {
-            complexMapCoder.decode(cl, complexMapJValue) must_== Okay(complexMap)
-        }
-
-        "decode pairs even for a simple keys" in {
-            simpleMapCoder.decode(cl, simpleMapJValue2) must_== Okay(simpleMap)
-        }
-
-        "round trip via Avro for simple keys" in {
-            avroRoundTrip(simpleMapCoder, simpleMap)
-        }
-
-        "round trip via Avro for complex keys" in {
-            avroRoundTrip(complexMapCoder, complexMap)
-        }
-    }
-
-    "ScalaMutableMapMapCoder" should {
-        val simpleMapCoder = ScalaMutableMapCoder(StringCoder, IntCoder)
-        val complexMapCoder = ScalaMutableMapCoder(JValueCoder, StringCoder)
-
-        val simpleMap = scala.collection.mutable.LinkedHashMap[String, Int]("one" -> 1, "two" -> 2)
-        val complexMap = scala.collection.mutable.LinkedHashMap[JValue, String]((("foo" -> "bar") ~ ("baz" -> 1)) -> "foobarbaz1",
-                                                                                (("qux" -> "foo") ~ ("zip" -> 1)) -> "quxfoozip1")
-
-        "encode simple keys" in {
-            simpleMapCoder.encode(cl, simpleMap) must matchEncodedJson(simpleMapJValue)
-        }
-
-        "decode simple keys" in {
-            simpleMapCoder.decode(cl, simpleMapJValue) must_== Okay(simpleMap)
-        }
-
-        "encode complex keys" in {
-            complexMapCoder.encode(cl, complexMap) must matchEncodedJson(complexMapJValue)
-        }
-
-        "decode complex keys" in {
-            complexMapCoder.decode(cl, complexMapJValue) must_== Okay(complexMap)
-        }
-
-        "decode pairs even for a simple keys" in {
-            simpleMapCoder.decode(cl, simpleMapJValue2) must_== Okay(simpleMap)
-        }
-
-        "round trip via Avro for simple keys" in {
-            avroRoundTrip(simpleMapCoder, simpleMap)
-        }
-
-        "round trip via Avro for complex keys" in {
-            avroRoundTrip(complexMapCoder, complexMap)
-        }
-    }
-
-    "NullCoder" should {
-        val testCoder = NullCoder(StringCoder)
-
-        "basically decode" in {
-            testCoder.decode(cl, JString("foo")) must_== Okay("foo")
-            testCoder.decode(cl, JNull) must_== Okay(null)
-            testCoder.decode(cl, JNothing) must_== Okay(null)
-        }
-
-        "basically encode" in {
-            testCoder.encode(cl, "foo") must matchEncodedJson(JString("foo"))
-            testCoder.encode(cl, null) must matchEncodedJson(JNothing)
-        }
-
-        "round trip via Avro" in {
-            avroRoundTrip(testCoder, "foo")
-            avroRoundTrip(testCoder, null)
-        }
-    }
-
-    "OptionCoder" should {
-        val testCoder = OptionCoder(StringCoder)
-        val nestedCoder = OptionCoder(OptionCoder(OptionCoder(StringCoder)))
-        val nestedListCoder = OptionCoder(OptionCoder(OptionCoder(ScalaListCoder(StringCoder))))
-
-        "basically decode" in {
-            testCoder.decode(cl, JString("foo")) must_== Okay(Some("foo"))
-            testCoder.decode(cl, JNull) must_== Okay(None)
-            testCoder.decode(cl, JNothing) must_== Okay(None)
-        }
-
-        "basically encode" in {
-            testCoder.encode(cl, Some("foo")) must matchEncodedJson(JString("foo"))
-            testCoder.encode(cl, None) must matchEncodedJson(JNothing)
-        }
-
-        "basically round trip via Avro" in {
-            avroRoundTrip(testCoder, Some("foo"))
-            avroRoundTrip(testCoder, None)
-        }
-
-        "encode nested options" in {
-            nestedCoder.encode(cl, Some(Some(Some("foo")))) must matchEncodedJson(JArray(JArray(JString("foo") :: Nil) :: Nil))
-            nestedCoder.encode(cl, Some(Some(None))) must matchEncodedJson(JArray(JArray(JNothing :: Nil) :: Nil))
-            nestedCoder.encode(cl, Some(None)) must matchEncodedJson(JArray(JNothing :: Nil))
-            nestedCoder.encode(cl, None) must matchEncodedJson(JNothing)
-        }
-
-        "encode nested options with list terminals" in {
-            nestedListCoder.encode(cl, Some(Some(Some("foo" :: Nil)))) must matchEncodedJson(JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil))
-            nestedListCoder.encode(cl, Some(Some(None))) must matchEncodedJson(JArray(JArray(JNothing :: Nil) :: Nil))
-            nestedListCoder.encode(cl, Some(None)) must matchEncodedJson(JArray(JNothing :: Nil))
-            nestedListCoder.encode(cl, None) must matchEncodedJson(JNothing)
-        }
-
-        "decode nested options" in {
-            nestedCoder.decode(cl, JArray(JArray(JString("foo") :: Nil) :: Nil)) must_== Okay(Some(Some(Some("foo"))))
-            nestedCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Some(Some(None)))
-            nestedCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Some(Some(None)))
-            nestedCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Some(Some(None)))
-            nestedCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Some(None))
-            nestedCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Some(None))
-            nestedCoder.decode(cl, JArray(Nil)) must_== Okay(Some(None))
-            nestedCoder.decode(cl, JNothing) must_== Okay(None)
-            nestedCoder.decode(cl, JNull) must_== Okay(None)
-        }
-
-        "decode nested options with list terminals" in {
-            nestedListCoder.decode(cl, JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil)) must_== Okay(Some(Some(Some("foo" :: Nil))))
-            nestedListCoder.decode(cl, JArray(JArray(JArray(Nil) :: Nil) :: Nil)) must_== Okay(Some(Some(Some(Nil))))
-            nestedListCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Some(Some(None)))
-            nestedListCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Some(Some(None)))
-            nestedListCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Some(Some(None)))
-            nestedListCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Some(None))
-            nestedListCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Some(None))
-            nestedListCoder.decode(cl, JArray(Nil)) must_== Okay(Some(None))
-            nestedListCoder.decode(cl, JNothing) must_== Okay(None)
-            nestedListCoder.decode(cl, JNull) must_== Okay(None)
-        }
-
-        "round trip nested options via Avro" in {
-            avroRoundTrip(nestedCoder, Some(Some(Some("foo"))))
-            avroRoundTrip(nestedCoder, Some(Some(None)))
-            avroRoundTrip(nestedCoder, Some(None))
-            avroRoundTrip(nestedCoder, None)
-        }
-    }
-
-    "ResultCoder" should {
-        CoderSettings.reset.before
-
-        val testCoder = ResultCoder(UnitCoder, StringCoder)
-        val testUnitCoder = ResultCoder(UnitCoder, UnitCoder)
-        val nestedCoder = ResultCoder(UnitCoder, ResultCoder(UnitCoder, ResultCoder(UnitCoder, StringCoder)))
-        val nestedListCoder = ResultCoder(UnitCoder, ResultCoder(UnitCoder, ResultCoder(UnitCoder, ScalaListCoder(StringCoder))))
-        def failedJSON (
-            message: String,
-            cause: JValue = JNothing,
-            param: JValue = JNothing,
-            throwableIsA: String = "com.paytronix.utils.scala.result$FailedException"
-        ): JObject = {
-            var throwable: JObject = ("isA" -> throwableIsA) ~ ("message" -> message)
-            if (cause != JNothing) throwable = throwable ~ ("cause" -> (cause \ "throwable"))
-            ("throwable" -> throwable) ~ ("param" -> param)
-        }
-
-        "decode Okay" in {
-            testCoder.decode(cl, JString("foo")) must_== Okay(Okay("foo"))
-        }
-
-        "encode Okay" in {
-            testCoder.encode(cl, Okay("foo")) must matchEncodedJson(JString("foo"))
-        }
-
-        "round trip Okay via Avro" in {
-            avroRoundTrip(testCoder, Okay("foo"))
-        }
-
-        "encode Failed" in {
-            testCoder.encode(cl, Failed("failed")) must matchEncodedJson(failedJSON("failed"))
-            testCoder.encode(cl, Failed("failed", Failed("chained failure"))) must
-                matchEncodedJson(failedJSON("failed", failedJSON("chained failure")))
-        }
-
-        "decode Failed" in {
-            testCoder.decode(cl, failedJSON("failed")) must_== Okay(Failed("failed"))
-            testCoder.decode(cl, failedJSON("failed", failedJSON("chained failure"))) must_==
-                Okay(Failed("failed", Failed("chained failure")))
-        }
-
-        "round trip Failed via Avro" in {
-            avroRoundTrip(testCoder, Failed("failed"))
-            avroRoundTrip(testCoder, Failed("failed", Failed("chained failure")))
-        }
-
-        "encode nested results" in {
-            nestedCoder.encode(cl, Okay(Okay(Okay("foo")))) must matchEncodedJson(JArray(JArray(JString("foo") :: Nil) :: Nil))
-            nestedCoder.encode(cl, Okay(Okay(Failed("failed")))) must matchEncodedJson(JArray(JArray(failedJSON("failed") :: Nil) :: Nil))
-            nestedCoder.encode(cl, Okay(Failed("failed"))) must matchEncodedJson(JArray(failedJSON("failed") :: Nil))
-            nestedCoder.encode(cl, Failed("failed")) must matchEncodedJson(failedJSON("failed"))
-        }
-
-        "encode nested results with list terminals" in {
-            nestedListCoder.encode(cl, Okay(Okay(Okay("foo" :: Nil)))).must(
-                matchEncodedJson(JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil))
-            )
-            nestedListCoder.encode(cl, Okay(Okay(Failed("failed")))) must matchEncodedJson(JArray(JArray(failedJSON("failed") :: Nil) :: Nil))
-            nestedListCoder.encode(cl, Okay(Failed("failed"))) must matchEncodedJson(JArray(failedJSON("failed") :: Nil))
-            nestedListCoder.encode(cl, Failed("failed")) must matchEncodedJson(failedJSON("failed"))
-        }
-
-        // unlike JSON, nothing special about lists in boxes for Avro, so don't cover it
-
-        "decode nested results" in {
-            nestedCoder.decode(cl, JArray(JArray(JString("foo") :: Nil) :: Nil)) must_== Okay(Okay(Okay(Okay("foo"))))
-            nestedCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure"))))
-            nestedCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure"))))
-            nestedCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure"))))
-            nestedCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Okay(Failed("unknown failure")))
-            nestedCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Okay(Failed("unknown failure")))
-            nestedCoder.decode(cl, JArray(Nil)) must_== Okay(Okay(Failed("unknown failure")))
-            nestedCoder.decode(cl, JNothing) must_== Okay(Failed("unknown failure"))
-            nestedCoder.decode(cl, JNull) must_== Okay(Failed("unknown failure"))
-
-            nestedCoder.decode(cl, JArray(JArray(failedJSON("failed") :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("failed"))))
-            nestedCoder.decode(cl, JArray(failedJSON("failed") :: Nil)) must_== Okay(Okay(Failed("failed")))
-            nestedCoder.decode(cl, failedJSON("failed")) must_== Okay(Failed("failed"))
-        }
-
-        "decode nested results with list terminals" in {
-            nestedListCoder.decode(cl, JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil)) must_== Okay(Okay(Okay(Okay("foo" :: Nil))))
-            nestedListCoder.decode(cl, JArray(JArray(JArray(Nil) :: Nil) :: Nil)) must_== Okay(Okay(Okay(Okay(Nil))))
-            nestedListCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure"))))
-            nestedListCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure"))))
-            nestedListCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure"))))
-            nestedListCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Okay(Failed("unknown failure")))
-            nestedListCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Okay(Failed("unknown failure")))
-            nestedListCoder.decode(cl, JArray(Nil)) must_== Okay(Okay(Failed("unknown failure")))
-            nestedListCoder.decode(cl, JNothing) must_== Okay(Failed("unknown failure"))
-            nestedListCoder.decode(cl, JNull) must_== Okay(Failed("unknown failure"))
-            nestedListCoder.decode(cl, JArray(JArray(failedJSON("failed") :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("failed"))))
-            nestedListCoder.decode(cl, JArray(failedJSON("failed") :: Nil)) must_== Okay(Okay(Failed("failed")))
-            nestedListCoder.decode(cl, failedJSON("failed")) must_== Okay(Failed("failed"))
-        }
-
-        // unlike JSON, nothing special about lists in boxes for Avro, so don't cover it
-
-        "round trip nested results via Avro" in {
-            avroRoundTrip(nestedCoder, Okay(Okay(Okay("foo"))))
-            avroRoundTrip(nestedCoder, Okay(Okay(Failed("failed"))))
-            avroRoundTrip(nestedCoder, Okay(Failed("failed")))
-            avroRoundTrip(nestedCoder, Failed("failed"))
-        }
-
-        "honor hideFailures given at configuration time" in {
-            ResultCoder(UnitCoder, StringCoder, Some(true)).encode(cl, Failed("test")) must_== Okay(JNothing)
-            ResultCoder(UnitCoder, StringCoder, Some(false)).encode(cl, Failed("test")) must matchEncodedJson(failedJSON("test"))
-        }
-
-        "honor hideFailures given at configuration time even if set otherwise at encode time" in {
-            CoderSettings.hideFailures.set(true)
-            ResultCoder(UnitCoder, StringCoder, Some(true)).encode(cl, Failed("test")) must_== Okay(JNothing)
-            ResultCoder(UnitCoder, StringCoder, Some(false)).encode(cl, Failed("test")) must matchEncodedJson(failedJSON("test"))
-        }
-
-        "honor hideFailures given at encode time" in {
-            CoderSettings.hideFailures.set(true)
-            ResultCoder(UnitCoder, StringCoder).encode(cl, Failed("test")) must_== Okay(JNothing)
-        }
-
-        val failedGWithString = FailedG("failed", Failed("chained failure"), "additional param")
-        val failedGWithStringJSON = failedJSON("failed", failedJSON("chained failure"), JString("additional param"))
-        val failedGWithStringCoder = ResultCoder(StringCoder, IntCoder)
-
-        val failedGWithInt = FailedG("failed", Failed("chained failure"), 1234)
-        val failedGWithIntJSON = failedJSON("failed", failedJSON("chained failure"), 1234: JInt)
-        val failedGWithIntCoder = ResultCoder(IntCoder, IntCoder)
-
-        val failedGWithCaseClass = FailedG("failed", Failed("chained failure"), fixtures.CaseClass(1, "foo", Some("bar")))
-        val failedGWithCaseClassJSON = failedJSON("failed", failedJSON("chained failure"), (
-                ("bar" -> "foo") ~ ("foo" -> 1) ~ ("zip" -> "bar")
-        ))
-        val failedGWithCaseClassCoder = ResultCoder(fixtures.Coders.caseClassCoder, IntCoder)
-
-        val failedGWithTuple = FailedG("failed", Failed("chained failure"), (1, "foo"))
-        val failedGWithTupleJSON = failedJSON("failed", failedJSON("chained failure"), JArray(JInt(1) :: JString("foo") :: Nil))
-        val failedGWithTupleCoder = ResultCoder(Tuple2Coder(IntCoder, StringCoder), IntCoder)
-
-        "encode FailedG" in {
-            failedGWithStringCoder.encode(cl, failedGWithString) must matchEncodedJson(failedGWithStringJSON)
-            failedGWithIntCoder.encode(cl, failedGWithInt) must matchEncodedJson(failedGWithIntJSON)
-            failedGWithCaseClassCoder.encode(cl, failedGWithCaseClass) must matchEncodedJson(failedGWithCaseClassJSON)
-            failedGWithTupleCoder.encode(cl, failedGWithTuple) must matchEncodedJson(failedGWithTupleJSON)
-        }
-
-        "decode FailedG" in {
-            failedGWithStringCoder.decode(cl, failedGWithStringJSON) must_== Okay(failedGWithString)
-            failedGWithIntCoder.decode(cl, failedGWithIntJSON) must_== Okay(failedGWithInt)
-            failedGWithCaseClassCoder.decode(cl, failedGWithCaseClassJSON) must_== Okay(failedGWithCaseClass)
-            failedGWithTupleCoder.decode(cl, failedGWithTupleJSON) must_== Okay(failedGWithTuple)
-        }
-
-        "round trip FailedG" in {
-            avroRoundTrip(failedGWithStringCoder, failedGWithString)
-            avroRoundTrip(failedGWithIntCoder, failedGWithInt)
-            avroRoundTrip(failedGWithCaseClassCoder, failedGWithCaseClass)
-            avroRoundTrip(failedGWithTupleCoder, failedGWithTuple)
-        }
-
-        "encode Units" in {
-            testUnitCoder.encode(cl, Okay(())) must matchEncodedJson(JArray(JNothing :: Nil))
-        }
-
-        "decode Units" in {
-            testUnitCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Okay(()))
-            testUnitCoder.decode(cl, JArray(Nil)) must_== Okay(Okay(()))
-        }
-
-        "round trip Units" in {
-            testUnitCoder.encode(cl, Okay(())).flatMap(testUnitCoder.decode(cl, _)) must_== Okay(Okay(()))
-
-            avroRoundTrip(testUnitCoder, Okay(()))
-        }
-    }
-
-    "EitherCoder" should {
-        val testCoder = EitherCoder(StringCoder, IntCoder)
-
-        "basically decode" in {
-            testCoder.decode(cl, "left" -> JString("foo")) must_== Okay(Left("foo"))
-            testCoder.decode(cl, "right" -> JInt(1)) must_== Okay(Right(1))
-        }
-
-        "basically encode" in {
-            testCoder.encode(cl, Left("foo")) must matchEncodedJson("left" -> JString("foo"))
-            testCoder.encode(cl, Right(1)) must matchEncodedJson("right" -> JInt(1))
-        }
-
-        "basically round trip via Avro" in {
-            avroRoundTrip(testCoder, Left("foo"))
-            avroRoundTrip(testCoder, Right(1))
-        }
-    }
-
-    "automatic UnionCoders" should {
-        import fixtures._
-        import Coders._
-
-        "basically decode" in {
-            autoUnionCoder.decode(cl, "a" -> 1) must_== Okay(AutoUnionFirst(1))
-            autoUnionCoder.decode(cl, "b" -> "foo") must_== Okay(AutoUnionSecond("foo"))
-        }
-
-        "basically encode" in {
-            autoUnionCoder.encode(cl, AutoUnionFirst(1)) must matchEncodedJson("a" -> 1)
-            autoUnionCoder.encode(cl, AutoUnionSecond("foo")) must matchEncodedJson("b" -> "foo")
-        }
-
-        "round trip via Avro" in {
-            avroRoundTrip(autoUnionCoder, AutoUnionFirst(1))
-            avroRoundTrip(autoUnionCoder, AutoUnionSecond("foo"))
-        }
-
-        "fail to decode invalid inputs" in {
-            autoUnionCoder.decode(cl, "c" -> 1.0) must not(verify(_.isDefined))
-        }
-
-        "fail to encode invalid inputs" in {
-            autoUnionCoder.encode(cl, AutoUnionInvalid(1.0)) must not(verify(_.isDefined))
-        }
-    }
-
-    "explicit UnionCoders" should {
-        import fixtures._
-        import Coders._
-
-        "basically decode" in {
-            explicitUnionCoder.decode(cl, ("_type" -> "first") ~ ("a" -> 1)) must_== Okay(ExplicitUnionFirst(1))
-            explicitUnionCoder.decode(cl, ("_type" -> "second") ~ ("b" -> "foo")) must_== Okay(ExplicitUnionSecond("foo"))
-        }
-
-        "basically encode" in {
-            explicitUnionCoder.encode(cl, ExplicitUnionFirst(1)) must matchEncodedJson(("_type" -> "first") ~ ("a" -> 1))
-            explicitUnionCoder.encode(cl, ExplicitUnionSecond("foo")) must matchEncodedJson(("_type" -> "second") ~ ("b" -> "foo"))
-        }
-
-        "round trip via Avro" in {
-            avroRoundTrip(explicitUnionCoder, ExplicitUnionFirst(1))
-            avroRoundTrip(explicitUnionCoder, ExplicitUnionSecond("foo"))
-            avroRoundTrip(explicitUnionCoder, ExplicitUnionSingleton)
-            avroRoundTrip(explicitUnionCoder, ExplicitUnionSingletonWithProperties)
-        }
-
-        "fail to decode invalid inputs" in {
-            explicitUnionCoder.decode(cl, ("_type" -> "invalid") ~ ("c" -> 1.0)) must not(verify(_.isDefined))
-            explicitUnionCoder.decode(cl, "b" -> 1) must not(verify(_.isDefined))
-        }
-
-        "fail to encode invalid inputs" in {
-            explicitUnionCoder.encode(cl, ExplicitUnionInvalid(1.0)) must not(verify(_.isDefined))
-        }
-
-        "encode singletons as union members" in {
-            explicitUnionCoder.encode(cl, ExplicitUnionSingleton) must matchEncodedJson("_type" -> "singleton")
-            explicitUnionCoder.encode(cl, ExplicitUnionSingletonWithProperties) must matchEncodedJson(("codedProperty" -> "bar") ~ ("_type" -> "singletonWithProperties"))
-        }
-
-        "decode singletons as union members" in {
-             explicitUnionCoder.decode(cl, "_type" -> "singleton") must_== Okay(ExplicitUnionSingleton)
-             explicitUnionCoder.decode(cl, "_type" -> "singletonWithProperties") must_== Okay(ExplicitUnionSingletonWithProperties)
-             explicitUnionCoder.decode(cl, ("_type" -> "singletonWithProperties") ~ ("codedProperty" -> "bar")) must_== Okay(ExplicitUnionSingletonWithProperties)
-        }
-    }
-
-    "ArgumentArrayCoder" should {
-        val testCoder = ArgumentArrayCoder(false,
-                                           ArgumentCoding("foo", IntCoder) ::
-                                           ArgumentCoding("bar", NullCoder(StringCoder)) ::
-                                           ArgumentCoding("zip", OptionCoder(StringCoder)) :: Nil)
-
-        case class matchArrayResult(expected: Array[AnyRef]) extends Matcher[ResultG[_, Array[AnyRef]]] {
-            private def arrayToString(in: Array[AnyRef]): String = in.mkString("[", ", ", "]")
-
-            def apply(actualResult: => ResultG[_, Array[AnyRef]]) = {
-                val matched = actualResult match {
-                    case Okay(actual) if expected.length == actual.length && !(expected zip actual).exists { case (a, b) => a != b } => true
-                    case _ => false
-                }
-                (matched, "ok", actualResult.map(arrayToString).toString + " does not match Okay(" + arrayToString(expected) + ")")
+            testCoder.decode(cl, JString("foo")) must beLike {
+                case FailedG(_, _) => ok
+                case Okay(_) => ko("should have failed to decode insecure value in insecure context")
+            }
+        } ^
+        "work in a secure context" ! resetCoderSettings {
+            testCoder.decode(cl, JString("foo")) must beLike {
+                case Okay(_) => ok
+                case FailedG(throwable, _) =>
+                    throwable.printStackTrace()
+                    ko("failed to decode in secure context (see log)")
             }
         }
+}
 
-        "basically decode" in {
+class FailCoderSpecTest extends SpecificationWithJUnit {
+    def is =
+        "FailCoder should" ^
+        "always fail properly" ! {
+            Coder(cl, FailCoder[Unit](Failed("test"))).decode(JObject(Nil)) must beLike {
+                case FailedG(throwable, _) =>
+                    throwable.getCause.getMessage must_== "test"
+                case Okay(_) =>
+                    ko("FailCoder should have failed")
+            }
+        }
+}
+
+class CollectionCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder: CollectionCoder[String, Set[String]] = CollectionCoder(StringCoder)
+    val testSet = Set("one", "two", "three")
+
+    def is =
+        "CollectionCoder should" ^
+        "basically encode" ! {
+            testCoder.encode(cl, testSet) must matchEncodedJson(testCollectionJValue)
+        } ^
+        "basically decode" ! {
+            testCoder.decode(cl, testCollectionJValue) must_== Okay(testSet)
+        } ^
+        "round trip via Avro" ! {
+            avroRoundTrip(testCoder, testSet)
+        }
+}
+
+class JavaListCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder = JavaListCoder(StringCoder)
+    val testList = Arrays.asList("one", "two", "three")
+
+    def is =
+        "JavaListCoder should" ^
+        "basically encode" ! {
+            testCoder.encode(cl, testList) must matchEncodedJson(testCollectionJValue)
+        } ^
+        "basically decode" ! {
+            testCoder.decode(cl, testCollectionJValue) must_== Okay(testList)
+        } ^
+        "round trip via Avro" ! {
+            avroRoundTrip(testCoder, testList)
+        }
+}
+
+class JavaMapCoderSpecTest extends SpecificationWithJUnit {
+    val simpleMapCoder = JavaMapCoder(StringCoder, IntCoder)
+    val complexMapCoder = JavaMapCoder(JValueCoder, StringCoder)
+
+    val simpleMap = new java.util.HashMap[String, Int]
+    simpleMap.put("one", 1)
+    simpleMap.put("two", 2)
+    val complexMap = new java.util.LinkedHashMap[JValue, String]
+    complexMap.put(("foo" -> "bar") ~ ("baz" -> 1), "foobarbaz1")
+    complexMap.put(("qux" -> "foo") ~ ("zip" -> 1), "quxfoozip1")
+
+    def is =
+        "JavaMapCoder should" ^
+        "encode simple keys" ! {
+            simpleMapCoder.encode(cl, simpleMap) must matchEncodedJson(simpleMapJValue)
+        } ^
+        "decode simple keys" ! {
+            simpleMapCoder.decode(cl, simpleMapJValue) must_== Okay(simpleMap)
+        } ^
+        "encode complex keys" ! {
+            complexMapCoder.encode(cl, complexMap) must matchEncodedJson(complexMapJValue)
+        } ^
+        "decode complex keys" ! {
+            complexMapCoder.decode(cl, complexMapJValue) must_== Okay(complexMap)
+        } ^
+        "decode pairs even for a simple keys" ! {
+            simpleMapCoder.decode(cl, simpleMapJValue2) must_== Okay(simpleMap)
+        } ^
+        "round trip via Avro for simple keys" ! {
+            avroRoundTrip(simpleMapCoder, simpleMap)
+        } ^
+        "round trip via Avro for complex keys" ! {
+            avroRoundTrip(complexMapCoder, complexMap)
+        }
+}
+
+class ScalaImmutableMapCoderSpecTest extends SpecificationWithJUnit {
+    val simpleMapCoder = ScalaImmutableMapCoder(StringCoder, IntCoder)
+    val complexMapCoder = ScalaImmutableMapCoder(JValueCoder, StringCoder)
+
+    val simpleMap = scala.collection.immutable.Map[String, Int]("one" -> 1, "two" -> 2)
+    val complexMap = scala.collection.immutable.Map[JValue, String]((("foo" -> "bar") ~ ("baz" -> 1)) -> "foobarbaz1",
+                                                                    (("qux" -> "foo") ~ ("zip" -> 1)) -> "quxfoozip1")
+
+    def is =
+        "ScalaImmutableMapCoder should" ^
+        "encode simple keys" ! {
+            simpleMapCoder.encode(cl, simpleMap) must matchEncodedJson(simpleMapJValue)
+        } ^
+        "decode simple keys" ! {
+            simpleMapCoder.decode(cl, simpleMapJValue) must_== Okay(simpleMap)
+        } ^
+        "encode complex keys" ! {
+            complexMapCoder.encode(cl, complexMap) must matchEncodedJson(complexMapJValue)
+        } ^
+        "decode complex keys" ! {
+            complexMapCoder.decode(cl, complexMapJValue) must_== Okay(complexMap)
+        } ^
+        "decode pairs even for a simple keys" ! {
+            simpleMapCoder.decode(cl, simpleMapJValue2) must_== Okay(simpleMap)
+        } ^
+        "round trip via Avro for simple keys" ! {
+            avroRoundTrip(simpleMapCoder, simpleMap)
+        } ^
+        "round trip via Avro for complex keys" ! {
+            avroRoundTrip(complexMapCoder, complexMap)
+        }
+}
+
+class ScalaMutableMapCoderSpecTest extends SpecificationWithJUnit {
+    val simpleMapCoder = ScalaMutableMapCoder(StringCoder, IntCoder)
+    val complexMapCoder = ScalaMutableMapCoder(JValueCoder, StringCoder)
+
+    val simpleMap = scala.collection.mutable.LinkedHashMap[String, Int]("one" -> 1, "two" -> 2)
+    val complexMap = scala.collection.mutable.LinkedHashMap[JValue, String]((("foo" -> "bar") ~ ("baz" -> 1)) -> "foobarbaz1",
+                                                                            (("qux" -> "foo") ~ ("zip" -> 1)) -> "quxfoozip1")
+
+    def is =
+        "ScalaMutableMapCoder should" ^
+        "encode simple keys" ! {
+            simpleMapCoder.encode(cl, simpleMap) must matchEncodedJson(simpleMapJValue)
+        } ^
+        "decode simple keys" ! {
+            simpleMapCoder.decode(cl, simpleMapJValue) must_== Okay(simpleMap)
+        } ^
+        "encode complex keys" ! {
+            complexMapCoder.encode(cl, complexMap) must matchEncodedJson(complexMapJValue)
+        } ^
+        "decode complex keys" ! {
+            complexMapCoder.decode(cl, complexMapJValue) must_== Okay(complexMap)
+        } ^
+        "decode pairs even for a simple keys" ! {
+            simpleMapCoder.decode(cl, simpleMapJValue2) must_== Okay(simpleMap)
+        } ^
+        "round trip via Avro for simple keys" ! {
+            avroRoundTrip(simpleMapCoder, simpleMap)
+        } ^
+        "round trip via Avro for complex keys" ! {
+            avroRoundTrip(complexMapCoder, complexMap)
+        }
+}
+
+class NullCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder = NullCoder(StringCoder)
+
+    def is =
+        "NullCoder should" ^
+        "basically decode" ! {
+            { testCoder.decode(cl, JString("foo")) must_== Okay("foo") } and
+            { testCoder.decode(cl, JNull) must_== Okay(null) } and
+            { testCoder.decode(cl, JNothing) must_== Okay(null) }
+        } ^
+        "basically encode" ! {
+            { testCoder.encode(cl, "foo") must matchEncodedJson(JString("foo")) } and
+            { testCoder.encode(cl, null) must matchEncodedJson(JNothing) }
+        } ^
+        "round trip via Avro" ! {
+            { avroRoundTrip(testCoder, "foo") } and
+            { avroRoundTrip(testCoder, null) }
+        }
+}
+
+class OptionCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder = OptionCoder(StringCoder)
+    val nestedCoder = OptionCoder(OptionCoder(OptionCoder(StringCoder)))
+    val nestedListCoder = OptionCoder(OptionCoder(OptionCoder(ScalaListCoder(StringCoder))))
+
+    def is =
+        "OptionCoder should" ^
+        "basically decode" ! {
+            { testCoder.decode(cl, JString("foo")) must_== Okay(Some("foo")) } and
+            { testCoder.decode(cl, JNull) must_== Okay(None) } and
+            { testCoder.decode(cl, JNothing) must_== Okay(None) }
+        } ^
+        "basically encode" ! {
+            { testCoder.encode(cl, Some("foo")) must matchEncodedJson(JString("foo")) } and
+            { testCoder.encode(cl, None) must matchEncodedJson(JNothing) }
+        } ^
+        "basically round trip via Avro" ! {
+            { avroRoundTrip(testCoder, Some("foo")) } and
+            { avroRoundTrip(testCoder, None) }
+        } ^
+        "encode nested options" ! {
+            { nestedCoder.encode(cl, Some(Some(Some("foo")))) must matchEncodedJson(JArray(JArray(JString("foo") :: Nil) :: Nil)) } and
+            { nestedCoder.encode(cl, Some(Some(None))) must matchEncodedJson(JArray(JArray(JNothing :: Nil) :: Nil)) } and
+            { nestedCoder.encode(cl, Some(None)) must matchEncodedJson(JArray(JNothing :: Nil)) } and
+            { nestedCoder.encode(cl, None) must matchEncodedJson(JNothing) }
+        } ^
+        "encode nested options with list terminals" ! {
+            { nestedListCoder.encode(cl, Some(Some(Some("foo" :: Nil)))) must matchEncodedJson(JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil)) } and
+            { nestedListCoder.encode(cl, Some(Some(None))) must matchEncodedJson(JArray(JArray(JNothing :: Nil) :: Nil)) } and
+            { nestedListCoder.encode(cl, Some(None)) must matchEncodedJson(JArray(JNothing :: Nil)) } and
+            { nestedListCoder.encode(cl, None) must matchEncodedJson(JNothing) }
+        } ^
+        "decode nested options" ! {
+            { nestedCoder.decode(cl, JArray(JArray(JString("foo") :: Nil) :: Nil)) must_== Okay(Some(Some(Some("foo")))) } and
+            { nestedCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Some(Some(None))) } and
+            { nestedCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Some(Some(None))) } and
+            { nestedCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Some(Some(None))) } and
+            { nestedCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Some(None)) } and
+            { nestedCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Some(None)) } and
+            { nestedCoder.decode(cl, JArray(Nil)) must_== Okay(Some(None)) } and
+            { nestedCoder.decode(cl, JNothing) must_== Okay(None) } and
+            { nestedCoder.decode(cl, JNull) must_== Okay(None) }
+        } ^
+        "decode nested options with list terminals" ! {
+            { nestedListCoder.decode(cl, JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil)) must_== Okay(Some(Some(Some("foo" :: Nil)))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(JArray(Nil) :: Nil) :: Nil)) must_== Okay(Some(Some(Some(Nil)))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Some(Some(None))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Some(Some(None))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Some(Some(None))) } and
+            { nestedListCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Some(None)) } and
+            { nestedListCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Some(None)) } and
+            { nestedListCoder.decode(cl, JArray(Nil)) must_== Okay(Some(None)) } and
+            { nestedListCoder.decode(cl, JNothing) must_== Okay(None) } and
+            { nestedListCoder.decode(cl, JNull) must_== Okay(None) }
+        } ^
+        "round trip nested options via Avro" ! {
+            { avroRoundTrip(nestedCoder, Some(Some(Some("foo")))) } and
+            { avroRoundTrip(nestedCoder, Some(Some(None))) } and
+            { avroRoundTrip(nestedCoder, Some(None)) } and
+            { avroRoundTrip(nestedCoder, None) }
+        }
+}
+
+class ResultCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder = ResultCoder(UnitCoder, StringCoder)
+    val testUnitCoder = ResultCoder(UnitCoder, UnitCoder)
+    val nestedCoder = ResultCoder(UnitCoder, ResultCoder(UnitCoder, ResultCoder(UnitCoder, StringCoder)))
+    val nestedListCoder = ResultCoder(UnitCoder, ResultCoder(UnitCoder, ResultCoder(UnitCoder, ScalaListCoder(StringCoder))))
+    def failedJSON (
+        message: String,
+        cause: JValue = JNothing,
+        param: JValue = JNothing,
+        throwableIsA: String = "com.paytronix.utils.scala.result$FailedException"
+    ): JObject = {
+        var throwable: JObject = ("isA" -> throwableIsA) ~ ("message" -> message)
+        if (cause != JNothing) throwable = throwable ~ ("cause" -> (cause \ "throwable"))
+        ("throwable" -> throwable) ~ ("param" -> param)
+    }
+
+    val failedGWithString = FailedG("failed", Failed("chained failure"), "additional param")
+    val failedGWithStringJSON = failedJSON("failed", failedJSON("chained failure"), JString("additional param"))
+    val failedGWithStringCoder = ResultCoder(StringCoder, IntCoder)
+
+    val failedGWithInt = FailedG("failed", Failed("chained failure"), 1234)
+    val failedGWithIntJSON = failedJSON("failed", failedJSON("chained failure"), 1234: JInt)
+    val failedGWithIntCoder = ResultCoder(IntCoder, IntCoder)
+
+    val failedGWithCaseClass = FailedG("failed", Failed("chained failure"), fixtures.CaseClass(1, "foo", Some("bar")))
+    val failedGWithCaseClassJSON = failedJSON("failed", failedJSON("chained failure"), (
+            ("bar" -> "foo") ~ ("foo" -> 1) ~ ("zip" -> "bar")
+    ))
+    val failedGWithCaseClassCoder = ResultCoder(fixtures.Coders.caseClassCoder, IntCoder)
+
+    val failedGWithTuple = FailedG("failed", Failed("chained failure"), (1, "foo"))
+    val failedGWithTupleJSON = failedJSON("failed", failedJSON("chained failure"), JArray(JInt(1) :: JString("foo") :: Nil))
+    val failedGWithTupleCoder = ResultCoder(Tuple2Coder(IntCoder, StringCoder), IntCoder)
+
+    def is = (
+        "ResultCoder should" ^
+        "decode Okay" ! {
+            testCoder.decode(cl, JString("foo")) must_== Okay(Okay("foo"))
+        } ^
+        "encode Okay" ! {
+            testCoder.encode(cl, Okay("foo")) must matchEncodedJson(JString("foo"))
+        } ^
+        "round trip Okay via Avro" ! {
+            avroRoundTrip(testCoder, Okay("foo"))
+        } ^
+        "encode Failed" ! {
+            { testCoder.encode(cl, Failed("failed")) must matchEncodedJson(failedJSON("failed")) } and
+            { testCoder.encode(cl, Failed("failed", Failed("chained failure"))) must
+                matchEncodedJson(failedJSON("failed", failedJSON("chained failure"))) }
+        } ^
+        "decode Failed" ! {
+            { testCoder.decode(cl, failedJSON("failed")) must_== Okay(Failed("failed")) } and
+            { testCoder.decode(cl, failedJSON("failed", failedJSON("chained failure"))) must_==
+                Okay(Failed("failed", Failed("chained failure"))) }
+        } ^
+        "round trip Failed via Avro" ! {
+            { avroRoundTrip(testCoder, Failed("failed")) } and
+            { avroRoundTrip(testCoder, Failed("failed", Failed("chained failure"))) }
+        } ^
+        "encode nested results" ! {
+            { nestedCoder.encode(cl, Okay(Okay(Okay("foo")))) must matchEncodedJson(JArray(JArray(JString("foo") :: Nil) :: Nil)) } and
+            { nestedCoder.encode(cl, Okay(Okay(Failed("failed")))) must matchEncodedJson(JArray(JArray(failedJSON("failed") :: Nil) :: Nil)) } and
+            { nestedCoder.encode(cl, Okay(Failed("failed"))) must matchEncodedJson(JArray(failedJSON("failed") :: Nil)) } and
+            { nestedCoder.encode(cl, Failed("failed")) must matchEncodedJson(failedJSON("failed")) }
+        } ^
+        "encode nested results with list terminals" ! {
+            { nestedListCoder.encode(cl, Okay(Okay(Okay("foo" :: Nil)))).must(
+                matchEncodedJson(JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil))
+            ) } and
+            { nestedListCoder.encode(cl, Okay(Okay(Failed("failed")))) must matchEncodedJson(JArray(JArray(failedJSON("failed") :: Nil) :: Nil)) } and
+            { nestedListCoder.encode(cl, Okay(Failed("failed"))) must matchEncodedJson(JArray(failedJSON("failed") :: Nil)) } and
+            { nestedListCoder.encode(cl, Failed("failed")) must matchEncodedJson(failedJSON("failed")) }
+        } ^
+        "decode nested results" ! {
+            { nestedCoder.decode(cl, JArray(JArray(JString("foo") :: Nil) :: Nil)) must_== Okay(Okay(Okay(Okay("foo")))) } and
+            { nestedCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure")))) } and
+            { nestedCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure")))) } and
+            { nestedCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure")))) } and
+            { nestedCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Okay(Failed("unknown failure"))) } and
+            { nestedCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Okay(Failed("unknown failure"))) } and
+            { nestedCoder.decode(cl, JArray(Nil)) must_== Okay(Okay(Failed("unknown failure"))) } and
+            { nestedCoder.decode(cl, JNothing) must_== Okay(Failed("unknown failure")) } and
+            { nestedCoder.decode(cl, JNull) must_== Okay(Failed("unknown failure")) } and
+            { nestedCoder.decode(cl, JArray(JArray(failedJSON("failed") :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("failed")))) } and
+            { nestedCoder.decode(cl, JArray(failedJSON("failed") :: Nil)) must_== Okay(Okay(Failed("failed"))) } and
+            { nestedCoder.decode(cl, failedJSON("failed")) must_== Okay(Failed("failed")) }
+        } ^
+        "decode nested results with list terminals" ! {
+            { nestedListCoder.decode(cl, JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil)) must_== Okay(Okay(Okay(Okay("foo" :: Nil)))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(JArray(Nil) :: Nil) :: Nil)) must_== Okay(Okay(Okay(Okay(Nil)))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(JNothing :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure")))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(JNull :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure")))) } and
+            { nestedListCoder.decode(cl, JArray(JArray(Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("unknown failure")))) } and
+            { nestedListCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Okay(Failed("unknown failure"))) } and
+            { nestedListCoder.decode(cl, JArray(JNull :: Nil)) must_== Okay(Okay(Failed("unknown failure"))) } and
+            { nestedListCoder.decode(cl, JArray(Nil)) must_== Okay(Okay(Failed("unknown failure"))) } and
+            { nestedListCoder.decode(cl, JNothing) must_== Okay(Failed("unknown failure")) } and
+            { nestedListCoder.decode(cl, JNull) must_== Okay(Failed("unknown failure")) } and
+            { nestedListCoder.decode(cl, JArray(JArray(failedJSON("failed") :: Nil) :: Nil)) must_== Okay(Okay(Okay(Failed("failed")))) } and
+            { nestedListCoder.decode(cl, JArray(failedJSON("failed") :: Nil)) must_== Okay(Okay(Failed("failed"))) } and
+            { nestedListCoder.decode(cl, failedJSON("failed")) must_== Okay(Failed("failed")) }
+        } ^
+        "round trip nested results via Avro" ! {
+            { avroRoundTrip(nestedCoder, Okay(Okay(Okay("foo")))) } and
+            { avroRoundTrip(nestedCoder, Okay(Okay(Failed("failed")))) } and
+            { avroRoundTrip(nestedCoder, Okay(Failed("failed"))) } and
+            { avroRoundTrip(nestedCoder, Failed("failed")) }
+        } ^
+        "honor hideFailures given at configuration time" ! resetCoderSettings {
+            { ResultCoder(UnitCoder, StringCoder, Some(true)).encode(cl, Failed("test")) must_== Okay(JNothing) } and
+            { ResultCoder(UnitCoder, StringCoder, Some(false)).encode(cl, Failed("test")) must matchEncodedJson(failedJSON("test")) }
+        } ^
+        "honor hideFailures given at configuration time even if set otherwise at encode time" ! resetCoderSettings {
+            CoderSettings.hideFailures.set(true)
+
+            { ResultCoder(UnitCoder, StringCoder, Some(true)).encode(cl, Failed("test")) must_== Okay(JNothing) } and
+            { ResultCoder(UnitCoder, StringCoder, Some(false)).encode(cl, Failed("test")) must matchEncodedJson(failedJSON("test")) }
+        } ^
+        "honor hideFailures given at encode time" ! resetCoderSettings {
+            CoderSettings.hideFailures.set(true)
+            ResultCoder(UnitCoder, StringCoder).encode(cl, Failed("test")) must_== Okay(JNothing)
+        } ^
+        "encode FailedG" ! {
+            { failedGWithStringCoder.encode(cl, failedGWithString) must matchEncodedJson(failedGWithStringJSON) } and
+            { failedGWithIntCoder.encode(cl, failedGWithInt) must matchEncodedJson(failedGWithIntJSON) } and
+            { failedGWithCaseClassCoder.encode(cl, failedGWithCaseClass) must matchEncodedJson(failedGWithCaseClassJSON) } and
+            { failedGWithTupleCoder.encode(cl, failedGWithTuple) must matchEncodedJson(failedGWithTupleJSON) }
+        } ^
+        "decode FailedG" ! {
+            { failedGWithStringCoder.decode(cl, failedGWithStringJSON) must_== Okay(failedGWithString) } and
+            { failedGWithIntCoder.decode(cl, failedGWithIntJSON) must_== Okay(failedGWithInt) } and
+            { failedGWithCaseClassCoder.decode(cl, failedGWithCaseClassJSON) must_== Okay(failedGWithCaseClass) } and
+            { failedGWithTupleCoder.decode(cl, failedGWithTupleJSON) must_== Okay(failedGWithTuple) }
+        } ^
+        "round trip FailedG" ! {
+            { avroRoundTrip(failedGWithStringCoder, failedGWithString) } and
+            { avroRoundTrip(failedGWithIntCoder, failedGWithInt) } and
+            { avroRoundTrip(failedGWithCaseClassCoder, failedGWithCaseClass) } and
+            { avroRoundTrip(failedGWithTupleCoder, failedGWithTuple) }
+        } ^
+        "encode Units" ! {
+            testUnitCoder.encode(cl, Okay(())) must matchEncodedJson(JArray(JNothing :: Nil))
+        } ^
+        "decode Units" ! {
+            { testUnitCoder.decode(cl, JArray(JNothing :: Nil)) must_== Okay(Okay(())) } and
+            { testUnitCoder.decode(cl, JArray(Nil)) must_== Okay(Okay(())) }
+        } ^
+        "round trip Units" ! {
+            { testUnitCoder.encode(cl, Okay(())).flatMap(testUnitCoder.decode(cl, _)) must_== Okay(Okay(())) } and
+            { avroRoundTrip(testUnitCoder, Okay(())) }
+        }
+    )
+}
+
+class EitherCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder = EitherCoder(StringCoder, IntCoder)
+
+    def is =
+        "EitherCoder should" ^
+        "basically decode" ! {
+            { testCoder.decode(cl, "left" -> JString("foo")) must_== Okay(Left("foo")) } and
+            { testCoder.decode(cl, "right" -> JInt(1)) must_== Okay(Right(1)) }
+        } ^
+        "basically encode" ! {
+            { testCoder.encode(cl, Left("foo")) must matchEncodedJson("left" -> JString("foo")) } and
+            { testCoder.encode(cl, Right(1)) must matchEncodedJson("right" -> JInt(1)) }
+        } ^
+        "basically round trip via Avro" ! {
+            { avroRoundTrip(testCoder, Left("foo")) } and
+            { avroRoundTrip(testCoder, Right(1)) }
+        }
+}
+
+class AutomaticUnionCoderSpecTest extends SpecificationWithJUnit {
+    import fixtures._
+    import Coders._
+
+    def is =
+        "automatic UnionCoders should" ^
+        "basically decode" ! {
+            { autoUnionCoder.decode(cl, "a" -> 1) must_== Okay(AutoUnionFirst(1)) } and
+            { autoUnionCoder.decode(cl, "b" -> "foo") must_== Okay(AutoUnionSecond("foo")) }
+        } ^
+        "basically encode" ! {
+            { autoUnionCoder.encode(cl, AutoUnionFirst(1)) must matchEncodedJson("a" -> 1) } and
+            { autoUnionCoder.encode(cl, AutoUnionSecond("foo")) must matchEncodedJson("b" -> "foo") }
+        } ^
+        "round trip via Avro" ! {
+            { avroRoundTrip(autoUnionCoder, AutoUnionFirst(1)) } and
+            { avroRoundTrip(autoUnionCoder, AutoUnionSecond("foo")) }
+        } ^
+        "fail to decode invalid inputs" ! {
+            autoUnionCoder.decode(cl, "c" -> 1.0) must beLike { case FailedG(_, _) => ok }
+        } ^
+        "fail to encode invalid inputs" ! {
+            autoUnionCoder.encode(cl, AutoUnionInvalid(1.0)) must beLike { case FailedG(_, _) => ok }
+        }
+}
+
+class ExplicitUnionCoderSpecTest extends SpecificationWithJUnit {
+    import fixtures._
+    import Coders._
+
+    def is =
+        "explicit UnionCoders should" ^
+        "basically decode" ! {
+            { explicitUnionCoder.decode(cl, ("_type" -> "first") ~ ("a" -> 1)) must_== Okay(ExplicitUnionFirst(1)) } and
+            { explicitUnionCoder.decode(cl, ("_type" -> "second") ~ ("b" -> "foo")) must_== Okay(ExplicitUnionSecond("foo")) }
+        } ^
+        "basically encode" ! {
+            { explicitUnionCoder.encode(cl, ExplicitUnionFirst(1)) must matchEncodedJson(("_type" -> "first") ~ ("a" -> 1)) } and
+            { explicitUnionCoder.encode(cl, ExplicitUnionSecond("foo")) must matchEncodedJson(("_type" -> "second") ~ ("b" -> "foo")) }
+        } ^
+        "round trip via Avro" ! {
+            { avroRoundTrip(explicitUnionCoder, ExplicitUnionFirst(1)) } and
+            { avroRoundTrip(explicitUnionCoder, ExplicitUnionSecond("foo")) } and
+            { avroRoundTrip(explicitUnionCoder, ExplicitUnionSingleton) } and
+            { avroRoundTrip(explicitUnionCoder, ExplicitUnionSingletonWithProperties) }
+        } ^
+        "fail to decode invalid inputs" ! {
+            { explicitUnionCoder.decode(cl, ("_type" -> "invalid") ~ ("c" -> 1.0)) must beLike { case FailedG(_, _) => ok } } and
+            { explicitUnionCoder.decode(cl, "b" -> 1) must beLike { case FailedG(_, _) => ok  } }
+        } ^
+        "fail to encode invalid inputs" ! {
+            explicitUnionCoder.encode(cl, ExplicitUnionInvalid(1.0)) must beLike { case FailedG(_, _) => ok }
+        } ^
+        "encode singletons as union members" ! {
+            { explicitUnionCoder.encode(cl, ExplicitUnionSingleton) must matchEncodedJson("_type" -> "singleton") } and
+            { explicitUnionCoder.encode(cl, ExplicitUnionSingletonWithProperties) must matchEncodedJson(("codedProperty" -> "bar") ~ ("_type" -> "singletonWithProperties")) }
+        } ^
+        "decode singletons as union members" ! {
+            { explicitUnionCoder.decode(cl, "_type" -> "singleton") must_== Okay(ExplicitUnionSingleton) } and
+            { explicitUnionCoder.decode(cl, "_type" -> "singletonWithProperties") must_== Okay(ExplicitUnionSingletonWithProperties) } and
+            { explicitUnionCoder.decode(cl, ("_type" -> "singletonWithProperties") ~ ("codedProperty" -> "bar")) must_== Okay(ExplicitUnionSingletonWithProperties) }
+        }
+}
+
+class ArgumentArrayCoderSpecTest extends SpecificationWithJUnit {
+    val testCoder = ArgumentArrayCoder(false,
+                                       ArgumentCoding("foo", IntCoder) ::
+                                       ArgumentCoding("bar", NullCoder(StringCoder)) ::
+                                       ArgumentCoding("zip", OptionCoder(StringCoder)) :: Nil)
+
+    def matchArrayResult(expected: Array[AnyRef]): Matcher[ResultG[_, Array[AnyRef]]] = {
+        def arrayToString(in: Array[AnyRef]): String = in.mkString("[", ", ", "]")
+
+        (actualResult: ResultG[_, Array[AnyRef]]) => {
+            actualResult match {
+                case Okay(actual) if expected.length == actual.length && !(expected zip actual).exists { case (a, b) => a != b } =>
+                    ok
+
+                case _ =>
+                    ko(actualResult.map(arrayToString).toString + " does not match Okay(" + arrayToString(expected) + ")")
+            }
+        }
+    }
+
+    def is =
+        "ArgumentArrayCoder should" ^
+        "basically decode" ! {
             testCoder.decode(cl, testObject) must matchArrayResult(Array[AnyRef](1.asInstanceOf[AnyRef], "baz", Some("qux")))
-        }
-
-        "basically encode" in {
+        } ^
+        "basically encode" ! {
             testCoder.encode(cl, Array[AnyRef](1.asInstanceOf[AnyRef], "baz", Some("qux"))) must matchEncodedJson(testObject)
-        }
-
-        "round trip via Avro" in {
+        } ^
+        "round trip via Avro" ! {
             val firstArray = Array[AnyRef](1.asInstanceOf[AnyRef], "baz", Some("qux"))
             val secondArray = Array[AnyRef](1.asInstanceOf[AnyRef], null, Some("qux"))
-            avroRoundTrip(testCoder, firstArray, (result: Result[Array[AnyRef]]) => { result must matchArrayResult(firstArray); () })
-            avroRoundTrip(testCoder, secondArray, (result: Result[Array[AnyRef]]) => { result must matchArrayResult(secondArray); () })
-        }
 
-        "support decoding null-ish things" in {
-            testCoder.decode(cl, "foo" -> 1) must matchArrayResult(Array[AnyRef](1.asInstanceOf[AnyRef], null, None))
-            testCoder.decode(cl, ("foo" -> 1) ~ ("bar" -> "baz")) must matchArrayResult(Array[AnyRef](1.asInstanceOf[AnyRef], "baz", None))
-            testCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must matchArrayResult(Array[AnyRef](1.asInstanceOf[AnyRef], null, Some("qux")))
-        }
-
-        "support encoding nulls" in {
-            testCoder.encode(cl, Array[AnyRef](1.asInstanceOf[AnyRef], null, None)) must matchEncodedJson("foo" -> 1)
-            testCoder.encode(cl, Array[AnyRef](null, "baz", None)) must matchEncodedJson("bar" -> "baz")
-        }
-
-        "properly handle flattening arguments" in {
+            { avroRoundTripExpect(testCoder, firstArray) { (result: Result[Array[AnyRef]]) => result must matchArrayResult(firstArray) } } and
+            { avroRoundTripExpect(testCoder, secondArray) { (result: Result[Array[AnyRef]]) => result must matchArrayResult(secondArray) } }
+        } ^
+        "support decoding null-ish things" ! {
+            { testCoder.decode(cl, "foo" -> 1) must matchArrayResult(Array[AnyRef](1.asInstanceOf[AnyRef], null, None)) } and
+            { testCoder.decode(cl, ("foo" -> 1) ~ ("bar" -> "baz")) must matchArrayResult(Array[AnyRef](1.asInstanceOf[AnyRef], "baz", None)) } and
+            { testCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must matchArrayResult(Array[AnyRef](1.asInstanceOf[AnyRef], null, Some("qux"))) }
+        } ^
+        "support encoding nulls" ! {
+            { testCoder.encode(cl, Array[AnyRef](1.asInstanceOf[AnyRef], null, None)) must matchEncodedJson("foo" -> 1) } and
+            { testCoder.encode(cl, Array[AnyRef](null, "baz", None)) must matchEncodedJson("bar" -> "baz") }
+        } ^
+        "properly handle flattening arguments" ! {
             import fixtures.Flattened
             import fixtures.Coders.enclosingFlattenedArgumentArrayCoder
 
             val json = ("a" -> "foo") ~ ("c" -> 1) ~ ("b" -> "bar")
             val args = Array[AnyRef](Flattened("foo", 1), "bar")
-            enclosingFlattenedArgumentArrayCoder.encode(cl, args) must matchEncodedJson(json)
-            enclosingFlattenedArgumentArrayCoder.decode(cl, json) must matchArrayResult(args)
+
+            { enclosingFlattenedArgumentArrayCoder.encode(cl, args) must matchEncodedJson(json) } and
+            { enclosingFlattenedArgumentArrayCoder.decode(cl, json) must matchArrayResult(args) }
         }
-    }
+}
 
-    "ObjectCoder" should {
-        import fixtures._
-        import Coders._
+class ObjectCoderSpecTest extends SpecificationWithJUnit {
+    import fixtures._
+    import Coders._
 
-        val caseClass = classOf[CaseClass]
-        val basicClass = classOf[BasicClass]
-        val pojoClass = classOf[POJOClass]
+    val caseClass = classOf[CaseClass]
+    val basicClass = classOf[BasicClass]
+    val pojoClass = classOf[POJOClass]
 
-        val caseClassValue = CaseClass(1, "baz", Some("qux"))
-        val basicClassValue = BasicClass.make(1, "baz", Some("qux"))
-        val pojoClassValue = POJOClass.make(1, "baz", Some("qux"))
+    val caseClassValue = CaseClass(1, "baz", Some("qux"))
+    val basicClassValue = BasicClass.make(1, "baz", Some("qux"))
+    val pojoClassValue = POJOClass.make(1, "baz", Some("qux"))
 
-        "basically decode" in {
-            caseClassCoder.decode(cl, testObject) must_== Okay(caseClassValue)
-            basicClassCoder.decode(cl, testObject) must_== Okay(basicClassValue)
-            pojoClassCoder.decode(cl, testObject) must_== Okay(pojoClassValue)
-        }
-
-        "basically encode" in {
-            caseClassCoder.encode(cl, caseClassValue) must matchEncodedJson(testObject)
-            basicClassCoder.encode(cl, basicClassValue) must matchEncodedJson(testObject)
-            pojoClassCoder.encode(cl, pojoClassValue) must matchEncodedJson(testObject)
-        }
-
-        "basically round trip via Avro" in {
-            avroRoundTrip(caseClassCoder, caseClassValue)
-            avroRoundTrip(basicClassCoder, basicClassValue)
-            avroRoundTrip(pojoClassCoder, pojoClassValue)
-        }
-
-        "encode null-like things" in {
-            caseClassCoder.encode(cl, CaseClass(1, null, Some("qux"))) must matchEncodedJson(("foo" -> 1) ~ ("zip" -> "qux"))
-            basicClassCoder.encode(cl, BasicClass.make(1, null, Some("qux"))) must matchEncodedJson(("foo" -> 1) ~ ("zip" -> "qux"))
-            pojoClassCoder.encode(cl, POJOClass.make(1, null, Some("qux"))) must matchEncodedJson(("foo" -> 1) ~ ("zip" -> "qux"))
-
-            caseClassCoder.encode(cl, CaseClass(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz"))
-            basicClassCoder.encode(cl, BasicClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz"))
-            pojoClassCoder.encode(cl, POJOClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz"))
-        }
-
-        "decode null-like things" in {
-            caseClassCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must_== Okay(CaseClass(1, null, Some("qux")))
-            basicClassCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must_== Okay(BasicClass.make(1, null, Some("qux")))
-            pojoClassCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must_== Okay(POJOClass.make(1, null, Some("qux")))
-        }
-
-        "round trip null-like things via Avro" in {
-            avroRoundTrip(caseClassCoder, CaseClass(1, null, Some("qux")))
-            avroRoundTrip(basicClassCoder, BasicClass.make(1, null, Some("qux")))
-            avroRoundTrip(pojoClassCoder, POJOClass.make(1, null, Some("qux")))
-        }
-
-        "not encode None" in {
-            caseClassCoder.encode(cl, CaseClass(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz"))
-            basicClassCoder.encode(cl, BasicClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz"))
-            pojoClassCoder.encode(cl, POJOClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz"))
-        }
-
-        "round trip null-like things via Avro" in {
-            avroRoundTrip(caseClassCoder, CaseClass(1, null, Some("qux")))
-            avroRoundTrip(basicClassCoder, BasicClass.make(1, null, Some("qux")))
-            avroRoundTrip(pojoClassCoder, POJOClass.make(1, null, Some("qux")))
-        }
-
-        "properly handle flattening arguments" in {
+    def is =
+        "ObjectCoder should" ^
+        "basically decode" ! {
+            { caseClassCoder.decode(cl, testObject) must_== Okay(caseClassValue) } and
+            { basicClassCoder.decode(cl, testObject) must_== Okay(basicClassValue) } and
+            { pojoClassCoder.decode(cl, testObject) must_== Okay(pojoClassValue) }
+        } ^
+        "basically encode" ! {
+            { caseClassCoder.encode(cl, caseClassValue) must matchEncodedJson(testObject) } and
+            { basicClassCoder.encode(cl, basicClassValue) must matchEncodedJson(testObject) } and
+            { pojoClassCoder.encode(cl, pojoClassValue) must matchEncodedJson(testObject) }
+        } ^
+        "basically round trip via Avro" ! {
+            { avroRoundTrip(caseClassCoder, caseClassValue) } and
+            { avroRoundTrip(basicClassCoder, basicClassValue) } and
+            { avroRoundTrip(pojoClassCoder, pojoClassValue) }
+        } ^
+        "encode null-like things" ! {
+            { caseClassCoder.encode(cl, CaseClass(1, null, Some("qux"))) must matchEncodedJson(("foo" -> 1) ~ ("zip" -> "qux")) } and
+            { basicClassCoder.encode(cl, BasicClass.make(1, null, Some("qux"))) must matchEncodedJson(("foo" -> 1) ~ ("zip" -> "qux")) } and
+            { pojoClassCoder.encode(cl, POJOClass.make(1, null, Some("qux"))) must matchEncodedJson(("foo" -> 1) ~ ("zip" -> "qux")) } and
+            { caseClassCoder.encode(cl, CaseClass(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz")) } and
+            { basicClassCoder.encode(cl, BasicClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz")) } and
+            { pojoClassCoder.encode(cl, POJOClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz")) }
+        } ^
+        "decode null-like things" ! {
+            { caseClassCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must_== Okay(CaseClass(1, null, Some("qux"))) } and
+            { basicClassCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must_== Okay(BasicClass.make(1, null, Some("qux"))) } and
+            { pojoClassCoder.decode(cl, ("foo" -> 1) ~ ("zip" -> "qux")) must_== Okay(POJOClass.make(1, null, Some("qux"))) }
+        } ^
+        "round trip null-like things via Avro" ! {
+            { avroRoundTrip(caseClassCoder, CaseClass(1, null, Some("qux"))) } and
+            { avroRoundTrip(basicClassCoder, BasicClass.make(1, null, Some("qux"))) } and
+            { avroRoundTrip(pojoClassCoder, POJOClass.make(1, null, Some("qux"))) }
+        } ^
+        "not encode None" ! {
+            { caseClassCoder.encode(cl, CaseClass(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz")) } and
+            { basicClassCoder.encode(cl, BasicClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz")) } and
+            { pojoClassCoder.encode(cl, POJOClass.make(1, "baz", None)) must matchEncodedJson(("foo" -> 1) ~ ("bar" -> "baz")) }
+        } ^
+        "round trip null-like things via Avro" ! {
+            { avroRoundTrip(caseClassCoder, CaseClass(1, null, Some("qux"))) } and
+            { avroRoundTrip(basicClassCoder, BasicClass.make(1, null, Some("qux"))) } and
+            { avroRoundTrip(pojoClassCoder, POJOClass.make(1, null, Some("qux"))) }
+        } ^
+        "properly handle flattening arguments" ! {
             val json = ("a" -> "foo") ~ ("c" -> 1) ~ ("b" -> "bar")
             val obj = EnclosingFlattened(Flattened("foo", 1), "bar")
-            enclosingFlattenedObjectCoder.encode(cl, obj) must matchEncodedJson(json)
-            enclosingFlattenedObjectCoder.decode(cl, json) must_== Okay(obj)
+
+            { enclosingFlattenedObjectCoder.encode(cl, obj) must matchEncodedJson(json) } and
+            { enclosingFlattenedObjectCoder.decode(cl, json) must_== Okay(obj) }
         }
-    }
 }

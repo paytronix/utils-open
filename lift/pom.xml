@@ -57,8 +57,8 @@
             <artifactId>scala-library</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.scala-tools.testing</groupId>
-            <artifactId>specs_${scala.compatibility.version}</artifactId>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2_${scala.compatibility.version}</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
