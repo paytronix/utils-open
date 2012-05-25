@@ -2322,8 +2322,7 @@ case class ResultCoder[E, A] (
     failedParamCoder:   ComposableCoder[E],
     valueCoder:         ComposableCoder[A],
     hideFailures:       Option[Boolean] = None
-) extends OptionLikeCoder[ResultG[E, A]]
-{
+) extends OptionLikeCoder[ResultG[E, A]] {
     import ComposableCoder.{CoderResult, atProperty, catchingCoderException}
 
     val mostSpecificClass = classOf[ResultG[E, A]]
