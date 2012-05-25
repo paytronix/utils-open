@@ -190,8 +190,7 @@ object result extends resultLowPriorityImplicits
         }
     }
 
-    object ResultG
-    {
+    object ResultG extends FailedParameterImplicits {
         /** Wrap the value with Okay if non-null, Failed("value was null") if null */
         def apply[A](in: A) = if (in != null) Okay(in) else Failed("value was null")
 
@@ -201,7 +200,9 @@ object result extends resultLowPriorityImplicits
                 case Okay(value) => Seq(value)
                 case _ => Seq.empty
             }
+    }
 
+    trait FailedParameterImplicits {
         /** Allow a string to be used with ResultG's `|` operator to wrap a failure with a new explanatory message. For example: `rslt | "explanation"` */
         implicit def stringAsFailedMessage[E](s: String): FailedG[E] => FailedG[E] =
             failed => FailedG(s, failed.throwable, failed.parameter)
@@ -303,6 +304,10 @@ object result extends resultLowPriorityImplicits
     /** Result of a failed computation */
     final case class FailedG[+E](throwable: Throwable, parameter: E) extends ResultG[E, Nothing]
     {
+        lazy val message: String =
+            if (throwable.getMessage != null) throwable.getMessage
+            else                              throwable.toString
+
         def collect[B](pf: PartialFunction[Nothing, B]): Failed                   = Failed(throwable)
         def collectG[F >: E, B](parameter: F)(pf: PartialFunction[Nothing, B]): FailedG[F] = this
         def collectG[F >: E, B](otherwise: ResultG[F, B])(pf: PartialFunction[Nothing, B]): FailedG[F] = this
@@ -405,8 +410,8 @@ object result extends resultLowPriorityImplicits
             /** Extract a failure message from a Result */
             def unapply(in: Result[_]): Option[String] =
                 in match {
-                    case FailedG(throwable, _) => Option(throwable.getMessage) orElse Some("unknown error")
-                    case _                     => None
+                    case failed@FailedG(_, _) => Some(failed.message)
+                    case _                    => None
                 }
         }
     }
@@ -490,10 +495,16 @@ object result extends resultLowPriorityImplicits
     /** Generic catcher which turns exceptions into ResultGs via a partial function */
     final case class TryCatch[+E, +A](catchPF: PartialFunction[Throwable, ResultG[E, A]]) {
         def value[B >: A](f: => B): ResultG[E, B] =
-            try { Okay(f) } catch catchPF
+            try Okay(f) catch catchPF
+        def valueG[F, B >: A](ff: FailedG[E] => ResultG[F, B])(f: => B): ResultG[F, B] =
+            try Okay(f) catch { catchPF andThen { _ | ff } }
         def result[B >: A, F >: E](f: => ResultG[F, B]): ResultG[F, B] =
             try f catch catchPF
+        def resultG[B >: A, F >: E](ff: FailedG[E] => ResultG[F, B])(f: => ResultG[F, B]): ResultG[F, B] =
+            try f catch { catchPF andThen { _ | ff } }
     }
+
+    object TryCatch extends FailedParameterImplicits
 
     /**
      * Return the first application of the given function to each item from the given {@link Iterable} that is a {@link Okay} {@link ResultG}, or the last
