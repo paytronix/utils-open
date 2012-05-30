@@ -535,6 +535,9 @@ object option {
     }
 
     /** Require that an optional value be present. */
+    def some[A, B](): ValidationFunction[Option[A], A] = some(missingValueError)(x => Right(x))
+
+    /** Require that an optional value be present. */
     def some[A, B](f: ValidationFunction[A, B]): ValidationFunction[Option[A], B] = some(missingValueError)(f)
 
     /** Require that an optional value be present and specify a particular error message. */
