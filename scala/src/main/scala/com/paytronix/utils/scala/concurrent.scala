@@ -18,7 +18,7 @@ package com.paytronix.utils.scala
 
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.locks.{Condition, Lock, ReadWriteLock}
+import java.util.concurrent.locks.{Condition, Lock => JUCLock, ReadWriteLock => JUCReadWriteLock, ReentrantLock, ReentrantReadWriteLock}
 
 /**
  * Helpers for concurrent programming
@@ -68,8 +68,8 @@ object concurrent
         }
     }
 
-    /** Wrapper around a [[java.util.concurrent.Lock]] to make it nicer to use from scala */
-    class LockWrapper[A <: Lock](val underlying: A) {
+    /** Wrapper around a [[java.util.concurrent.locks.Lock]] to make it nicer to use from scala */
+    class LockWrapper[A <: JUCLock](val underlying: A) {
         def apply[B](f: => B): B = {
             underlying.lock()
             try {
@@ -110,12 +110,24 @@ object concurrent
             underlying.newCondition()
     }
 
-    /** Wrapper around a java ReadWriteLock to make it nicer to use from scala */
-    class ReadWriteLockWrapper[A <: ReadWriteLock](val underlying: A) {
+    /** Type of a ReentrantLock wrapped by a LockWrapper */
+    type Lock = LockWrapper[ReentrantLock]
+
+    /** Create a ReentrantLock wrapped by LockWrapper */
+    def lock(fair: Boolean = false): Lock = new LockWrapper(new ReentrantLock(fair))
+
+    /** Wrapper around a [[java.util.concurrent.locks.ReadWriteLock]] to make it nicer to use from scala */
+    class ReadWriteLockWrapper[A <: JUCReadWriteLock](val underlying: A) {
         lazy val forRead = new LockWrapper(underlying.readLock)
         lazy val read = forRead
         lazy val forWrite = new LockWrapper(underlying.writeLock)
         lazy val write = forWrite
     }
+
+    /** Type of a `ReentrantReadWriteLock` wrapped by a `LockWrapper` */
+    type ReadWriteLock = ReadWriteLockWrapper[ReentrantReadWriteLock]
+
+    /** Create a `ReentrantReadWriteLock` wrapped by a `ReadWriteLockWrapper` */
+    def readWriteLock(fair: Boolean = false): ReadWriteLock = new ReadWriteLockWrapper(new ReentrantReadWriteLock(fair))
 }
 
