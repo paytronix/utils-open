@@ -34,7 +34,7 @@ object boolean {
      * Convert a string to a boolean, appropriate for parsing HTML form input.
      * Any nonempty string that is not "false", "no" or "off" is treated as true
      */
-    val boolean: ValidationFunction[String, Boolean] =
+    def boolean(error: ValidationError = null): ValidationFunction[String, Boolean] =
         _.toLowerCase match {
             case ""|"false"|"no"|"off" => Right(false)
             case "true"|"yes"|"on" => Right(true)
@@ -43,7 +43,7 @@ object boolean {
                     Integer.parseInt(s)
                 } map {
                     n => Right(n != 0)
-                } getOrElse Left(invalidBooleanError :: Nil)
+                } getOrElse Left((if (error != null) error else invalidBooleanError) :: Nil)
         }
 }
 
