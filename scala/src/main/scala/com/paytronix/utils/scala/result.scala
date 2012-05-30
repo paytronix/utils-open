@@ -338,6 +338,10 @@ object result extends resultLowPriorityImplicits
         def pass(f: ResultG[E, Nothing] => Any): FailedG[E]                       = { f(this); this }
         def flatten[F >: E, B](implicit ev: Nothing => ResultG[F, B]): FailedG[F] = this
 
+        /** If the given boolean is `true`, yield `Okay(())`, else this `FailedG` */
+        def unless(b: Boolean): ResultG[E, Unit] =
+            if (b) Okay(()) else this
+
         // need to override case class equality because throwables don't compare well
         override def equals(other: Any): Boolean = {
             def equalThrowable(a: Throwable, b: Throwable): Boolean =
