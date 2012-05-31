@@ -232,7 +232,7 @@ object Coding {
                 in match {
                     case ClassTypeRFor(c) =>
                         findObjectInstanceOrInstantiate(classLoader, c.getName + "Coding") match {
-                            case ok: Okay[_] => Some(ok.asA[Coding] | ("sidecar found for " + c.getName + " but it was not a subtype of Coding"))
+                            case ok: Okay[_] => Some(ok.withFailedType[Unit].asA[Coding] | ("sidecar found for " + c.getName + " but it was not a subtype of Coding"))
                             case _ => None
                         }
 

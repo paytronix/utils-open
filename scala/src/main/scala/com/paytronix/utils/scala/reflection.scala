@@ -21,7 +21,7 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.NameTransformer
 import com.thoughtworks.paranamer.{AdaptiveParanamer, AnnotationParanamer, BytecodeReadingParanamer, CachingParanamer}
 
-import result.{Failed, Okay, Result, iterableResultOps, tryCatch, tryCatching}
+import result.{Failed, Okay, Result, cast, iterableResultOps, tryCatch, tryCatching}
 
 object reflection {
     val paranamer = new CachingParanamer(new AdaptiveParanamer(new AnnotationParanamer, new BytecodeReadingParanamer))
@@ -70,18 +70,6 @@ object reflection {
     def instantiateOrFindObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] =
         instantiate(loader, name) orElse findObjectInstance(loader, name + "$")
 
-    /** Cast some value to some specific Class, generating a nice Failure instead of ClassCastException if the value doesn't conform */
-    def cast[T](clazz: Class[T], in: Any): Result[T] =
-        try {
-            Okay(clazz.cast(in))
-        } catch {
-            case e: ClassCastException =>
-                Failed(in.asInstanceOf[AnyRef].getClass.getName + " cannot be cast to expected class " + clazz.getName, e)
-
-            case e: Exception =>
-                Failed(e)
-        }
-
     /**
      * Reduce a type towards a concrete Class.
      *
@@ -114,7 +102,7 @@ object reflection {
      */
     def getTypeArguments(ty: Type): Result[Seq[Type]] =
         for {
-            pt <- Okay(ty).asA[ParameterizedType] | Failed(ty + " not a ParameterizedType")
+            pt <- cast[ParameterizedType](ty) | Failed(ty + " not a ParameterizedType")
             args <- wrapRefArray(pt.getActualTypeArguments).mapResult(reduceType)
         } yield args
 

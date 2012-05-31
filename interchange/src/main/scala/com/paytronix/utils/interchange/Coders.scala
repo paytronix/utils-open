@@ -45,8 +45,8 @@ import org.apache.avro.io.{DatumReader, DatumWriter, Decoder, DecoderFactory, En
 import org.bson.BSONObject
 import com.paytronix.utils.extendedreflection
 import com.paytronix.utils.scala.concurrent.ThreadLocal
-import com.paytronix.utils.scala.reflection.{cast, classByName, paranamer, splitFullyQualifiedName}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, firstOrLastG, iterableResultOps, optionOps, parameter, tryCatch, tryCatching}
+import com.paytronix.utils.scala.reflection.{classByName, paranamer, splitFullyQualifiedName}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, cast, firstOrLastG, iterableResultOps, optionOps, parameter, tryCatch, tryCatching}
 
 
 /** Object that contains thread-local settings for coding and decoding */
@@ -2581,7 +2581,7 @@ case class ResultCoder[E, A] (
 
                 causeOpt <- atProperty("cause") {
                     Option(in.get("cause")) map { cause =>
-                        Okay(cause).asA[JavaMap[String, AnyRef]] | parameter(Nil) flatMap decodeThrowable map Some.apply
+                        cast[JavaMap[String, AnyRef]](cause) | parameter(Nil) flatMap decodeThrowable map Some.apply
                     } getOrElse Okay(None)
                 }
 
