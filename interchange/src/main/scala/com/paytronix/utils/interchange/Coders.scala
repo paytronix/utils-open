@@ -2090,6 +2090,10 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
         }
 
     def encodeMongoDB(classLoader: ClassLoader, in: Coll) =
+        /*
+            2012-06-02 RMM: never encode as a BasicDBObject even for string keys because Mongo has additional requirements
+                            on keys (such as no periods) that can't be statically ensured.
+
         if (keyCoder.isInstanceOf[StringSafeCoder[_]]) {
             val ssc = keyCoder.asInstanceOf[StringSafeCoder[K]]
             val obj = new BasicDBObject
@@ -2101,6 +2105,7 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
                     } yield obj.put(ke, ve)
             } then Okay(obj)
         } else {
+        */
             valueAsIterable(in).zipWithIndex mapResult {
                 case ((kd, vd), i) =>
                     for {
@@ -2113,7 +2118,7 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
                         obj
                     }
             } map (_.asJava)
-        }
+        //}
 }
 
 /** Coder for mutable JavaMaps. Creates HashMaps on decoding */
