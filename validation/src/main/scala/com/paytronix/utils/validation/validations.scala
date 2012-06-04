@@ -73,10 +73,10 @@ object date {
     def isoDate(error: ValidationError = invalidDateFormatError): ValidationFunction[String, java.util.Date] =
         dateWithFormat("yyyy-MM-dd")
 
-    def sqlServerDatetime(error: ValidationError = invalidDateFormatError): ValidationFunction[String, java.sql.Timestamp] =
+    def sqlDatetime(error: ValidationError = invalidDateFormatError): ValidationFunction[String, java.sql.Timestamp] =
         isoDateTime() and { d => Right(new java.sql.Timestamp(d.getTime)) }
 
-    def sqlServerDate(error: ValidationError = invalidDateFormatError): ValidationFunction[String, java.sql.Date] =
+    def sqlDate(error: ValidationError = invalidDateFormatError): ValidationFunction[String, java.sql.Date] =
         isoDate() and { d => Right(new java.sql.Date(d.getTime)) }
 
     val tooFarInPastError = ValidationError("invalid_date", "date is too far in the past")
