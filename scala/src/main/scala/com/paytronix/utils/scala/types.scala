@@ -28,9 +28,4 @@ object types {
     type Const[A] = {
         type F[_] = A
     }
-
-    /**
-     * Constant String functor. Always resolves to String no matter the type argument. That is, AlwaysString[Int] =:= String
-     */
-    type AlwaysString[A] = Const[String]#F[A]
 }
