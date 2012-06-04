@@ -80,7 +80,9 @@ object date {
         isoDate() and { d => Right(new java.sql.Date(d.getTime)) }
 
     val tooFarInPastError = ValidationError("invalid_date", "date is too far in the past")
-    val pastDateError = ValidationError("invalid_date", "date is cannot be in the future")
+    val pastDateError = ValidationError("invalid_date", "date cannot be in the future")
+    val futureDateError = ValidationError("invalid_date", "date cannot be in the past")
+    val tooFarInFutureError = ValidationError("invalid_date", "date is too far in the future")
 
     /** Assert that some date is after the SQL Server database epoch (1753-01-01) */
     def afterSqlServerEpoch[A <: java.util.Date](error: ValidationError = tooFarInPastError): ValidationFunction[A, A] =
@@ -91,6 +93,25 @@ object date {
     def beforeNow[A <: java.util.Date](error: ValidationError = pastDateError): ValidationFunction[A, A] =
         in => if (new java.util.Date().after(in)) Right(in)
               else Left(error :: Nil)
+
+    /** Assert that some date is in the future */
+    def afterNow[A <: java.util.Date](error: ValidationError = futureDateError): ValidationFunction[A, A] =
+        in => if (new java.util.Date().before(in)) Right(in)
+              else Left(error :: Nil)
+
+    /** Assert that some date is in the future */
+    def beforeDaysInFuture[A <: java.util.Date](i: Int, error: ValidationError = tooFarInFutureError): ValidationFunction[A, A] =
+        in => {
+                val cal = java.util.Calendar.getInstance
+                println(i)
+                cal.add(java.util.Calendar.DAY_OF_MONTH, i)
+                println(cal.getTime)
+                println(in)
+                println(cal.after(in))
+                if (cal.getTime.after(in)) Right(in)
+                else Left(error :: Nil)
+        }
+
 }
 
 object enumeration {
@@ -317,6 +338,7 @@ object string {
     val patternMatchError     = ValidationError("invalid_format", "not formatted correctly")
     val numericError          = ValidationError("invalid_numeric", "must not be entirely numeric")
     val nonNumericError       = ValidationError("invalid_non_numeric", "must be numeric")
+    val nonIntegralError      = ValidationError("invalid_non_integral", "must be an integral value")
     val invalidEmailError     = ValidationError("invalid_email", "invalid email address")
 
     /** Assert that some string is not empty */
@@ -362,7 +384,7 @@ object string {
     def numeric(error: ValidationError = nonNumericError) = matches("\\d+".r, error)
 
     /** Assert that the string is comprised only of digits with an optional leading sign */
-    def numericWithSign(error: ValidationError = nonNumericError) = matches("[+-]?\\d+".r, error)
+    def numericWithSign(error: ValidationError = nonIntegralError) = matches("[+-]?\\d+".r, error)
 
     /** Assert that the string is comprised only of digits with an optional leading sign and optional fractional part after a decimal */
     def numericWithSignAndDecimal(error: ValidationError = nonNumericError) = matches("[+-]?\\d+(?:\\.\\d+)?".r, error)
