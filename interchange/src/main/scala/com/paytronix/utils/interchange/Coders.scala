@@ -43,8 +43,10 @@ import net.liftweb.json.Printer.compact
 import org.apache.avro.Schema
 import org.apache.avro.io.{DatumReader, DatumWriter, Decoder, DecoderFactory, Encoder, EncoderFactory, ResolvingDecoder}
 import org.bson.BSONObject
+import org.slf4j.LoggerFactory
 import com.paytronix.utils.extendedreflection
 import com.paytronix.utils.scala.concurrent.ThreadLocal
+import com.paytronix.utils.scala.log.resultLoggerOps
 import com.paytronix.utils.scala.reflection.{classByName, paranamer, splitFullyQualifiedName}
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, cast, firstOrLastG, iterableResultOps, optionOps, parameter, tryCatch, tryCatching}
 
@@ -1178,6 +1180,8 @@ object StringCoder extends StringSafeCoder[String] {
 
 /** Abstract superclass of coders that code JavaDate or some subclass using SimpleDateFormat */
 abstract class DateCoder[T <: JavaDate] extends StringSafeCoder[T] {
+    implicit private val logger = LoggerFactory.getLogger(getClass)
+
     import ComposableCoder.CoderResult
     protected val additionalFormats: List[String] = Nil
 
@@ -1200,7 +1204,7 @@ abstract class DateCoder[T <: JavaDate] extends StringSafeCoder[T] {
     def decodeString(classLoader: ClassLoader, in: String) =
         for {
             parsed <- firstOrLastG (
-                FailedG("incorrectly formatted date -- expected format like  " + formatDate(new JavaDate()), Nil),
+                FailedG("incorrectly formatted date -- expected format like  " + formatDate(new JavaDate()).getOrElse("SYSTEM ERROR"), Nil),
                 formats
             )(parseDate(in, _))
             instance <- createFromDate(parsed)
@@ -1217,7 +1221,7 @@ abstract class DateCoder[T <: JavaDate] extends StringSafeCoder[T] {
         } | parameter(Nil)
 
     private def formatDate(in: JavaDate) =
-        tryCatch.value(new java.text.SimpleDateFormat(defaultFormatString).format(in)) | parameter(Nil)
+        tryCatch.value(new java.text.SimpleDateFormat(defaultFormatString).format(in)).logError("Failed to format date: " + String.valueOf(in)) | parameter(Nil)
 
     val avroSchema = Schema.create(Schema.Type.LONG)
 
