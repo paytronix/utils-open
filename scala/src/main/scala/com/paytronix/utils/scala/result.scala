@@ -638,7 +638,7 @@ object result extends resultLowPriorityImplicits
             try Okay(f) catch { catchPF andThen { _ | ff } }
         def result[B >: A, F >: E](f: => ResultG[F, B]): ResultG[F, B] =
             try f catch catchPF
-        def resultG[B >: A, F >: E](ff: FailedG[E] => ResultG[F, B])(f: => ResultG[F, B]): ResultG[F, B] =
+        def resultG[B >: A, F](ff: FailedG[E] => ResultG[F, B])(f: => ResultG[F, B]): ResultG[F, B] =
             try f catch { catchPF andThen { _ | ff } }
     }
 
