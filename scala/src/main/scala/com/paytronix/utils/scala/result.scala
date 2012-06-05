@@ -150,6 +150,20 @@ object result extends resultLowPriorityImplicits
         /** Yields true iff Okay */
         def isDefined: Boolean
 
+        /** Yields this cast as an Okay if it is one, throws exception otherwise. Intended for use by Java. */
+        def asOkay: Okay[A] =
+            this match {
+                case o@Okay(_) => o
+                case _ => this.orThrow; null
+            }
+
+        /** Yields this cast as a Failed if it is one, throws exception otherwise. Intended for use by Java. */
+        def asFailed: FailedG[E] =
+            this match {
+                case f@FailedG(_, _) => f
+                case _ => sys.error("expected " + this + " to be Failed")
+            }
+
         /** Yields an Iterator of the value if Okay, an empty Iterator otherwise */
         def iterator: Iterator[A]
 
