@@ -530,7 +530,7 @@ object result extends resultLowPriorityImplicits
         def apply(throwable: Throwable): Failed = FailedG(throwable, ())
 
         /** Extract a cause throwable from a Result */
-        def unapply(in: Result[_]): Option[Throwable] =
+        def unapply(in: FailedG[_]): Option[Throwable] =
             in match {
                 case FailedG(throwable, _) => Some(throwable)
                 case _                     => None
@@ -538,7 +538,7 @@ object result extends resultLowPriorityImplicits
 
         object Message {
             /** Extract a failure message from a Result */
-            def unapply(in: Result[_]): Option[String] =
+            def unapply(in: FailedG[_]): Option[String] =
                 in match {
                     case failed@FailedG(_, _) => Some(failed.message)
                     case _                    => None
