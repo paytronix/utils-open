@@ -20,6 +20,8 @@ import _root_.scala.annotation.implicitNotFound
 import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 
+import scalaz.{Applicative, Monad, Traverse}
+
 // FIXME? gotta be a better way
 import scala.annotation.unchecked.uncheckedVariance
 
@@ -280,6 +282,27 @@ object result extends resultLowPriorityImplicits
                 case Okay(value) => Seq(value)
                 case _ => Seq.empty
             }
+
+        /** Grant Scalaz powers to ResultG */
+        implicit def resultGMonad[E] = new Traverse[({ type F[A] = ResultG[E, A] })#F] with Monad[({ type F[A] = ResultG[E, A] })#F] {
+            def point[A](a: => A) =
+                Okay(a)
+
+            def bind[A, B](fa: ResultG[E, A])(f: A => ResultG[E, B]) =
+                fa flatMap f
+
+            def traverseImpl[G[_] : Applicative, A, B](fa: ResultG[E, A])(f: A => G[B]) =
+                fa match {
+                    case FailedG(throwable, x)  => Applicative[G].point(FailedG(throwable, x))
+                    case Okay(x) => Applicative[G].map(f(x))(Okay(_))
+                }
+
+            override def foldRight[A, B](fa: ResultG[E, A], z: => B)(f: (A, => B) => B) =
+                fa match {
+                    case FailedG(_, _) => z
+                    case Okay(a) => f(a, z)
+                }
+        }
     }
 
     trait FailedParameterImplicits {

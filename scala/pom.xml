@@ -59,5 +59,9 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.scalaz</groupId>
+            <artifactId>scalaz-core_${scala.compatibility.version}</artifactId>
+        </dependency>
     </dependencies>
 </project>
