@@ -44,8 +44,7 @@
         </dependency>
         <dependency>
             <groupId>net.liftweb</groupId>
-            <artifactId>lift-json_${scala.compatibility.version}</artifactId>
-            <version>${lift.version}</version>
+            <artifactId>lift-json_${lift.scala.compatibility.version}</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.avro</groupId>

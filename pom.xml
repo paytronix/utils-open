@@ -76,7 +76,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.9.2</scala.version>
-        <scala.compatibility.version>2.9.1</scala.compatibility.version>
+        <scala.compatibility.version>2.9.2</scala.compatibility.version>
+        <lift.version>2.4</lift.version>
+        <lift.scala.compatibility.version>2.9.1</lift.scala.compatibility.version>
     </properties>
 
     <dependencyManagement>
@@ -121,6 +123,21 @@
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
                 <version>1.0.1</version>
+            </dependency>
+            <dependency>
+                <groupId>net.liftweb</groupId>
+                <artifactId>lift-common_${lift.scala.compatibility.version}</artifactId>
+                <version>${lift.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.liftweb</groupId>
+                <artifactId>lift-util_${lift.scala.compatibility.version}</artifactId>
+                <version>${lift.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.liftweb</groupId>
+                <artifactId>lift-json_${lift.scala.compatibility.version}</artifactId>
+                <version>${lift.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>

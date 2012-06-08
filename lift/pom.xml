@@ -32,9 +32,6 @@
     <name>Paytronix Utils - Lift Support</name>
     <description>Library providing utilities for Lift, particularly for bridging interchange and ResultG with Lift's Box type.</description>
 
-    <properties>
-        <lift.version>2.4-M5</lift.version>
-    </properties>
 
     <dependencies>
         <dependency>
@@ -44,13 +41,11 @@
         </dependency>
         <dependency>
             <groupId>net.liftweb</groupId>
-            <artifactId>lift-common_${scala.compatibility.version}</artifactId>
-            <version>${lift.version}</version>
+            <artifactId>lift-common_${lift.scala.compatibility.version}</artifactId>
         </dependency>
         <dependency>
             <groupId>net.liftweb</groupId>
-            <artifactId>lift-util_${scala.compatibility.version}</artifactId>
-            <version>${lift.version}</version>
+            <artifactId>lift-util_${lift.scala.compatibility.version}</artifactId>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
