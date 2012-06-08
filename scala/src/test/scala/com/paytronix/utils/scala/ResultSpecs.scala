@@ -317,10 +317,10 @@ class ResultGSpecTest extends SpecificationWithJUnit { def is =
 class ResultConversionSpecTest extends SpecificationWithJUnit { def is =
     "Result conversion" ^
     "convert non-null to Okay" ! {
-        ResultG("foo") must_== Okay("foo")
+        Result("foo") must_== Okay("foo")
     } ^
     "convert null to Failed(\"value was null\")" ! {
-        ResultG(null) must beFailedWith("value was null")
+        Result(null) must beFailedWith("value was null")
     } ^
     "convert None to Failed(\"option was none\")" ! {
         None.toResult must beFailedWith("option was none")

@@ -258,10 +258,12 @@ object result extends resultLowPriorityImplicits
         }
     }
 
-    object ResultG extends FailedParameterImplicits {
+    object Result {
         /** Wrap the value with Okay if non-null, Failed("value was null") if null */
-        def apply[A](in: A) = if (in != null) Okay(in) else Failed("value was null")
+        def apply[A](in: A): Result[A] = if (in != null) Okay(in) else Failed("value was null")
+    }
 
+    object ResultG extends FailedParameterImplicits {
         /** Implicitly convert ResultG to Seq, for flatten and similar */
         implicit def resultAsSeq[E, A](in: ResultG[E, A]): Seq[A] =
             in match {

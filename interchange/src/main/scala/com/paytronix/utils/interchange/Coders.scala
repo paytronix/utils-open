@@ -2053,7 +2053,7 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
                 m.asInstanceOf[JavaMap[String, AnyRef]].asScala foreachResult {
                     case (ke, ve) =>
                         for {
-                            kes <- ResultG(ke).asA[String] | parameter(Nil)
+                            kes <- Result(ke).asA[String] | parameter(Nil)
                             kd <- atIndex(JString(ke))(ssc.decodeString(classLoader, kes))
                             vd <- atIndex(JString(ke))(valueCoder.decodeMongoDB(classLoader, ve))
                         } yield b += (kd -> vd)
@@ -2066,8 +2066,8 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
                 coll.asScala.zipWithIndex.foreachResult {
                     case (obj: BSONObject, i) =>
                         for {
-                            ke <- atIndex(i)(ResultG(obj.get("key"))   | "Missing \"key\" -- expected { key: ..., value: ... }" | parameter(Nil))
-                            ve <- atIndex(i)(ResultG(obj.get("value")) | "Missing \"value\" -- expected { key: ..., value: ... }" | parameter(Nil))
+                            ke <- atIndex(i)(Result(obj.get("key"))   | "Missing \"key\" -- expected { key: ..., value: ... }" | parameter(Nil))
+                            ve <- atIndex(i)(Result(obj.get("value")) | "Missing \"value\" -- expected { key: ..., value: ... }" | parameter(Nil))
                             kd <- atIndex(i)(atProperty("key")(keyCoder.decodeMongoDB(classLoader, ke)))
                             vd <- atIndex(i)(atProperty("value")(valueCoder.decodeMongoDB(classLoader, ve)))
                         } yield b += (kd -> vd)
@@ -2574,14 +2574,14 @@ case class ResultCoder[E, A] (
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) = {
         def decodeFailed(in: JavaMap[String, AnyRef]): CoderResult[FailedG[E]] =
             for {
-                throwable <- atProperty("throwable")(ResultG(in.get("throwable")).asA[JavaMap[String, AnyRef]] | parameter(Nil) flatMap decodeThrowable)
-                param <- atProperty("param")(ResultG(in.get("param")) | parameter(Nil) flatMap { failedParamCoder.decodeMongoDB(classLoader, _) })
+                throwable <- atProperty("throwable")(Result(in.get("throwable")).asA[JavaMap[String, AnyRef]] | parameter(Nil) flatMap decodeThrowable)
+                param <- atProperty("param")(Result(in.get("param")) | parameter(Nil) flatMap { failedParamCoder.decodeMongoDB(classLoader, _) })
             } yield FailedG(throwable, param)
 
         def decodeThrowable(in: JavaMap[String, AnyRef]): CoderResult[Throwable] =
             for {
-                isA     <- atProperty("isA")(ResultG(in.get("isA")).asA[String] | parameter(Nil))
-                message <- atProperty("message")(ResultG(in.get("message")).asA[String] | parameter(Nil))
+                isA     <- atProperty("isA")(Result(in.get("isA")).asA[String] | parameter(Nil))
+                message <- atProperty("message")(Result(in.get("message")).asA[String] | parameter(Nil))
 
                 causeOpt <- atProperty("cause") {
                     Option(in.get("cause")) map { cause =>
@@ -3016,7 +3016,7 @@ extends ComposableCoder[T] with FlattenableCoder
         in match {
             case m: JavaMap[_, _] =>
                 for {
-                    givenDeterminant <- ResultG(determinantField).asA[String] orElse missingDeterminant
+                    givenDeterminant <- Result(determinantField).asA[String] orElse missingDeterminant
                     applicableAlternative <- alternatives.find { _.determinantValue == givenDeterminant }.toResult orElse noApplicableAlternative
                     value <- applicableAlternative.coder.decodeMongoDB(classLoader, in)
                 } yield value
