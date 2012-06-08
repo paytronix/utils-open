@@ -64,8 +64,18 @@ object result extends resultLowPriorityImplicits
             def default = None
         }
 
+        /** Implicitly provide a None failed parameter */
+        implicit def noneFailedParameterDefault[A]: FailedParameterDefault[None.type] = new FailedParameterDefault[None.type] {
+            def default = None
+        }
+
         /** Implicitly provide a List failed parameter */
         implicit def listFailedParameterDefault[A]: FailedParameterDefault[List[A]] = new FailedParameterDefault[List[A]] {
+            def default = Nil
+        }
+
+        /** Implicitly provide a Nil failed parameter */
+        implicit val nilFailedParameterDefault: FailedParameterDefault[Nil.type] = new FailedParameterDefault[Nil.type] {
             def default = Nil
         }
     }
