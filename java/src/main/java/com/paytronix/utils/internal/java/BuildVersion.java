@@ -23,40 +23,42 @@ public class BuildVersion {
 
     private static final Logger logger = LoggerFactory.getLogger( BuildVersion.class );
 
-   /**
-    * Load the version information from the manifest of the JAR file
-    * containing this BuildVersion class. Some paytronix apps may have
-    * multiple jar files and thus could in theory return multiple
-    * versions for a single app.  Using this constructor will at least
-    * standardize on the least common denominator jar, common.jar.
-    */
-    public BuildVersion() throws Exception {
-        initializeFromManifest( BuildVersion.class, "BuildVersion.class" );
+    /**
+     * Load the version information from the manifest of the JAR file
+     * containing the passed class.  All paytronix jars have such a
+     * manifest file, but others will not.
+     * @param c Class object whose classloader will look up the JAR
+     * @param className String name of the class whose JAR should be
+     * interrogated for the manifest containing version and build numbers,
+     * eg, "PxcMain.class" or "BuildVersion.class".
+     */
+    public BuildVersion( Class<?> c ) throws Exception {
+        initializeFromManifest( c, ClassUtils.getUnqualifiedClassName(c) + ".class" );
     }
 
-   /**
-    * Load the version information from the manifest of the JAR file
-    * containing the passed class.  All paytronix jars have such a
-    * manifest file, but others will not.
-    * @param c Class object whose classloader will look up the JAR
-    * @param className String name of the class whose JAR should be
-    * interrogated for the manifest containing version and build numbers,
-    * eg, "PxcMain.class" or "BuildVersion.class".
-    */
-    public BuildVersion( Class c, String className ) throws Exception {
+    /**
+     * Load the version information from the manifest of the JAR file
+     * containing the passed class.  All paytronix jars have such a
+     * manifest file, but others will not.
+     * @param c Class object whose classloader will look up the JAR
+     * @param className String name of the class whose JAR should be
+     * interrogated for the manifest containing version and build numbers,
+     * eg, "PxcMain.class" or "BuildVersion.class".
+     */
+    public BuildVersion( Class<?> c, String className ) throws Exception {
         initializeFromManifest( c, className );
     }
 
-   /**
-    * Load the version information from the manifest of the JAR file
-    * containing the passed class.  All paytronix jars have such a
-    * manifest file, but others will not.
-    * @param c Class object whose classloader will look up the JAR
-    * @param className String name of the class whose JAR should be
-    * interrogated for the manifest containing version and build numbers,
-    * eg, "PxcMain.class" or "BuildVersion.class".
-    */
-    private void initializeFromManifest( Class c, String className ) throws Exception
+    /**
+     * Load the version information from the manifest of the JAR file
+     * containing the passed class.  All paytronix jars have such a
+     * manifest file, but others will not.
+     * @param c Class object whose classloader will look up the JAR
+     * @param className String name of the class whose JAR should be
+     * interrogated for the manifest containing version and build numbers,
+     * eg, "PxcMain.class" or "BuildVersion.class".
+     */
+    private void initializeFromManifest( Class<?> c, String className ) throws Exception
     {
         Attributes attributes = null;
         URL classUrl = null;
