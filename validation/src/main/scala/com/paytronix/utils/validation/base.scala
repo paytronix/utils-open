@@ -262,6 +262,9 @@ object base {
         in => if (condition) f(in)
               else Right(in)
 
+    /** Identity validation function that just passes the value through unchanged */
+    def pass[A]: ValidationFunction[A, A] = in => Right(in)
+
     /** Extend a `ValidationFunction` with the `and` combinator, which is provided by the wrapper `ValidationFunctionOps` */
     implicit def validationFunctionOps[A, B](f: ValidationFunction[A, B]): ValidationFunctionOps[A, B] =
         ValidationFunctionOps(f)
