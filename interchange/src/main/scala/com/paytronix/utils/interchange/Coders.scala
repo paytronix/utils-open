@@ -34,7 +34,7 @@ import scala.collection.generic.{CanBuild, CanBuildFrom}
 import scala.collection.immutable.{Map => ImmutableMap, Set => ImmutableSet}
 import scala.collection.mutable.{ArrayBuffer, Buffer, Builder, Map => MutableMap, Set => MutableSet}
 import scala.reflect.Manifest
-import com.mongodb.BasicDBObject
+import com.mongodb.{BasicDBObject, DBObject}
 import net.liftweb.json.Implicits.string2jvalue
 import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString, JValue, render}
 import net.liftweb.json.JsonDSL.{jobject2assoc, pair2Assoc, pair2jvalue}
@@ -403,6 +403,62 @@ object JValueCoder extends ComposableCoder[JValue] {
         catchingCoderException(Okay(compact(render(in))))
 
     override def toString = "JValueCoder"
+}
+
+/** Coder for MongoDB ObjectId fields */
+object ObjectIdCoder extends StringSafeCoder[ObjectId] {
+    val mostSpecificClass = classOf[ObjectId]
+
+    def decode(classLoader: ClassLoader, in: JValue) =
+        in match {
+            case JString(s) => decodeString(classLoader, s)
+            case JNothing|JNull => FailedG("required but missing", Nil)
+            case _ => FailedG("not a string", Nil)
+        }
+
+    def encode(classLoader: ClassLoader, in: ObjectId) = encodeString(classLoader, in).map(JString.apply)
+
+    def decodeString(classLoader: ClassLoader, in: String) = if (ObjectId.isValid(in)) Okay(new ObjectId(in)) else FailedG("not a valid object id", Nil)
+    def encodeString(classLoader: ClassLoader, in: ObjectId) = Okay(in.toString)
+
+    val avroSchema = Schema.create(Schema.Type.STRING)
+
+    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) = decodeString(classLoader, in.readString(null).toString)
+    def encodeAvro(classLoader: ClassLoader, in: ObjectId, out: Encoder) = encodeString(classLoader, in).map(out.writeString)
+
+    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
+        in match {
+            case s: String => decodeString(classLoader, s)
+            case null      => FailedG("required but missing", Nil)
+            case _         => FailedG("not a string", Nil)
+        }
+    def encodeMongoDB(classLoader: ClassLoader, in: ObjectId) =
+        encodeString(classLoader, in)
+
+    override def toString = "ObjectIdCoder"
+}
+
+/** Coder for MongoDB literal DBObjects */
+object DBObjectCoder extends ComposableCoder[DBObject] {
+    val mostSpecificClass = classOf[DBObject]
+
+    def decode(classLoader: ClassLoader, in: JValue) = FailedG("DBObject not codable in JSON", Nil)
+    def encode(classLoader: ClassLoader, in: DBObject) = FailedG("DBObject not codable in JSON", Nil)
+
+    val avroSchema = Schema.create(Schema.Type.NULL)
+
+    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) = FailedG("DBObject not codable in Avro", Nil)
+    def encodeAvro(classLoader: ClassLoader, in: DBObject, out: Encoder) = FailedG("DBObject not codable in Avro", Nil)
+
+    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
+        in match {
+            case dbo: DBObject => Okay(dbo)
+            case _             => FailedG("not a DBObject", Nil)
+        }
+    def encodeMongoDB(classLoader: ClassLoader, in: DBObject) =
+        Okay(in)
+
+    override def toString = "DBObjectCoder"
 }
 
 /** Unit coder, which codes the Unit */
