@@ -23,6 +23,8 @@ import scala.tools.scalap.scalax.rules.scalasig.{SingleType, TypeRefType}
 import net.liftweb.json.JsonAST.{JField, JObject, JValue, render}
 import net.liftweb.json.Printer.{compact, pretty}
 import org.apache.avro.io.{Encoder, ResolvingDecoder}
+import org.bson.types.ObjectId
+import org.joda.time.{DateTime, Duration, LocalDate, LocalDateTime, LocalTime}
 import org.slf4j.{Logger, LoggerFactory}
 import com.paytronix.utils.extendedreflection.{Builder, ClassTypeR, ClassTypeRFor, NameR, ParameterizedTypeRWith, TypeR}
 import com.paytronix.utils.scala.concurrent.atomicUpdate
@@ -166,6 +168,11 @@ object Coding {
             (classOf[java.sql.Date],           registration("java.sql.Date", () => JavaSqlDateCoder)),
             (classOf[java.sql.Timestamp],      registration("java.sql.Timestamp", () => JavaSqlTimestampCoder)),
             (classOf[java.util.Date],          registration("java.util.Date", () => JavaDateCoder)),
+            (classOf[DateTime],                registration("org.joda.time.DateTime",      () => DateTimeCoder)),
+            (classOf[LocalDate],               registration("org.joda.time.LocalDate",     () => LocalDateCoder)),
+            (classOf[LocalTime],               registration("org.joda.time.LocalTime",     () => LocalTimeCoder)),
+            (classOf[LocalDateTime],           registration("org.joda.time.LocalDateTime", () => LocalDateTimeCoder)),
+            (classOf[Duration],                registration("org.joda.time.Duration",      () => DurationCoder)),
 
             (classOf[java.util.List[_]], oneArgRegistration("java.util.List", JavaListCoder(_))),
             (classOf[Option[_]],         oneArgRegistration("Option", OptionCoder(_))),
