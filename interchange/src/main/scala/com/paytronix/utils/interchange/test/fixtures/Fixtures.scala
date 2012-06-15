@@ -180,6 +180,7 @@ final case class AutoUnionSecond(b: String) extends AutoUnionBase
 final case class AutoUnionInvalid(c: Double) extends AutoUnionBase
 
 object AutoUnionBaseCoding extends AutomaticUnionCoding[AutoUnionBase] {
+    val noApplicableAlternative = "no applicable alternative"
     alternative[AutoUnionFirst]
     alternative[AutoUnionSecond]
 }
@@ -402,7 +403,7 @@ object Coders {
             (builder.typeRFor(secondClass).flatMap(Reflection.reflectObjectCoder(secondClass.getClassLoader, _))
              .orThrow.asInstanceOf[ComposableCoder[AutoUnionSecond]])
 
-        AutomaticUnionCoder[AutoUnionBase](false, List(firstCoder, secondCoder))
+        AutomaticUnionCoder[AutoUnionBase](false, "no applicable alternative", List(firstCoder, secondCoder))
     }
 
     lazy val explicitUnionCoder = {

@@ -422,6 +422,7 @@ trait AutomaticUnionCoding[T] extends Coding {
     private var topType: Option[Manifest[T]] = None
 
     protected var flatten: Boolean = false
+    protected val noApplicableAlternative: String
 
     protected def alternative[U <: T](implicit m: Manifest[U], n: Manifest[T]) = {
         alternatives ::= m.erasure.asInstanceOf[Class[U]] // presume that the erasure is type compatible with the type parameter
@@ -434,7 +435,7 @@ trait AutomaticUnionCoding[T] extends Coding {
                 .flatMap { Coding.forTypeComposable(clazz.getClassLoader, _) }
                 .map { _.asCoderFor[u] }
                 : Result[ComposableCoder[_ <: T]]
-        } map { coders => AutomaticUnionCoder.apply[T](flatten, coders.toList)(topType.get) }
+        } map { coders => AutomaticUnionCoder.apply[T](flatten, noApplicableAlternative, coders.toList)(topType.get) }
 }
 
 /**

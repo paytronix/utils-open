@@ -3098,9 +3098,15 @@ case class ScalaEnumCoder[T <: Enumeration](enum: T) extends StringSafeCoder[T#V
 
 
 /** Make a union coder that "guesses" the right alternative by trying each coder in turn. */
-case class AutomaticUnionCoder[T](flatten: Boolean, alternatives: List[ComposableCoder[_ <: T]])(implicit m: Manifest[T]) extends ComposableCoder[T] with FlattenableCoder
+case class AutomaticUnionCoder[T] (
+    flatten: Boolean,
+    noApplicableAlternative: String,
+    alternatives: List[ComposableCoder[_ <: T]]
+)(implicit m: Manifest[T]) extends ComposableCoder[T] with FlattenableCoder
 {
     import ComposableCoder.{CoderResult, FailedPath, catchingCoderException}
+
+    private val noApplicableAlternativeFG = FailedG(noApplicableAlternative, Nil: FailedPath)
 
     val mostSpecificClass = m.erasure.asInstanceOf[Class[T]]
 
@@ -3108,15 +3114,13 @@ case class AutomaticUnionCoder[T](flatten: Boolean, alternatives: List[Composabl
         sys.error("Union with most specific class " + mostSpecificClass +
                   " cannot code alternative with most specific class " + alternative.mostSpecificClass)
 
-    val noApplicableAlternative: FailedG[FailedPath] = FailedG("not able to determine which union alternative you meant", Nil)
-
     def decode(classLoader: ClassLoader, in: JValue) =
-        firstOrLastG(noApplicableAlternative, alternatives) { _.decode(classLoader, in) } orElse noApplicableAlternative
+        firstOrLastG(noApplicableAlternativeFG, alternatives) { _.decode(classLoader, in) } | noApplicableAlternativeFG
 
     def encode(classLoader: ClassLoader, in: T) =
-        firstOrLastG(noApplicableAlternative, alternatives) {
+        firstOrLastG(noApplicableAlternativeFG, alternatives) {
             coder => catchingCoderException { coder.forceEncode(classLoader, in) }
-        } orElse noApplicableAlternative
+        } | noApplicableAlternativeFG
 
     val avroSchema = Schema.createUnion(alternatives.map(_.avroSchema).asJava)
 
@@ -3133,7 +3137,7 @@ case class AutomaticUnionCoder[T](flatten: Boolean, alternatives: List[Composabl
         catchingCoderException {
             alternatives.zipWithIndex.find {
                 _._1.mostSpecificClass.isInstance(in)
-            }.toResult orElse noApplicableAlternative flatMap {
+            }.toResult orElse noApplicableAlternativeFG flatMap {
                 case (coder, index) => {
                     out.writeIndex(index)
                     coder.forceEncodeAvro(classLoader, in, out)
@@ -3142,10 +3146,10 @@ case class AutomaticUnionCoder[T](flatten: Boolean, alternatives: List[Composabl
         }
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
-        firstOrLastG(noApplicableAlternative, alternatives)(_.decodeMongoDB(classLoader, in)) orElse noApplicableAlternative
+        firstOrLastG(noApplicableAlternativeFG, alternatives)(_.decodeMongoDB(classLoader, in)) | noApplicableAlternativeFG
 
     def encodeMongoDB(classLoader: ClassLoader, in: T) =
-        firstOrLastG(noApplicableAlternative, alternatives)(coder => catchingCoderException(coder.forceEncodeMongoDB(classLoader, in))) orElse noApplicableAlternative
+        firstOrLastG(noApplicableAlternativeFG, alternatives)(coder => catchingCoderException(coder.forceEncodeMongoDB(classLoader, in))) | noApplicableAlternativeFG
 }
 
 /** Case class that contains information on each alternative of an explicit union */
@@ -3164,7 +3168,7 @@ extends ComposableCoder[T] with FlattenableCoder
 
     val mostSpecificClass = m.erasure.asInstanceOf[Class[T]]
 
-    val noApplicableAlternative: FailedG[FailedPath] = FailedG(determinantField + " value not valid", Nil)
+    val noApplicableAlternative: FailedG[FailedPath] = FailedG(determinantField + " value not valid (expected one of: " + alternatives.map(_.determinantValue).mkString(", ") + ")", Nil)
     val missingDeterminant: FailedG[FailedPath]      = FailedG("missing " + determinantField + " to determine type of value", Nil)
 
     def decode(classLoader: ClassLoader, in: JValue) =
