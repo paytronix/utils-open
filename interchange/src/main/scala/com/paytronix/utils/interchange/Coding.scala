@@ -92,49 +92,49 @@ object Coding {
     final case class registration(description: String, f: () => ComposableCoder[_]) extends GenericRegistration {
         def makeCoder(in: List[ComposableCoder[_]]): Result[ComposableCoder[_]] = in match {
             case Nil => Okay(f())
-            case _ => Failed(description + ": expected to have no type parameters")
+            case _ => Failed(description + ": expected to have no type parameters (instead got: " + in.mkString(", ") + ")")
         }
     }
 
     final case class oneArgRegistration(description: String, f: ComposableCoder[_] => ComposableCoder[_]) extends GenericRegistration {
         def makeCoder(in: List[ComposableCoder[_]]) = in match {
             case c1 :: Nil => Okay(f(c1))
-            case _ => Failed(description + ": expected to have exactly one type parameter")
+            case _ => Failed(description + ": expected to have exactly one type parameter (instead got: " + in.mkString(", ") + ")")
         }
     }
 
     final case class twoArgRegistration(description: String, f: (ComposableCoder[_], ComposableCoder[_]) => ComposableCoder[_]) extends GenericRegistration {
         def makeCoder(in: List[ComposableCoder[_]]) = in match {
             case c1 :: c2 :: Nil => Okay(f(c1, c2))
-            case _ => Failed(description + ": expected to have exactly two type parameters")
+            case _ => Failed(description + ": expected to have exactly two type parameters (instead got: " + in.mkString(", ") + ")")
         }
     }
 
     final case class threeArgRegistration(description: String, f: (ComposableCoder[_], ComposableCoder[_], ComposableCoder[_]) => ComposableCoder[_]) extends GenericRegistration {
         def makeCoder(in: List[ComposableCoder[_]]) = in match {
             case c1 :: c2 :: c3 :: Nil => Okay(f(c1, c2, c3))
-            case _ => Failed(description + ": expected to have exactly three type parameters")
+            case _ => Failed(description + ": expected to have exactly three type parameters (instead got: " + in.mkString(", ") + ")")
         }
     }
 
     final case class fourArgRegistration(description: String, f: (ComposableCoder[_], ComposableCoder[_], ComposableCoder[_], ComposableCoder[_]) => ComposableCoder[_]) extends GenericRegistration {
         def makeCoder(in: List[ComposableCoder[_]]) = in match {
             case c1 :: c2 :: c3 :: c4 :: Nil => Okay(f(c1, c2, c3, c4))
-            case _ => Failed(description + ": expected to have exactly four type parameters")
+            case _ => Failed(description + ": expected to have exactly four type parameters (instead got: " + in.mkString(", ") + ")")
         }
     }
 
     final case class fiveArgRegistration(description: String, f: (ComposableCoder[_], ComposableCoder[_], ComposableCoder[_], ComposableCoder[_], ComposableCoder[_]) => ComposableCoder[_]) extends GenericRegistration {
         def makeCoder(in: List[ComposableCoder[_]]) = in match {
             case c1 :: c2 :: c3 :: c4 :: c5 :: Nil => Okay(f(c1, c2, c3, c4, c5))
-            case _ => Failed(description + ": expected to have exactly five type parameters")
+            case _ => Failed(description + ": expected to have exactly five type parameters (instead got: " + in.mkString(", ") + ")")
         }
     }
 
     final case class sixArgRegistration(description: String, f: (ComposableCoder[_], ComposableCoder[_], ComposableCoder[_], ComposableCoder[_], ComposableCoder[_], ComposableCoder[_]) => ComposableCoder[_]) extends GenericRegistration {
         def makeCoder(in: List[ComposableCoder[_]]) = in match {
             case c1 :: c2 :: c3 :: c4 :: c5 :: c6 :: Nil => Okay(f(c1, c2, c3, c4, c5, c6))
-            case _ => Failed(description + ": expected to have exactly six type parameters")
+            case _ => Failed(description + ": expected to have exactly six type parameters (instead got: " + in.mkString(", ") + ")")
         }
     }
 
@@ -184,7 +184,7 @@ object Coding {
             (classOf[List[_]],           oneArgRegistration("scala.List",     ScalaListCoder(_))),
 
             (classOf[Either[_, _]],  twoArgRegistration("Either", EitherCoder(_, _))),
-            (classOf[ResultG[_, _]], twoArgRegistration("Result", ResultCoder(_, _))),
+            (classOf[ResultG[_, _]], twoArgRegistration("ResultG", ResultCoder(_, _))),
 
             (classOf[java.util.Map[_, _]],                  twoArgRegistration("java.util.Map", JavaMapCoder(_,_))),
             (classOf[scala.collection.immutable.Map[_, _]], twoArgRegistration("scala.collection.immutable.Map", ScalaImmutableMapCoder(_,_))),
