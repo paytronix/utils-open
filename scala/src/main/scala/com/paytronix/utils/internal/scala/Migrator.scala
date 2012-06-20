@@ -11,7 +11,8 @@ import org.apache.avro.Schema
 import org.apache.avro.io.{Encoder, ResolvingDecoder}
 import org.slf4j.{Logger, LoggerFactory}
 import com.paytronix.utils.interchange.{OverrideCoding, StringCoder, StringSafeCoder}
-import com.paytronix.utils.scala.result.{Failed, Okay, Result, parameter, tryCatch, tryCatching}
+import com.paytronix.utils.scala.concurrent.ThreadLocal
+import com.paytronix.utils.scala.result.{Failed, Okay, Result, ResultG, parameter, tryCatch, tryCatching}
 
 object SoftwareVersion {
     val pattern = "^([^.]+)\\.([^.]+?)(?:\\.([^.]+?))?(?:-\\S+)?(?:\\s+(\\S+))?$".r
@@ -146,13 +147,16 @@ object SoftwareVersionCoder extends StringSafeCoder[SoftwareVersion] {
  *     }
  * }}}
  *
- * Takes a function that returns Result[DataType], and so allows for failure:
+ * Takes a function that returns ResultG[E, DataType], and so allows for failure:
  * {{{
  *     flatMap { in => ... possibly Failing computation to generate a new value ... }
  * }}}
  */
-class Migrator[T, V <% Ordered[V]] {
-    type Migration = T => Result[T]
+ trait MigratorG[A, V] {
+    protected implicit def orderedVersion(v: V): Ordered[V]
+    type Environment
+    type Error
+    type Migration = A => ResultG[Error, A]
 
     private var migrations: List[(V, Migration)] = Nil
 
@@ -162,34 +166,62 @@ class Migrator[T, V <% Ordered[V]] {
     /** Define a new downgrade migration -- for any target version older than the given threshold, apply this migration */
     def until(threshold: V): MigrationDecl = new MigrationDecl(threshold)
 
+    private val _env = new ThreadLocal[Option[Environment]] {
+        protected val initial = None
+    }
+
+    /** Receive the environment (stored in a ThreadLocal). Yes, this should be replaced with a Kleisli (ReaderT) */
+    protected def env: Environment = _env.get.get
+
     /** Intermediate objects when building a migration */
     class MigrationDecl(threshold: V) {
-        private def migrate(f: T => Result[T]): Unit = migrations ::= (threshold, f)
+        private def migrate(f: A => ResultG[Error, A]): Unit = migrations ::= (threshold, f)
 
         /** Migration is performed using side effects */
-        def execute(f: T => Unit): Unit = migrate { input => f(input); Okay(input) }
+        def execute(f: A => Unit): Unit =
+            migrate { input => f(input); Okay(input) }
 
         /** Migration is performed using side effects */
-        def executeFor(f: PartialFunction[T, Unit]): Unit =
+        def executeFor(f: PartialFunction[A, Unit]): Unit =
             migrate { input => if (f isDefinedAt input) f(input); Okay(input) }
 
-        /** Migration is performed using a simple function */
-        def apply(f: T => T): Unit = migrate { input => Okay(f(input)) }
+        /** Migration is performed using a simple total function */
+        def apply(f: A => A): Unit =
+            migrate { input => Okay(f(input)) }
 
         /** Migration is performed using a simple partial function */
-        def applyFor(f: PartialFunction[T, T]): Unit =
+        def applyFor(f: PartialFunction[A, A]): Unit =
             migrate { input => if (f isDefinedAt input) Okay(f(input)) else Okay(input) }
 
         /** Migration is performed using a possibly-failing computation */
-        def flatMap(f: T => Result[T]): Unit =
+        def flatMap(f: A => ResultG[Error, A]): Unit =
             migrate(f)
+
+        /** Migration is performed using a possibly-failing computation only for certain patterns */
+        def flatMapFor(f: PartialFunction[A, ResultG[Error, A]]): Unit =
+            migrate { input => if (f isDefinedAt input) f(input) else Okay(input) }
     }
 
     /** Upgrade some input data from the given version to the most recent version. */
-    def upgrade(fromVersion: V, input: T): Result[T] =
-        upgradeMigrations.dropWhile(_._1 <= fromVersion).foldLeft[Result[T]](Okay(input))(_ flatMap _._2)
+    def upgrade(fromVersion: V, input: A, environment: Environment): ResultG[Error, A] =
+        _env.doWith(Some(environment)) {
+            upgradeMigrations.dropWhile(_._1 <= fromVersion).foldLeftResult(input)((input, m) => m._2(input))
+        }
 
     /** Downgrade some input data from the most recent version to the given version. */
-    def downgrade(toVersion: V, input: T): Result[T] =
-        downgradeMigrations.takeWhile(toVersion < _._1).foldLeft[Result[T]](Okay(input))(_ flatMap _._2)
+    def downgrade(toVersion: V, input: A, environment: Environment): ResultG[Error, A] =
+        _env.doWith(Some(environment)) {
+            downgradeMigrations.takeWhile(toVersion < _._1).foldLeftResult(input)((input, m) => m._2(input))
+        }
 }
+
+/** Concrete Migrator class with no environment nor error (both are Unit) */
+class Migrator[A, V <% Ordered[V]] extends MigratorG[A, V] {
+    protected implicit def orderedVersion(v: V): Ordered[V] = v
+    type Environment = Unit
+    type Error = Unit
+
+    def upgrade(fromVersion: V, input: A): Result[A] = upgrade(fromVersion, input, ())
+    def downgrade(toVersion: V, input: A): Result[A] = downgrade(toVersion, input, ())
+}
+
