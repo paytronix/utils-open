@@ -18,17 +18,20 @@ object SoftwareVersion {
     val pattern = "^([^.]+)\\.([^.]+?)(?:\\.([^.]+?))?(?:-\\S+)?(?:\\s+(\\S+))?$".r
     val logger = LoggerFactory.getLogger(classOf[SoftwareVersion])
 
-    /** Extractor that extracts components from a SoftwareVersion rather than the original text */
+    /** Extractor that extracts components from a `SoftwareVersion` rather than the original text */
     object Components {
         def unapply(in: SoftwareVersion): Option[(Result[Option[Int]], Result[Option[Int]], Result[Option[Int]], Result[Option[Int]])] =
             Some((in.major, in.minor, in.micro, in.revision))
     }
 
-    /** Creates a SoftwareVersion from the given string and then asserts that at least the major and minor version are parsed */
+    /** Creates a `SoftwareVersion` from the given string and then asserts that at least the major and minor version are parsed */
     def parse(in: String): Result[SoftwareVersion] = SoftwareVersion(in) match {
         case ver@SoftwareVersion.Components(Okay(Some(_)), Okay(Some(_)), _, _) => Okay(ver)
         case _ => Failed("\"" + in + "\" not a valid software version")
     }
+
+    /** Implicitly converts a `String` to a `SoftwareVersion` via its constructor */
+    implicit def stringToSoftwareVersion(in: String): SoftwareVersion = SoftwareVersion(in)
 }
 
 /** Wraps a Paytronix version string as stored in JAR manifests and parses it so that it can be compared */
@@ -163,8 +166,11 @@ object SoftwareVersionCoder extends StringSafeCoder[SoftwareVersion] {
     lazy val upgradeMigrations: List[(V, Migration)] = migrations.sortWith((a, b) => a._1 < b._1)
     lazy val downgradeMigrations: List[(V, Migration)] = migrations.sortWith((a, b) => b._1 < a._1)
 
-    /** Define a new downgrade migration -- for any target version older than the given threshold, apply this migration */
+    /** Define a new migration applied for versions before the given threshold. */
     def until(threshold: V): MigrationDecl = new MigrationDecl(threshold)
+
+    /** Define a new migration applied for versions before the given threshold. */
+    def before(threshold: V): MigrationDecl = new MigrationDecl(threshold)
 
     private val _env = new ThreadLocal[Option[Environment]] {
         protected val initial = None
