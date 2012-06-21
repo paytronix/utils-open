@@ -17,16 +17,25 @@
 package com.paytronix.utils.interchange
 
 import com.mongodb.DBObject
+import com.paytronix.utils.scala.result.Result
 
 trait CodedMongoObject[T] {
     implicit val manifest: Manifest[T]
     lazy val coder = Coding.forClass[T]
 
     /** Implicitly convert a coded object to a DBObject, throwing an exception if coding fails */
-    implicit def toDBObject(obj: T): DBObject =
-        coder.flatMap(_.encodeMongoDB(obj)).asA[DBObject].orThrow
+    implicit def toDBObjectOrThrow(obj: T): DBObject =
+        toDBObject(obj).orThrow
+
+    /** Implicitly convert a coded object to a DBObject */
+    implicit def toDBObject(obj: T): Result[DBObject] =
+        coder.flatMap(_.encodeMongoDB(obj)).asA[DBObject]
 
     /** Implicitly convert a coded object from a DBObject, throwing an exception if coding fails */
-    implicit def fromDBObject(dbo: DBObject): T =
-        coder.flatMap(_.decodeMongoDB(dbo)).asA[T].orThrow
+    implicit def fromDBObjectOrThrow(dbo: DBObject): T =
+        fromDBObject(dbo).orThrow
+
+    /** Implicitly convert a coded object from a DBObject */
+    implicit def fromDBObject(dbo: DBObject): Result[T] =
+        coder.flatMap(_.decodeMongoDB(dbo)).asA[T]
 }
