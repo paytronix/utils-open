@@ -157,6 +157,13 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
             JObject(fields)
         }
 
+        def addResultSuccess(in: JValue): JValue =
+            in match {
+                case JObject(fields) if !fields.exists(_.name == "result") =>
+                    JObject(JField("result", "success") :: fields)
+                case _ => in
+            }
+
         tryCatch.value {
             valueCoder match {
                 case (_: OptionLikeCoder[_])|(_: UnitCoder.type) =>
@@ -171,7 +178,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                     in match {
                         case _: EmptyBox if shouldHideFailures => Okay(JNothing)
                         case Empty                             => Okay(JNothing)
-                        case Full(value)                       => valueCoder.encode(classLoader, value)
+                        case Full(value)                       => valueCoder.encode(classLoader, value) map addResultSuccess
                         case f: Failure                        => Okay(encodeFailure(f))
                     }
             }

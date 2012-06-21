@@ -2676,6 +2676,13 @@ case class ResultCoder[E, A] (
                     }
             }
 
+        def addResultSuccess(in: JValue): JValue =
+            in match {
+                case JObject(fields) if !fields.exists(_.name == "result") =>
+                    JObject(JField("result", "success") :: fields)
+                case _ => in
+            }
+
         catchingCoderException {
             valueCoder match {
                 case (_: OptionLikeCoder[_])|(_: UnitCoder.type) =>
@@ -2693,7 +2700,7 @@ case class ResultCoder[E, A] (
                 case _ =>
                     in match {
                         case Okay(value) =>
-                            valueCoder.encode(classLoader, value)
+                            valueCoder.encode(classLoader, value) map addResultSuccess
 
                         case _ if shouldHideFailures =>
                             Okay(JNothing)
