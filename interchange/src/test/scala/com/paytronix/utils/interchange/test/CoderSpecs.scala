@@ -579,7 +579,7 @@ class ResultCoderSpecTest extends SpecificationWithJUnit {
     ): JObject = {
         var throwable: JObject = ("isA" -> throwableIsA) ~ ("message" -> message)
         if (cause != JNothing) throwable = throwable ~ ("cause" -> (cause \ "throwable"))
-        ("throwable" -> throwable) ~ ("param" -> param)
+        ("result" -> "failed") ~ ("errorMessage" -> message) ~ ("errorCode" -> "system.error") ~ ("throwable" -> throwable) ~ ("param" -> param)
     }
 
     val failedGWithString = FailedG("failed", Failed("chained failure"), "additional param")

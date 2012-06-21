@@ -37,7 +37,7 @@ import result.resultBoxOps
 /** Coder for Box[T] */
 case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Boolean] = None) extends OptionLikeCoder[Box[T]]
 {
-    import BoxCoder.logger
+    import BoxCoder.{allFailureFields, logger, requiredFailureFields}
     import ComposableCoder.{CoderResult, atProperty}
 
     val mostSpecificClass = classOf[Box[T]]
@@ -78,15 +78,28 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
             }
         }
 
+        object EncodedFailure {
+            def unapply(in: JValue): Option[Failure] =
+                in match {
+                    case JObject(fields) =>
+                        val fieldNames = Set(fields.map(_.name): _*)
+                        if (requiredFailureFields.subsetOf(fieldNames) && fieldNames.subsetOf(allFailureFields) && (in \ "result") == JString("failed"))
+                            Some(decodeFailure(in))
+                        else
+                            None
+                    case _ => None
+                }
+        }
+
         valueCoder match {
             case (_: OptionLikeCoder[_])|(_: UnitCoder.type) =>
                 in match {
                     case null|JNothing|JNull =>
                         Okay(Empty)
-                    case jobject: JObject if (jobject \ "failure") != JNothing =>
-                        Okay(decodeFailure(jobject))
+                    case EncodedFailure(decodingResult) =>
+                        Okay(decodingResult)
                     case jobject: JObject =>
-                        FailedG("got an object, which was expected to be an encoded failure, but was something else (failure field missing)", Nil)
+                        FailedG("got an object, which was expected to be an encoded failure, but didn't match the expected schema", Nil)
                     case JArray(Nil) =>
                         valueCoder.decode(classLoader, JNothing).map(Full.apply)
                     case JArray(jv :: Nil) =>
@@ -101,8 +114,8 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                 in match {
                     case null|JNothing|JNull =>
                         Okay(Empty)
-                    case jobject: JObject if (jobject \ "failure") != JNothing =>
-                        Okay(decodeFailure(jobject))
+                    case EncodedFailure(decodingResult) =>
+                        Okay(decodingResult)
                     case jv =>
                         valueCoder.decode(classLoader, jv).map(Full.apply)
                 }
@@ -137,6 +150,9 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
             )
 
             fields ::= JField("failure", JString(failure.msg))
+            fields ::= JField("errorCode", JString("system.error"))
+            fields ::= JField("errorMessage", JString(failure.msg))
+            fields ::= JField("result", JString("failed"))
 
             JObject(fields)
         }
@@ -432,6 +448,10 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
 
 object BoxCoder {
     implicit val logger = LoggerFactory.getLogger(getClass)
+
+    val requiredFailureFields = Set("errorCode", "errorMessage", "failure", "result")
+    val optionalFailureFields = Set("chain", "paramIsA", "param")
+    val allFailureFields = requiredFailureFields union optionalFailureFields
 
     Coding.register(classOf[Box[_]], Coding.oneArgRegistration("Box", BoxCoder(_)))
 

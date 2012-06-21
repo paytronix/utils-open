@@ -17,7 +17,7 @@
 package com.paytronix.utils.lift
 
 import net.liftweb.common.{Box, Empty, Failure, Full}
-import net.liftweb.json.JsonAST.{JArray, JObject, JNothing, JNull, JString}
+import net.liftweb.json.JsonAST.{JArray, JObject, JNothing, JNull, JString, JValue}
 import net.liftweb.json.Implicits.{double2jvalue, int2jvalue, string2jvalue}
 import net.liftweb.json.JsonDSL.{jobject2assoc, pair2Assoc, pair2jvalue}
 import org.slf4j.{Logger, LoggerFactory}
@@ -41,30 +41,26 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
     val nestedCoder = BoxCoder(BoxCoder(BoxCoder(StringCoder)))
     val nestedListCoder = BoxCoder(BoxCoder(BoxCoder(ScalaListCoder(StringCoder))))
 
+    def failureJSON(message: String, chain: JValue = JNothing, param: (String, JValue) = (null, JNothing)): JObject = {
+        var jobj = ("result" -> "failed") ~ ("errorMessage" -> message) ~ ("errorCode" -> "system.error") ~ ("failure" -> message)
+        if (chain != JNothing)
+            jobj = jobj ~ ("chain" -> chain)
+        if (param._1 != null)
+            jobj = jobj ~ ("paramIsA" -> param._1) ~ ("param" -> param._2)
+        jobj
+    }
+
     val paramFailureWithString = Failure("failed", Empty, Full(Failure("chained failure"))) ~> "additional param"
-    val paramFailureWithStringJSON: JObject = (
-        ("failure" -> "failed") ~
-        ("chain" -> ("failure" -> "chained failure")) ~
-        ("paramIsA" -> "java.lang.String") ~
-        ("param" -> "additional param")
-    )
+    val paramFailureWithStringJSON: JObject = failureJSON("failed", failureJSON("chained failure"), "java.lang.String" -> "additional param")
 
     val paramFailureWithInt = Failure("failed", Empty, Full(Failure("chained failure"))) ~> 1234
-    val paramFailureWithIntJSON: JObject = (
-        ("failure" -> "failed") ~
-        ("chain" -> ("failure" -> "chained failure")) ~
-        ("paramIsA" -> "java.lang.Integer") ~
-        ("param" -> 1234)
-    )
+    val paramFailureWithIntJSON: JObject = failureJSON("failed", failureJSON("chained failure"), "java.lang.Integer" -> 1234)
 
     val paramFailureWithCaseClass = Failure("failed", Empty, Full(Failure("chained failure"))) ~> CaseClass(1, "foo", Some("bar"))
-    val paramFailureWithCaseClassJSON: JObject = (
-        ("failure" -> "failed") ~
-        ("chain" -> ("failure" -> "chained failure")) ~
-        ("paramIsA" -> "com.paytronix.utils.interchange.test.fixtures.CaseClass") ~
-        ("param" -> (
+    val paramFailureWithCaseClassJSON: JObject = failureJSON("failed", failureJSON("chained failure"),
+        "com.paytronix.utils.interchange.test.fixtures.CaseClass" -> (
             ("bar" -> "foo") ~ ("foo" -> 1) ~ ("zip" -> "bar")
-        ))
+        )
     )
 
     /** Matcher for unusual box expressions, as the equality comparison on Box does not treat Empty/Failure properly */
@@ -100,13 +96,13 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
             { avroRoundTrip(testCoder, Empty) }
         } ^
         "encode failures" ! resetCoderSettings {
-            { testCoder.encode(cl, Failure("failed")) must matchEncodedJson("failure" -> "failed") } and
+            { testCoder.encode(cl, Failure("failed")) must matchEncodedJson(failureJSON("failed")) } and
             { testCoder.encode(cl, Failure("failed", Empty, Full(Failure("chained failure")))) must
-                 matchEncodedJson(("failure" -> "failed") ~ ("chain" -> ("failure" -> "chained failure"))) }
+                 matchEncodedJson(failureJSON("failed", failureJSON("chained failure"))) }
         } ^
         "decode failures" ! resetCoderSettings {
-            { testCoder.decode(cl, ("failure" -> "failed")) must matchBox(Failure("failed")) } and
-            { testCoder.decode(cl, ("failure" -> "failed") ~ ("chain" -> ("failure" -> "chained failure"))) must
+            { testCoder.decode(cl, failureJSON("failed")) must matchBox(Failure("failed")) } and
+            { testCoder.decode(cl, failureJSON("failed", failureJSON("chained failure"))) must
                 matchBox(Failure("failed", Empty, Full(Failure("chained failure")))) }
         } ^
         "round trip failures via Avro" ! resetCoderSettings {
@@ -118,9 +114,9 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
             { nestedCoder.encode(cl, Full(Full(Empty))) must matchEncodedJson(JArray(JArray(JNothing :: Nil) :: Nil)) } and
             { nestedCoder.encode(cl, Full(Empty)) must matchEncodedJson(JArray(JNothing :: Nil)) } and
             { nestedCoder.encode(cl, Empty) must matchEncodedJson(JNothing) } and
-            { nestedCoder.encode(cl, Full(Full(Failure("failed")))) must matchEncodedJson(JArray(JArray(("failure" -> "failed") :: Nil) :: Nil)) } and
-            { nestedCoder.encode(cl, Full(Failure("failed"))) must matchEncodedJson(JArray(("failure" -> "failed") :: Nil)) } and
-            { nestedCoder.encode(cl, Failure("failed")) must matchEncodedJson("failure" -> "failed") }
+            { nestedCoder.encode(cl, Full(Full(Failure("failed")))) must matchEncodedJson(JArray(JArray(failureJSON("failed") :: Nil) :: Nil)) } and
+            { nestedCoder.encode(cl, Full(Failure("failed"))) must matchEncodedJson(JArray(failureJSON("failed") :: Nil)) } and
+            { nestedCoder.encode(cl, Failure("failed")) must matchEncodedJson(failureJSON("failed")) }
         } ^
         "encode nested boxes with list terminals" ! resetCoderSettings {
             { nestedListCoder.encode(cl, Full(Full(Full("foo" :: Nil)))).must(
@@ -129,9 +125,9 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
             { nestedListCoder.encode(cl, Full(Full(Empty))) must matchEncodedJson(JArray(JArray(JNothing :: Nil) :: Nil)) } and
             { nestedListCoder.encode(cl, Full(Empty)) must matchEncodedJson(JArray(JNothing :: Nil)) } and
             { nestedListCoder.encode(cl, Empty) must matchEncodedJson(JNothing) } and
-            { nestedListCoder.encode(cl, Full(Full(Failure("failed")))) must matchEncodedJson(JArray(JArray(("failure" -> "failed") :: Nil) :: Nil)) } and
-            { nestedListCoder.encode(cl, Full(Failure("failed"))) must matchEncodedJson(JArray(("failure" -> "failed") :: Nil)) } and
-            { nestedListCoder.encode(cl, Failure("failed")) must matchEncodedJson("failure" -> "failed") }
+            { nestedListCoder.encode(cl, Full(Full(Failure("failed")))) must matchEncodedJson(JArray(JArray((failureJSON("failed")) :: Nil) :: Nil)) } and
+            { nestedListCoder.encode(cl, Full(Failure("failed"))) must matchEncodedJson(JArray(failureJSON("failed") :: Nil)) } and
+            { nestedListCoder.encode(cl, Failure("failed")) must matchEncodedJson(failureJSON("failed")) }
         } ^
         "decode nested boxes" ! resetCoderSettings {
             { nestedCoder.decode(cl, JArray(JArray(JString("foo") :: Nil) :: Nil)) must_== Okay(Full(Full(Full("foo")))) } and
@@ -143,9 +139,9 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
             { nestedCoder.decode(cl, JArray(Nil)) must_== Okay(Full(Empty)) } and
             { nestedCoder.decode(cl, JNothing) must_== Okay(Empty) } and
             { nestedCoder.decode(cl, JNull) must_== Okay(Empty) } and
-            { nestedCoder.decode(cl, JArray(JArray(("failure" -> "failed") :: Nil) :: Nil)) must_== Okay(Full(Full(Failure("failed")))) } and
-            { nestedCoder.decode(cl, JArray(("failure" -> "failed") :: Nil)) must_== Okay(Full(Failure("failed"))) } and
-            { nestedCoder.decode(cl, "failure" -> "failed") must_== Okay(Failure("failed")) }
+            { nestedCoder.decode(cl, JArray(JArray(failureJSON("failed") :: Nil) :: Nil)) must_== Okay(Full(Full(Failure("failed")))) } and
+            { nestedCoder.decode(cl, JArray(failureJSON("failed") :: Nil)) must_== Okay(Full(Failure("failed"))) } and
+            { nestedCoder.decode(cl, failureJSON("failed")) must_== Okay(Failure("failed")) }
         } ^
         "decode nested boxes with list terminals" ! resetCoderSettings {
             { nestedListCoder.decode(cl, JArray(JArray(JArray(JString("foo") :: Nil) :: Nil) :: Nil)) must_== Okay(Full(Full(Full("foo" :: Nil)))) } and
@@ -158,9 +154,9 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
             { nestedListCoder.decode(cl, JArray(Nil)) must_== Okay(Full(Empty)) } and
             { nestedListCoder.decode(cl, JNothing) must_== Okay(Empty) } and
             { nestedListCoder.decode(cl, JNull) must_== Okay(Empty) } and
-            { nestedListCoder.decode(cl, JArray(JArray(("failure" -> "failed") :: Nil) :: Nil)) must_== Okay(Full(Full(Failure("failed")))) } and
-            { nestedListCoder.decode(cl, JArray(("failure" -> "failed") :: Nil)) must_== Okay(Full(Failure("failed"))) } and
-            { nestedListCoder.decode(cl, "failure" -> "failed") must_== Okay(Failure("failed")) }
+            { nestedListCoder.decode(cl, JArray(JArray(failureJSON("failed") :: Nil) :: Nil)) must_== Okay(Full(Full(Failure("failed")))) } and
+            { nestedListCoder.decode(cl, JArray(failureJSON("failed") :: Nil)) must_== Okay(Full(Failure("failed"))) } and
+            { nestedListCoder.decode(cl, failureJSON("failed")) must_== Okay(Failure("failed")) }
         } ^
         "round trip nested boxes via Avro" ! resetCoderSettings {
             { avroRoundTrip(nestedCoder, Full(Full(Full("foo")))) } and
@@ -173,13 +169,13 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
         } ^
         "honor hideFailures given at configuration time" ! resetCoderSettings {
             { BoxCoder(StringCoder, Some(true)).encode(cl, Failure("test")) must_== Okay(JNothing) } and
-            { BoxCoder(StringCoder, Some(false)).encode(cl, Failure("test")) must matchEncodedJson("failure" -> "test") }
+            { BoxCoder(StringCoder, Some(false)).encode(cl, Failure("test")) must matchEncodedJson(failureJSON("test")) }
         } ^
         "honor hideFailures given at configuration time even if set otherwise at encode time" ! resetCoderSettings {
             CoderSettings.hideFailures.set(true)
 
             { BoxCoder(StringCoder, Some(true)).encode(cl, Failure("test")) must_== Okay(JNothing) } and
-            { BoxCoder(StringCoder, Some(false)).encode(cl, Failure("test")) must matchEncodedJson("failure" -> "test") }
+            { BoxCoder(StringCoder, Some(false)).encode(cl, Failure("test")) must matchEncodedJson(failureJSON("test")) }
         } ^
         "honor hideFailures given at encode time" ! resetCoderSettings {
             CoderSettings.hideFailures.set(true)
@@ -206,7 +202,7 @@ class BoxCoderSpecTest extends SpecificationWithJUnit {
         "gracefully degrade when encoding complicated ParamFailures" ! resetCoderSettings {
             log.warn("The following warning about decoding an incoming ParamFailure is expected:")
 
-            testCoder.encode(cl, Failure("failed") ~> ("foo", 1)) must matchEncodedJson("failure" -> "failed")
+            testCoder.encode(cl, Failure("failed") ~> ("foo", 1)) must matchEncodedJson(failureJSON("failed"))
         } ^
         "gracefully degrade when encoding complicated ParamFailures via Avro" ! resetCoderSettings {
             log.warn("The following warning about decoding an incoming ParamFailure is expected:")

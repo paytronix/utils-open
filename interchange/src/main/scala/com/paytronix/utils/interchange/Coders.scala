@@ -2574,25 +2574,48 @@ case class ResultCoder[E, A] (
                     atProperty("isA")(FailedG("expected a string", Nil))
             }
 
-        def decodeFailed(in: JValue): CoderResult[FailedG[E]] =
-            (in \ "throwable", in \ "param") match {
-                case (throwableObj: JObject, paramJValue: JValue) =>
-                    for {
-                        throwable <- atProperty("throwable")(decodeThrowable(throwableObj))
-                        param     <- atProperty("param")(failedParamCoder.decode(classLoader, paramJValue))
-                    } yield FailedG(throwable, param)
-                case (_, _)          => FailedG("expected \"throwable\" to be an object containing failure cause", Nil)
+        def decodeFailed(messageOrThrowable: Either[JValue, JValue], param: JValue): CoderResult[FailedG[E]] =
+            atProperty("param")(failedParamCoder.decode(classLoader, param)) flatMap { param =>
+                messageOrThrowable.fold (
+                    _ match {
+                        case message: JString =>
+                            Okay(FailedG(message.s, param))
+                        case _ =>
+                            FailedG("expected \"errorMessage\" to be a string describing failure cause", Nil)
+                    },
+                    _ match {
+                        case throwable: JObject =>
+                            atProperty("throwable")(decodeThrowable(throwable)) map { FailedG(_, param) }
+                        case _ =>
+                            FailedG("expected \"throwable\" to be an object containing failure cause", Nil)
+                    }
+                )
             }
+
+        object EncodedFailure {
+            def unapply(in: JValue): Option[CoderResult[FailedG[E]]] =
+                in match {
+                    case JObject(fields) =>
+                        fields.sortBy(_.name) match {
+                            case List(JField("errorCode", _), JField("errorMessage", _), JField("param", param), JField("result", JString("failed")), JField("throwable", throwable))  =>
+                                Some(decodeFailed(Right(throwable), param))
+                            case List(JField("errorCode", _), JField("errorMessage", message), JField("param", param), JField("result", JString("failed"))) =>
+                                Some(decodeFailed(Left(message), param))
+                            case _ => None
+                        }
+                    case _ => None
+                }
+        }
 
         valueCoder match {
             case (_: OptionLikeCoder[_])|(_: UnitCoder.type) =>
                 in match {
                     case null|JNull|JNothing =>
                         failedParamCoder.decode(classLoader, JNothing) map { param => FailedG("unknown failure", param) }
-                    case jobject: JObject if (jobject \ "throwable") != JNothing =>
-                        decodeFailed(jobject)
+                    case EncodedFailure(decodingResult) =>
+                        decodingResult
                     case jobject: JObject =>
-                        FailedG("got an object, which was expected to be an encoded failure, but was something else (throwable field missing)", Nil)
+                        FailedG("got an object, which was expected to be an encoded failure, but didn't conform to the expected schema", Nil)
                     case JArray(Nil) =>
                         valueCoder.decode(classLoader, JNothing) map Okay.apply
                     case JArray(jv :: Nil) =>
@@ -2607,8 +2630,8 @@ case class ResultCoder[E, A] (
                 in match {
                     case null|JNull|JNothing =>
                         failedParamCoder.decode(classLoader, JNothing) map { param => FailedG("unknown failure", param) }
-                    case jobject: JObject if (jobject \ "throwable") != JNothing =>
-                        decodeFailed(jobject)
+                    case EncodedFailure(decodingResult) =>
+                        decodingResult
                     case jv =>
                         valueCoder.decode(classLoader, jv) map Okay.apply
                 }
@@ -2618,9 +2641,18 @@ case class ResultCoder[E, A] (
     def encode(classLoader: ClassLoader, in: ResultG[E, A]) = {
         def encodeFailed(failed: FailedG[E]): CoderResult[JValue] =
             for {
-                throwableField <- atProperty("throwable")(encodeThrowable(failed.throwable)) map { JField("throwable", _) }
+                throwableFieldOption <-
+                    if (CoderSettings.isInsecureContext.get) Okay(None)
+                    else atProperty("throwable")(encodeThrowable(failed.throwable)) map { obj => Some(JField("throwable", obj)) }
                 paramField <- atProperty("param")(failedParamCoder.encode(classLoader, failed.parameter)) map { JField("param", _) }
-            } yield JObject(throwableField :: paramField :: Nil)
+            } yield {
+                var fields: List[JField] = paramField :: Nil
+                throwableFieldOption.foreach(fields ::= _)
+                fields ::= JField("errorCode", JString("system.error"))
+                fields ::= JField("errorMessage", JString(failed.message))
+                fields ::= JField("result", JString("failed"))
+                JObject(fields)
+            }
 
         def encodeThrowable(throwable: Throwable): CoderResult[JObject] =
             throwable.getCause match {
