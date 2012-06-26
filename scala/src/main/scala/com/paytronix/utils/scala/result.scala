@@ -230,7 +230,7 @@ object result extends resultLowPriorityImplicits
         }
 
         /** If Okay, replace the value with the given alternative. Equivalent to flatMap(_ => alternative) */
-        def then[F >: E, B](alternative: ResultG[F, B]): ResultG[F, B]
+        def then[F >: E, B](alternative: => ResultG[F, B]): ResultG[F, B]
 
         /** Yield true iff Okay and the value conforms to the given type */
         def isA[B](implicit m: Manifest[B]): Boolean
@@ -403,7 +403,7 @@ object result extends resultLowPriorityImplicits
         def toEither: Right[Nothing, A] =
             Right(result)
 
-        def then[E, B](alternative: ResultG[E, B]): ResultG[E, B] =
+        def then[E, B](alternative: => ResultG[E, B]): ResultG[E, B] =
             alternative
 
         def isA[B](implicit m: Manifest[B]): Boolean =
@@ -481,7 +481,7 @@ object result extends resultLowPriorityImplicits
         def orThrow: Nothing =
             throw throwable
 
-        def then[F >: E, B](alternative: ResultG[F, B]): FailedG[F] =
+        def then[F >: E, B](alternative: => ResultG[F, B]): FailedG[F] =
             this
 
         def isA[B](implicit m: Manifest[B]): Boolean =
