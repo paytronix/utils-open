@@ -211,7 +211,7 @@ object base {
         groupSeparator: String = "\n",
         fieldSeparator: String = ": ",
         errorSeparator: String = "\n",
-        locationSeparator: String = ".",
+        locationSeparator: String = "/",
         invalidInputPrefix: String = " (invalid input was: ",
         invalidInputSuffix: String = ")",
         indented: Boolean = true,
