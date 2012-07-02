@@ -92,7 +92,7 @@ object base {
         override def toString: String = (
             (location match {
                 case Nil => ""
-                case _ => "At " + location.mkString(".") + ": "
+                case _ => "At " + location.mkString("/") + ": "
             }) + code + ": " + text
         )
     }

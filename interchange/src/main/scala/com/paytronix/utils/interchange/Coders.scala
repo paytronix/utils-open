@@ -215,7 +215,7 @@ object ComposableCoder {
     type CoderResult[A] = ResultG[FailedPath, A]
     type FailedPath = List[Segment]
     sealed abstract class Segment
-    final case class PropertySegment(prop: String) extends Segment { override def toString = "." + prop }
+    final case class PropertySegment(prop: String) extends Segment { override def toString = "/" + prop }
     final case class IntIndexSegment(idx: Int) extends Segment { override def toString = "[" + idx + "]" }
     final case class JValueIndexSegment(idx: JValue) extends Segment { override def toString = "[" + compact(render(idx)) + "]" }
 

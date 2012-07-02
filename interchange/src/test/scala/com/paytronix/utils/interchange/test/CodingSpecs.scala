@@ -306,10 +306,10 @@ class CoderDiagnosticsSpecTest extends SpecificationWithJUnit {
         "Coder diagnostics should" ^
         "work for manual coding" ! {
             { Coder(cl, wrapperCoder).decode(JObject(Nil)) must beLike { case Failed.Message("At cc: required but missing") => ok } } and
-            { Coder(cl, wrapperCoder).decode(("cc" -> ("bar" -> "baz"))) must beLike { case Failed.Message("At cc.foo: required but missing") => ok } }
+            { Coder(cl, wrapperCoder).decode(("cc" -> ("bar" -> "baz"))) must beLike { case Failed.Message("At cc/foo: required but missing") => ok } }
         } ^
         "work for automatic coding" ! {
             val v: JValue = ("a" -> ("k" -> ("b" -> JArray(("d" -> "foo") :: Nil))))
-            Coding.decode[DiagnosticTestOuterClass](v) must beLike { case Failed.Message("At a[\"k\"].b[0].c: required but missing") => ok }
+            Coding.decode[DiagnosticTestOuterClass](v) must beLike { case Failed.Message("At a[\"k\"]/b[0]/c: required but missing") => ok }
         }
 }
