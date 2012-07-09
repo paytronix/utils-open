@@ -330,7 +330,7 @@ object string {
     val ValidDomainPart = ValidDomainLabel + "(?:[.]" + ValidDomainLabel + ")+"
     // We do not allow quoted-string local part values!
     val ValidLocalChars = ValidDomainChars + "!#$%&'*+\\-/=?^_`{|}~"
-    val ValidLocalPart  = "[" + ValidLocalChars + "]+(?:[.]?[" + ValidLocalChars + "]+)*"
+    val ValidLocalPart  = "[" + ValidLocalChars + "]+(?:[.][" + ValidLocalChars + "]+)*"
     val ValidEmail = (ValidLocalPart + "@" + ValidDomainPart).r
 
     def tooShortError(i: Int) = ValidationError("too_short", "must have at least %d character(s)", i)
