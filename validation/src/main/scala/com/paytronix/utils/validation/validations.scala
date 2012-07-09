@@ -326,7 +326,7 @@ object numeric {
 object string {
     val ValidDomainChars = "a-zA-Z0-9"
     // This is somewhat complicated because we're allowed to have dashes, but not on either end
-    val ValidDomainLabel = "[" + ValidDomainChars + "](?:[-]*[" + ValidDomainChars + "]+)*"
+    val ValidDomainLabel = "[" + ValidDomainChars + "]+(?:[-]+[" + ValidDomainChars + "]+)*"
     val ValidDomainPart = ValidDomainLabel + "(?:[.]" + ValidDomainLabel + ")+"
     // We do not allow quoted-string local part values!
     val ValidLocalChars = ValidDomainChars + "!#$%&'*+\\-/=?^_`{|}~"
