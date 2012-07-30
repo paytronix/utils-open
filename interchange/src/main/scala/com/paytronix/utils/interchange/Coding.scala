@@ -179,6 +179,9 @@ object Coding {
             (classOf[ObjectId], registration("org.bson.types.ObjectId",         () => ObjectIdCoder)),
             (classOf[DBObject], registration("com.mongodb.DBObject",            () => DBObjectCoder)),
 
+            (classOf[Array[Byte]], registration("byte array", () => ByteArrayCoder)),
+            (classOf[java.nio.ByteBuffer], registration("java.nio.ByteBuffer", () => ByteBufferCoder)),
+
             (classOf[java.util.List[_]], oneArgRegistration("java.util.List", JavaListCoder(_))),
             (classOf[Option[_]],         oneArgRegistration("Option",         OptionCoder(_))),
             (classOf[List[_]],           oneArgRegistration("scala.List",     ScalaListCoder(_))),

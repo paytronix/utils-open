@@ -29,6 +29,7 @@ import java.util.{
     List       => JavaList,
     Map        => JavaMap
 }
+import javax.xml.bind.DatatypeConverter
 import scala.collection.JavaConverters.{iterableAsScalaIterableConverter, mapAsScalaMapConverter, seqAsJavaListConverter}
 import scala.collection.generic.{CanBuild, CanBuildFrom}
 import scala.collection.immutable.{Map => ImmutableMap, Set => ImmutableSet}
@@ -42,8 +43,8 @@ import net.liftweb.json.JsonParser.parse
 import net.liftweb.json.Printer.compact
 import org.apache.avro.Schema
 import org.apache.avro.io.{DatumReader, DatumWriter, Decoder, DecoderFactory, Encoder, EncoderFactory, ResolvingDecoder}
-import org.bson.BSONObject
-import org.bson.types.ObjectId
+import org.bson.{BSON, BSONObject}
+import org.bson.types.{Binary, ObjectId}
 import org.joda.time.{DateTime, Duration, LocalDate, LocalDateTime, LocalTime}
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.slf4j.LoggerFactory
@@ -1475,6 +1476,106 @@ object DurationCoder extends StringSafeCoder[Duration] {
         LongCoder.encodeMongoDB(classLoader, in.getMillis)
 
     override def toString = "DurationCoder"
+}
+
+
+/* ******************************************************************************** */
+
+
+object ByteArrayCoder extends StringSafeCoder[Array[Byte]] {
+    val mostSpecificClass = classOf[Array[Byte]]
+
+    def decode(classLoader: ClassLoader, in: JValue) =
+        ByteBufferCoder.decode(classLoader, in) map { _.array }
+
+    def encode(classLoader: ClassLoader, in: Array[Byte]) =
+        ByteBufferCoder.encode(classLoader, ByteBuffer.wrap(in))
+
+    def decodeString(classLoader: ClassLoader, in: String) =
+        ByteBufferCoder.decodeString(classLoader, in) map { _.array }
+
+    def encodeString(classLoader: ClassLoader, in: Array[Byte]) =
+        ByteBufferCoder.encodeString(classLoader, ByteBuffer.wrap(in))
+
+    val avroSchema =
+        ByteBufferCoder.avroSchema
+
+    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
+        ByteBufferCoder.decodeAvro(classLoader, in) map { _.array }
+
+    def encodeAvro(classLoader: ClassLoader, in: Array[Byte], out: Encoder) =
+        ByteBufferCoder.encodeAvro(classLoader, ByteBuffer.wrap(in), out)
+
+    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
+        ByteBufferCoder.decodeMongoDB(classLoader, in) map { _.array }
+
+    def encodeMongoDB(classLoader: ClassLoader, in: Array[Byte]) =
+        ByteBufferCoder.encodeMongoDB(classLoader, ByteBuffer.wrap(in))
+
+    override def toString = "ByteArrayCoder"
+}
+
+object ByteBufferCoder extends StringSafeCoder[ByteBuffer] {
+    import ComposableCoder.atTerminal
+
+    val mostSpecificClass = classOf[ByteBuffer]
+
+    def decode(classLoader: ClassLoader, in: JValue) =
+        in match {
+            case JString(s)     => decodeString(classLoader, s)
+            case JNothing|JNull => FailedG("required but missing", Nil)
+            case _              => FailedG("not a string", Nil)
+        }
+
+    def encode(classLoader: ClassLoader, in: ByteBuffer) =
+        encodeString(classLoader, in) map JString.apply
+
+    def decodeString(classLoader: ClassLoader, in: String) =
+        atTerminal {
+            tryCatch.value {
+                ByteBuffer.wrap(DatatypeConverter.parseBase64Binary(in))
+            }
+        }
+
+    def encodeString(classLoader: ClassLoader, in: ByteBuffer) =
+        atTerminal {
+            tryCatch.value {
+                if (in.hasArray && in.capacity == in.limit && in.position == 0)
+                    DatatypeConverter.printBase64Binary(in.array)
+                else {
+                    // FIXME not the most efficient, better to chop it up into blocks divisible by 3
+                    val a = Array.ofDim[Byte](in.remaining)
+                    in.get(a)
+                    DatatypeConverter.printBase64Binary(a)
+                }
+            }
+        }
+
+    val avroSchema = Schema.create(Schema.Type.BYTES)
+
+    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
+        atTerminal(tryCatch.value(in.readBytes(null)))
+
+    def encodeAvro(classLoader: ClassLoader, in: ByteBuffer, out: Encoder) =
+        atTerminal(tryCatch.value(out.writeBytes(in)))
+
+    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
+        in match {
+            case b: Binary            => Okay(ByteBuffer.wrap(b.getData))
+            case s: String            => decodeString(classLoader, s)
+            case null                 => FailedG("required but missing", Nil)
+            case _                    => FailedG("not a string", Nil)
+        }
+    def encodeMongoDB(classLoader: ClassLoader, in: ByteBuffer) =
+        atTerminal {
+            tryCatch.value {
+                val a = Array.ofDim[Byte](in.remaining)
+                in.get(a)
+                new Binary(BSON.BINARY, a)
+            }
+        }
+
+    override def toString = "ByteBufferCoder"
 }
 
 
