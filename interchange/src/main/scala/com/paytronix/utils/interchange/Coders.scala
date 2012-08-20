@@ -30,6 +30,7 @@ import java.util.{
     Map        => JavaMap
 }
 import javax.xml.bind.DatatypeConverter
+import scala.annotation.tailrec
 import scala.collection.JavaConverters.{iterableAsScalaIterableConverter, mapAsScalaMapConverter, seqAsJavaListConverter}
 import scala.collection.generic.{CanBuild, CanBuildFrom}
 import scala.collection.immutable.{Map => ImmutableMap, Set => ImmutableSet}
@@ -137,6 +138,7 @@ final case class Coder[T](contextClassLoader: ClassLoader, implementation: Compo
         for {
             encoder   <- tryCatch.value(EncoderFactory.get.directBinaryEncoder(baos, null)) | "Failed to create Avro encoder"
             encodedOk <- encodeAvro(in, encoder)
+            flushedOk <- tryCatch.value(encoder.flush) | "Failed to flush Avro encoder"
         } yield baos.toByteArray
     }
 
@@ -149,6 +151,7 @@ final case class Coder[T](contextClassLoader: ClassLoader, implementation: Compo
         for {
             encoder   <- tryCatch.value(EncoderFactory.get.binaryEncoder(out, null)) | "Failed to create Avro encoder"
             encodedOk <- encodeAvro(in, encoder)
+            flushedOk <- tryCatch.value(encoder.flush) | "Failed to flush Avro encoder"
         } yield { }
 
     /** Attempt conversion of some value that does not conform to type T to an output stream. Will fail from either an encoding problem or a type mismatch */
@@ -2012,12 +2015,8 @@ abstract class ListLikeCoder[Elem, Coll](valueCoder: ComposableCoder[Elem]) exte
         catchingCoderException {
             val b = builder()
             var index = 0
-            val initial = in.readArrayStart()
-            b.sizeHint(initial match {
-                case l if l > Integer.MAX_VALUE => Integer.MAX_VALUE
-                case l                          => l.asInstanceOf[Int]
-            })
-            def accumulate(limit: Long): CoderResult[Unit] =
+
+            @tailrec def accumulate(limit: Long): CoderResult[Unit] =
                 if (limit == 0) Okay(())
                 else {
                     var l: Long = 0
@@ -2031,6 +2030,12 @@ abstract class ListLikeCoder[Elem, Coll](valueCoder: ComposableCoder[Elem]) exte
                     }
                     accumulate(in.arrayNext())
                 }
+
+            val initial = in.readArrayStart()
+            b.sizeHint(initial match {
+                case l if l > Integer.MAX_VALUE => Integer.MAX_VALUE
+                case l                          => l.asInstanceOf[Int]
+            })
             accumulate(initial) then Okay(b.result())
         }
 
@@ -2061,6 +2066,7 @@ abstract class ListLikeCoder[Elem, Coll](valueCoder: ComposableCoder[Elem]) exte
             case null => FailedG("required but missing", Nil)
             case _    => FailedG("not a collection", Nil)
         }
+
     def encodeMongoDB(classLoader: ClassLoader, in: Coll) = {
         val iterable = valueAsIterable(in)
         val a = new java.util.ArrayList[AnyRef](iterable.size)
@@ -2238,57 +2244,61 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
         val b = builder()
 
         def decodeAvroMap(keyStringCoder: StringSafeCoder[K]): CoderResult[Unit] = {
+            @tailrec def accumulate(limit: Long): CoderResult[Unit] =
+                if (limit == 0) Okay(())
+                else {
+                    var l: Long = 0
+                    while (l < limit) {
+                        (
+                            for {
+                                k <- keyStringCoder.decodeString(classLoader, in.readString(null).toString)
+                                v <- valueCoder.decodeAvro(classLoader, in)
+                            } yield (k, v)
+                        ) match {
+                            case Okay(p) => b += p
+                            case failed: FailedG[_] => return failed
+                        }
+                        l += 1
+                    }
+                    accumulate(in.mapNext())
+                }
+
             val initial = in.readMapStart()
             b.sizeHint(initial match {
                 case l if l > Integer.MAX_VALUE => Integer.MAX_VALUE
                 case l => l.asInstanceOf[Int]
             })
-            def accumulate(limit: Long): CoderResult[Unit] = {
-                var l: Long = 0
-                while (l < limit) {
-                    (
-                        for {
-                            k <- keyStringCoder.decodeString(classLoader, in.readString(null).toString)
-                            v <- valueCoder.decodeAvro(classLoader, in)
-                        } yield (k, v)
-                    ) match {
-                        case Okay(p) => b += p
-                        case failed: FailedG[_] => return failed
-                    }
-                    l += 1
-                }
-                val next = in.mapNext()
-                if (next == 0) Okay(())
-                else accumulate(next)
-            }
+
             accumulate(initial)
         }
 
         def decodeAvroArray(): CoderResult[Unit] = {
+            @tailrec def accumulate(limit: Long): CoderResult[Unit] =
+                if (limit == 0) Okay(())
+                else {
+                    var l: Long = 0
+                    while (l < limit) {
+                        (
+                            // FIXME doesn't bother to handle variances in the schema (does not use in.readFieldOrder())
+                            for {
+                                k <- keyCoder.decodeAvro(classLoader, in)
+                                v <- valueCoder.decodeAvro(classLoader, in)
+                            } yield (k, v)
+                        ) match {
+                            case Okay(p) => b += p
+                            case failed: FailedG[_] => return failed
+                        }
+                        l += 1
+                    }
+                    accumulate(in.arrayNext())
+                }
+
             val initial = in.readArrayStart()
             b.sizeHint(initial match {
                 case l if l > Integer.MAX_VALUE => Integer.MAX_VALUE
                 case l => l.asInstanceOf[Int]
             })
-            def accumulate(limit: Long): CoderResult[Unit] = {
-                var l: Long = 0
-                while (l < limit) {
-                    (
-                        // FIXME doesn't bother to handle variances in the schema (does not use in.readFieldOrder())
-                        for {
-                            k <- keyCoder.decodeAvro(classLoader, in)
-                            v <- valueCoder.decodeAvro(classLoader, in)
-                        } yield (k, v)
-                    ) match {
-                        case Okay(p) => b += p
-                        case failed: FailedG[_] => return failed
-                    }
-                    l += 1
-                }
-                val next = in.arrayNext()
-                if (next == 0) Okay(())
-                else accumulate(next)
-            }
+
             accumulate(initial)
         }
 
