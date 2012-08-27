@@ -278,6 +278,17 @@ object base {
             in => f(in).right.flatMap(rhs)
     }
 
+    /** Extend a `Validated[A]` with the `and` combinator */
+    implicit def validatedOps[A](in: Validated[A]): ValidatedOps[A] =
+        ValidatedOps(in)
+
+    /** Extension of `Validated[A]` with the `and` combinator */
+    final case class ValidatedOps[A](a: Validated[A]) {
+        /** Apply a `ValidationFunction` to a `Validated` value */
+        def and[B](rhs: ValidationFunction[A, B]): Validated[B] =
+            a.right.flatMap(rhs)
+    }
+
     /** Implicitly extend any value with an `is` operator that can be used to apply a validation function to the value */
     implicit def valueOps[A](in: A): ValueOps[A] = ValueOps(in)
 

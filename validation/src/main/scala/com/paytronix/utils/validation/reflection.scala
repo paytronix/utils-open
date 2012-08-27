@@ -1,0 +1,41 @@
+//
+// Copyright 2012 Paytronix Systems, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+package com.paytronix.utils.validation
+
+import base.{ValidationError, ValidationFunction}
+
+object reflection {
+    import string.nonBlank
+
+    val invalidClassName = ValidationError("invalid_class_name", "invalid class name")
+    def lookupError(e: Exception): ValidationError = ValidationError("unknown_error", "error while looking up class: " + e.toString)
+
+    /** Assert that a String is nonblank and refers to a loadable class */
+    def className[A](bound: Class[A], classLoader: ClassLoader = null, error: ValidationError = invalidClassName): ValidationFunction[String, Class[_ <: A]] =
+        in => nonBlank()(in) match {
+            case Left(errors) => Left(errors)
+            case Right(s) => {
+                try {
+                    if (classLoader != null) Right(Class.forName(s, true, classLoader).asSubclass(bound))
+                    else                     Right(Class.forName(s).asSubclass(bound))
+                } catch {
+                    case e: ClassNotFoundException => Left(error :: Nil)
+                    case e: Exception              => Left(lookupError(e) :: Nil) // FIXME? do we need to be able to customize this one?
+                }
+            }
+        }
+}

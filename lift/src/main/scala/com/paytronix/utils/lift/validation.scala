@@ -28,15 +28,21 @@ object validation {
     }
 
     /** Require that a boxed value be present. */
-    def full[A, B](f: ValidationFunction[A, B]): ValidationFunction[Box[A], B] = (in: Box[A]) => in match {
+    def full[A]: ValidationFunction[Box[A], A] = {
+        case Full(v) => Right(v)
+        // FIXME? deal with failure some other way? maybe ParamFailure carrying ValidationError should be unwrapped
+        case _ => Left(missingValueError :: Nil)
+    }
+
+    /** Require that a boxed value be present and apply a validation value to the function */
+    def full[A, B](f: ValidationFunction[A, B]): ValidationFunction[Box[A], B] = {
         case Full(v) => f(v)
         // FIXME? deal with failure some other way? maybe ParamFailure carrying ValidationError should be unwrapped
         case _ => Left(missingValueError :: Nil)
     }
 
-    /** Require that a boxed value be present and specify a particular error message. */
-    def full[A, B](error: ValidationError)(f: ValidationFunction[A, B]): ValidationFunction[Box[A], B] =
-        (in: Box[A]) => in match {
+    /** Require that a boxed value be present applying a validation function when it is and specifying a particular error message when it is not. */
+    def full[A, B](error: ValidationError)(f: ValidationFunction[A, B]): ValidationFunction[Box[A], B] = {
             case Full(v) => f(v)
             // FIXME? deal with failure some other way? maybe ParamFailure carrying ValidationError should be unwrapped
             case _ => Left(error :: Nil)
