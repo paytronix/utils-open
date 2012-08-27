@@ -49,13 +49,12 @@
             <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
-                <version>1.0.1</version>
-                <scope>test</scope>
+                <version>1.0.6</version>
             </dependency>
             <dependency>
-                <groupId>com.notnoop.logging</groupId>
-                <artifactId>slf4j-configgy</artifactId>
-                <version>0.0.2-px</version>
+                <groupId>com.typesafe</groupId>
+                <artifactId>config</artifactId>
+                <version>0.5.0</version>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>
@@ -64,26 +63,26 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
-                <groupId>net.lag</groupId>
-                <artifactId>configgy</artifactId>
-                <version>2.0.0</version>
-                <exclusions>
-                    <!-- configgy erroneously includes a bogus dependency on vscaladoc 1.1-md-3, which doesn't apparently exist -->
-                    <exclusion>
-                        <groupId>org.scala-tools</groupId>
-                    <artifactId>vscaladoc</artifactId>
-                </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
                 <groupId>net.liftweb</groupId>
                 <artifactId>lift-common_${lift.scala.compatibility.version}</artifactId>
                 <version>${lift.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>joda-time</groupId>
+                        <artifactId>joda-time</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>net.liftweb</groupId>
                 <artifactId>lift-util_${lift.scala.compatibility.version}</artifactId>
                 <version>${lift.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>joda-time</groupId>
+                        <artifactId>joda-time</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>
@@ -254,6 +253,21 @@
                         <argLine>-Xmx512m</argLine>
                     </configuration>
                 </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>2.1</version>
+                    <configuration>
+                        <archive>
+                            <manifest>
+                                <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                                <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                            </manifest>
+                        </archive>
+                    </configuration>
+                </plugin>
+
 
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

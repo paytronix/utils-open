@@ -5,35 +5,76 @@
 
 package com.paytronix.utils.standalone
 
+import java.io.File
+import scala.collection.JavaConverters.asScalaSetConverter
 import scala.util.control.Exception.catching
-import net.lag.configgy.{ConfigMap, Configgy}
-import net.lag.logging.Logger
+
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.joran.JoranConfigurator
+import com.typesafe.config.{Config, ConfigException, ConfigFactory, ConfigParseOptions, ConfigObject, ConfigValue, ConfigValueType}
+import org.slf4j.LoggerFactory
+
 import com.paytronix.utils.internal.java.{BuildVersion, ClassUtils}
+import com.paytronix.utils.scala.log.resultLoggerOps
 import com.paytronix.utils.scala.resource.withResource
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, tryCatch}
 import com.paytronix.utils.validation.base.{Validated, ValidationError, validationErrorsToString}
 
 /** Base trait of standalone tools which provides loading and setup of Configgy */
 trait StandaloneTool {
+    private var _config: Option[Config] = None
+
+    /** Get the raw (unresolved) top-level configuration */
+    def rawConfig = _config getOrElse sys.error("config not yet loaded")
+
+    /** Get the top-level configuration */
+    lazy val config = rawConfig.resolve
+
+    /** Name of the config file located in the configuration directory given on the command line, e.g. `loader`. Various extensions will be tried (.conf, .json, etc.) */
+    protected def configFileName: String
+
     /** Main entry point of a standalone tool which initializes configgy and then triggers each onLoad handler */
     def main(args: Array[String]): Unit =
         args match {
-            case Array(configPath) =>
+            case Array(configPath) if new File(configPath).isDirectory =>
                 try {
-                    Configgy.configure(configPath)
-                } catch {
-                    case e: Exception =>
-                        // Configgy emits its own exceptions, no need to duplicate that effort
-                        // e.printStackTrace(System.err)
-                        System.exit(1)
+                    val options = ConfigParseOptions.defaults
+                        .setAllowMissing(false)
+                        .setClassLoader(getClass.getClassLoader)
+                    val fn = configPath + File.separator + configFileName
+                    _config = Some(ConfigFactory.parseFileAnySyntax(new File(fn), options))
+                } catch { case e: Exception =>
+                    System.err.println("Failed to load configuration:")
+                    e.printStackTrace(System.err)
+                    System.exit(1)
                 }
 
-                val log = Logger.get(getClass.getName)
+                val logFn = configPath + File.separator + "logback.xml"
+                try {
+                    val loggerContext = LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext]
+                    val configurator = new JoranConfigurator()
+                    configurator.setContext(loggerContext)
+                    loggerContext.reset()
+                    configurator.doConfigure(logFn)
+                } catch { case e: Exception =>
+                    // No use using a logger.
+                    System.err.println("Failed to initialize Logback system from \"" + logFn + "\" due to exception:")
+                    e.printStackTrace(System.err)
+                    System.exit(1)
+                }
+
+                implicit val log = LoggerFactory.getLogger(getClass)
 
                 // merely instantiating this class will cause an info-level log message to be output, so don't bother doing anything with the instance
                 new BuildVersion(getClass, ClassUtils.getUnqualifiedClassName(getClass) + ".class")
 
-                def runAdvice(fs: List[(String, Advice)]): Either[Throwable, Unit] =
-                    catching(classOf[Exception]).either {
+                if (log.isDebugEnabled) {
+                    log.debug(getClass.getName + " tool starting with configuration:")
+                    for (entry <- config.entrySet.asScala.toSeq.sortBy(_.getKey)) log.debug(entry.getKey + " = " + entry.getValue.unwrapped)
+                }
+
+                def runAdvice(fs: List[(String, Advice)]): Result[Unit] =
+                    tryCatch.result {
                         fs match {
                             case (source, f) :: rest => {
                                 log.debug("Setting up: " + source)
@@ -45,21 +86,19 @@ trait StandaloneTool {
                                 run()
                             }
                         }
-                    }.right.flatMap(x => x)
+                    }
 
-                runAdvice(advice.reverse).left.foreach { t =>
-                    t.toString.split('\n').foreach(log.fatal(_))
-                    t.getStackTrace.foreach(ste => log.fatal(" at " + ste))
-                }
+                runAdvice(advice.reverse).logError("Failed:")
 
-            case _ => System.err.println("usage: " + getClass.getName + " <config file>")
+            case Array(configPath) =>
+                System.err.println("usage: " + getClass.getName + " <config directory>")
+                System.err.println("  " + configPath + " was given but was not a directory")
+
+            case _ =>
+                System.err.println("usage: " + getClass.getName + " <config directory>")
         }
 
-
-    /** Get the top-level configuration. Usually just the global configgy */
-    def configMap: ConfigMap = Configgy.config
-
-    type Advice = (() => Either[Throwable, Unit]) => Either[Throwable, Unit]
+    type Advice = (() => Result[Unit]) => Result[Unit]
 
     /** Keeps around the list of advice */
     private var advice: List[(String, Advice)] = Nil
@@ -73,14 +112,15 @@ trait StandaloneTool {
 
     /** Helper function used during parameter loading advice to set and then clear some parameters */
     protected def withParameters[A](setter: Option[A] => Unit)(load: => Validated[A]): Advice =
-        f => load match {
+        k => load match {
             case Right(params) =>
                 setter(Some(params))
-                val result = f()
+                val result = k()
                 setter(None)
+                Okay(())
 
             case Left(errors) =>
-                Left(new RuntimeException(validationErrorsToString(errors)))
+                FailedG("", errors)
         }
 
     /**
@@ -94,11 +134,28 @@ trait StandaloneTool {
      */
     protected def advise(f: Advice): Unit = advice = (callerInfo, f) :: advice
 
-    implicit def unitToEitherThrowable(in: Unit): Either[Throwable, Unit] = Right(())
-    implicit def eitherStringToEitherThrowable[A](in: Either[String, A]): Either[Throwable, A] = in.left.map(new RuntimeException(_))
-    implicit def eitherValidationErrorsToEitherThrowable[A](in: Either[List[ValidationError], A]): Either[Throwable, A] =
-        in.left.map(errors => new RuntimeException("Failed to start due to validation errors:\n" + validationErrorsToString(errors)))
-
     /** Override with the main work of the tool */
-    def run(): Either[Throwable, Unit]
+    def run(): Result[Unit]
+}
+
+object StandaloneTool {
+    implicit def validatedToResult[A](in: Validated[A]): Result[A] =
+        in.fold(errors => Failed("Failed to start due to validation errors:\n" + validationErrorsToString(errors)), Okay.apply)
+
+    implicit def formatFailedValidationError[A](in: ResultG[List[ValidationError], A]): Result[A] =
+        in | { case FailedG(_, errors) => Failed("Failed to start due to validation errors:\n" + validationErrorsToString(errors)) }
+
+    implicit def configOps(in: Config): ConfigOps = ConfigOps(in)
+
+    final case class ConfigOps(config: Config) {
+        def getStringOption(k: String): Result[Option[String]] =
+            tryCatch.value {
+                try Some(config.getString(k)) catch { case _: ConfigException.Missing => None }
+            }
+
+        def getConfigOption(k: String): Result[Option[Config]] =
+            tryCatch.value {
+                try Some(config.getConfig(k)) catch { case _: ConfigException.Missing => None }
+            }
+    }
 }

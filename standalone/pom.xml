@@ -25,8 +25,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.notnoop.logging</groupId>
-            <artifactId>slf4j-configgy</artifactId>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
         </dependency>
         <dependency>
             <groupId>com.paytronix.utils</groupId>
@@ -37,13 +37,13 @@
             <artifactId>validation</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.typesafe</groupId>
+            <artifactId>config</artifactId>
+        </dependency>
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.lag</groupId>
-            <artifactId>configgy</artifactId>
         </dependency>
         <dependency>
             <groupId>net.liftweb</groupId>
@@ -65,6 +65,10 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>log4j-over-slf4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
         </dependency>
         <dependency>
             <groupId>org.squeryl</groupId>

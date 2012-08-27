@@ -1,17 +1,17 @@
 //
 // Copyright 2004-2012 Paytronix Systems, Inc.
 // All Rights Reserved
-// One or more patents pending
 //
 
 package com.paytronix.utils.internal.java;
 
 import java.net.JarURLConnection;
 import java.net.URL;
+import java.util.NoSuchElementException;
+import java.util.StringTokenizer;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
-import java.util.StringTokenizer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,10 +89,10 @@ public class BuildVersion {
                     + "   classUrl=" + classUrl);
         StringTokenizer st = new StringTokenizer( versionString );
         version = st.nextToken();
-        build   = st.nextToken();
-
-        if ( version == null || build == null ) {
-            throw new Exception("Manifest file does not contain '@VERSION@ @BUILD@'.  Found " + versionString);
+        try {
+            build = st.nextToken();
+        } catch (NoSuchElementException e) {
+            build = "";
         }
     }
 
