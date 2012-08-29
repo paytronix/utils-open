@@ -54,12 +54,16 @@ A plugin is provided for generating Avro schema using the Interchange framework.
 
 A library of standard validation functions and tools to compose them both for single values (e.g. int() and positive()) and multiple values using Miles Sabin's excellent shapeless library:
 
+    import shapeless.{::, HNil}
+
     val map = Map("foo" -> "123", "bar" -> "a", "baz" -> "-1")
 
-    ("foo" from map.get is some(int())) :&:
-    ("bar" from map.get is some(nonBlank() and matches("[a-z]".r))) :&:
-    ("baz" from map.get is optional(int() and nonPositive())) :&:
-    HNil
+    validate (
+        ("foo" from map.get is some(int())) ::
+        ("bar" from map.get is some(nonBlank() and matches("[a-z]".r))) ::
+        ("baz" from map.get is optional(int() and nonPositive())) ::
+        HNil
+    )
 
     => Right(123 :: "a" :: Some(-1) :: HNil)
      : Validated[Int :: String :: Option[Int] :: HNil]
@@ -74,8 +78,11 @@ Supported validations include:
 * enumeration: convert String to enumeration value
 * file: String must denote a valid path, existing path, file, or directory
 * numeric: convert String to various numeric types, assert positive, negative, less than, greater than, etc.
+* option: apply validations inside Option, require an Option to be Some
 * reflection: convert String to Class by Class.forName, possibly constraining to some lower bound
 * regex: convert String to Regex
+* result: apply validations inside ResultG, require a ResultG to be Okay
+* sequence: apply validations to each element of a sequence, min/max length of collections, split strings into sequences
 * string: must be longer than, shorter, than, conform to a regex, be a valid email address, numeric, non-blank, and so on
 * uri, url: convert String to java.net.URI or java.net.URL, respectively
 
