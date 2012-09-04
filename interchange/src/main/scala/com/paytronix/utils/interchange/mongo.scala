@@ -33,9 +33,9 @@ trait CodedMongoObject[T] {
 
     /** Implicitly convert a coded object from a DBObject, throwing an exception if coding fails */
     implicit def fromDBObjectOrThrow(dbo: DBObject): T =
-        fromDBObject(dbo).orThrow
+        fromDBObject(dbo).orElse("failed to decode " + dbo).orThrow
 
     /** Implicitly convert a coded object from a DBObject */
     implicit def fromDBObject(dbo: DBObject): Result[T] =
-        coder.flatMap(_.decodeMongoDB(dbo)).asA[T]
+        coder.flatMap(_.decodeMongoDB(dbo)).orElse("failed to decode " + dbo).asA[T]
 }

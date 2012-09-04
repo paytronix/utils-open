@@ -432,12 +432,13 @@ object ObjectIdCoder extends StringSafeCoder[ObjectId] {
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
-            case s: String => decodeString(classLoader, s)
-            case null      => FailedG("required but missing", Nil)
-            case _         => FailedG("not a string", Nil)
+            case oid: ObjectId => Okay(oid)
+            case s: String     => decodeString(classLoader, s)
+            case null          => FailedG("required but missing", Nil)
+            case _             => FailedG("not a string", Nil)
         }
     def encodeMongoDB(classLoader: ClassLoader, in: ObjectId) =
-        encodeString(classLoader, in)
+        Okay(in)
 
     override def toString = "ObjectIdCoder"
 }
@@ -2347,48 +2348,50 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
     }
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
-        in match {
-            case m: JavaMap[_, _] if keyCoder.isInstanceOf[StringSafeCoder[_]] => {
-                val ssc = keyCoder.asInstanceOf[StringSafeCoder[K]]
-                val b = builder()
-                b.sizeHint(m.size)
-                m.asInstanceOf[JavaMap[String, AnyRef]].asScala foreachResult {
-                    case (ke, ve) =>
-                        for {
-                            kes <- Result(ke).asA[String] | parameter(Nil)
-                            kd <- atIndex(JString(ke))(ssc.decodeString(classLoader, kes))
-                            vd <- atIndex(JString(ke))(valueCoder.decodeMongoDB(classLoader, ve))
-                        } yield b += (kd -> vd)
-                } then Okay(b.result())
+        catchingCoderException {
+            in match {
+                case m: JavaMap[_, _] if keyCoder.isInstanceOf[StringSafeCoder[_]] => {
+                    val ssc = keyCoder.asInstanceOf[StringSafeCoder[K]]
+                    val b = builder()
+                    b.sizeHint(m.size)
+                    m.asInstanceOf[JavaMap[String, AnyRef]].asScala foreachResult {
+                        case (ke, ve) =>
+                            for {
+                                kes <- Result(ke).asA[String] | parameter(Nil)
+                                kd <- atIndex(JString(ke))(ssc.decodeString(classLoader, kes))
+                                vd <- atIndex(JString(ke))(valueCoder.decodeMongoDB(classLoader, ve))
+                            } yield b += (kd -> vd)
+                    } then Okay(b.result())
+                }
+
+                case coll: JavaCollection[_] => {
+                    val b = builder()
+                    b.sizeHint(coll.size)
+                    coll.asScala.zipWithIndex.foreachResult {
+                        case (obj: BSONObject, i) =>
+                            for {
+                                ke <- atIndex(i)(Result(obj.get("key"))   | "Missing \"key\" -- expected { key: ..., value: ... }" | parameter(Nil))
+                                ve <- atIndex(i)(Result(obj.get("value")) | "Missing \"value\" -- expected { key: ..., value: ... }" | parameter(Nil))
+                                kd <- atIndex(i)(atProperty("key")(keyCoder.decodeMongoDB(classLoader, ke)))
+                                vd <- atIndex(i)(atProperty("value")(valueCoder.decodeMongoDB(classLoader, ve)))
+                            } yield b += (kd -> vd)
+
+                        case (pair: JavaCollection[_], i) if coll.size == 2 => {
+                            val iter = pair.asInstanceOf[JavaCollection[AnyRef]].iterator()
+                            val ke = iter.next()
+                            val ve = iter.next()
+                            for {
+                                kd <- atIndex(i)(atIndex(0)(keyCoder.decodeMongoDB(classLoader, ke)))
+                                vd <- atIndex(i)(atIndex(1)(valueCoder.decodeMongoDB(classLoader, ve)))
+                            } yield b += (kd -> vd)
+                        }
+
+                        case _ => FailedG("Expected [key, value] or { \"key\": ..., \"value\": ... }", Nil)
+                    } then Okay(b.result())
+                }
+
+                case _ => FailedG("Expected either a map or an array of pairs", Nil)
             }
-
-            case coll: JavaCollection[_] => {
-                val b = builder()
-                b.sizeHint(coll.size)
-                coll.asScala.zipWithIndex.foreachResult {
-                    case (obj: BSONObject, i) =>
-                        for {
-                            ke <- atIndex(i)(Result(obj.get("key"))   | "Missing \"key\" -- expected { key: ..., value: ... }" | parameter(Nil))
-                            ve <- atIndex(i)(Result(obj.get("value")) | "Missing \"value\" -- expected { key: ..., value: ... }" | parameter(Nil))
-                            kd <- atIndex(i)(atProperty("key")(keyCoder.decodeMongoDB(classLoader, ke)))
-                            vd <- atIndex(i)(atProperty("value")(valueCoder.decodeMongoDB(classLoader, ve)))
-                        } yield b += (kd -> vd)
-
-                    case (pair: JavaCollection[_], i) if coll.size == 2 => {
-                        val iter = pair.asInstanceOf[JavaCollection[AnyRef]].iterator()
-                        val ke = iter.next()
-                        val ve = iter.next()
-                        for {
-                            kd <- atIndex(i)(atIndex(0)(keyCoder.decodeMongoDB(classLoader, ke)))
-                            vd <- atIndex(i)(atIndex(1)(valueCoder.decodeMongoDB(classLoader, ve)))
-                        } yield b += (kd -> vd)
-                    }
-
-                    case _ => FailedG("Expected [key, value] or { \"key\": ..., \"value\": ... }", Nil)
-                } then Okay(b.result())
-            }
-
-            case _ => FailedG("Expected either a map or an array of pairs", Nil)
         }
 
     def encodeMongoDB(classLoader: ClassLoader, in: Coll) =
@@ -2419,7 +2422,12 @@ abstract class MapLikeCoder[K, V, Coll](keyCoder: ComposableCoder[K], valueCoder
                         obj.put("value", ve)
                         obj
                     }
-            } map (_.asJava)
+            } map { seq =>
+                // .asJava doesn't work here because for some reason the Mongo driver inserts it as [ [ contents ] ], not [ contents ]
+                val result = new java.util.ArrayList[DBObject]
+                seq.foreach(result.add)
+                result
+            }
         //}
 }
 
@@ -3366,7 +3374,7 @@ extends ComposableCoder[T] with FlattenableCoder
         in match {
             case m: JavaMap[_, _] =>
                 for {
-                    givenDeterminant <- Result(determinantField).asA[String] orElse missingDeterminant
+                    givenDeterminant <- Result(m.get(determinantField)).asA[String] orElse missingDeterminant
                     applicableAlternative <- alternatives.find { _.determinantValue == givenDeterminant }.toResult orElse noApplicableAlternative
                     value <- applicableAlternative.coder.decodeMongoDB(classLoader, in)
                 } yield value
