@@ -523,7 +523,7 @@ class Builder(val classLoader: ClassLoader) {
             })
 
         val parameterNamesResult =
-            (meth.paranamerNames orElse sigParamInfo.map(_.map(_._1))) | "Failed to determine parameter names"
+            (sigParamInfo.map(_.map(_._1)) orElse meth.paranamerNames) | "Failed to determine parameter names"
 
         wrapRefArray(genericParameterTypes).leftJoin(sigParamInfo).zipWithIndex.mapResult {
             case ((genTy, sigTyResult), index) =>
