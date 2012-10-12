@@ -522,8 +522,17 @@ class Builder(val classLoader: ClassLoader) {
                 psym => tryCatch.value(psym.asInstanceOf[sig.MethodSymbol].infoType).map(sigType => (psym.name, sigType))
             })
 
+        def ignoreEmptyNames(in: Iterable[String]): Result[Iterable[String]] =
+            in match {
+                case iterable if iterable.isEmpty && !genericParameterTypes.isEmpty =>
+                    Failed("paranamer silently failed to produce parameter names")
+
+                case other =>
+                    Okay(other)
+            }
+
         val parameterNamesResult =
-            (sigParamInfo.map(_.map(_._1)) orElse meth.paranamerNames) | "Failed to determine parameter names"
+            (meth.paranamerNames.flatMap(ignoreEmptyNames) orElse sigParamInfo.map(_.map(_._1))) | "Failed to determine parameter names"
 
         wrapRefArray(genericParameterTypes).leftJoin(sigParamInfo).zipWithIndex.mapResult {
             case ((genTy, sigTyResult), index) =>
