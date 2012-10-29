@@ -365,7 +365,7 @@ final case class JValueFieldOps(jvalue: JValue) {
     /** Fetch a field value, using a manifest to determine what type to extract */
     def get[T](field: String)(implicit m: Manifest[T]): Result[T] =
         if (m.erasure == classOf[Nothing] || m.erasure == classOf[AnyRef]) {
-            Failed("Cannot extract field of type Nothing or AnyRef. You probably need to give a type parameter argument to decode, because the inferencer did not " +
+            Failed("Cannot extract field of type Nothing or AnyRef. You probably need to give a type parameter argument to get, because the inferencer did not " +
                     "correctly fill it out")
         } else {
             implicit val builder = new Builder(m.erasure.getClassLoader)
