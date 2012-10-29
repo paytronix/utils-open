@@ -581,10 +581,10 @@ object result extends resultLowPriorityImplicits
         }
     }
 
-    /** Enrich Options with a .toResult method */
+    /** Enrich Options with ResultG related methods */
     implicit def optionOps[A](in: Option[A]): OptionOps[A] = new OptionOps(in)
 
-    /** Enrichment of Option that provides .toResult */
+    /** Enrichment of Option that provides ResultG related methods */
     class OptionOps[A](in: Option[A]) {
         /** Convert Some to Okay, and None to Failed("option was none") */
         def toResult: Result[A] =
@@ -592,6 +592,10 @@ object result extends resultLowPriorityImplicits
                 case Some(a) => Okay(a)
                 case None    => Failed("option was none")
             }
+
+        /** Apply some possibly-failing computation on the value inside the `Option`, or yield `Okay(None)` if the option is `None` */
+        def mapResult[E, B](f: A => ResultG[E, B]): ResultG[E, Option[B]] =
+            in.map(a => f(a).map(Some.apply)).getOrElse(Okay(None))
     }
 
 

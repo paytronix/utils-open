@@ -355,6 +355,22 @@ class ResultConversionSpecTest extends SpecificationWithJUnit { def is =
     }
 }
 
+class ResultOptionSpecTest extends SpecificationWithJUnit { def is =
+    "ResultG with Option" ^
+    "mapResult Okay in Some" ! {
+        (Some("foo"): Option[String]).mapResult { s => Okay(s + "bar") } must_== Okay(Some("foobar"))
+    } ^
+    "mapResult Failed in Some" ! {
+        (Some("foo"): Option[String]).mapResult { _ => Failed("oh no!") } must beFailedWith("oh no!")
+    } ^
+    "mapResult Okay in None" ! {
+        (None: Option[String]).mapResult { s => Okay(s + "bar") } must_== Okay(None)
+    } ^
+    "mapResult Failed in None" ! {
+        (None: Option[String]).mapResult { _ => Failed("oh no!") } must_== Okay(None)
+    }
+}
+
 class CatchingSpecTest extends SpecificationWithJUnit { def is =
     "Catching should" ^
     "catch any Exception" ! {
