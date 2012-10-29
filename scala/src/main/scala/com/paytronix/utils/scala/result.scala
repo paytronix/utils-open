@@ -253,7 +253,11 @@ object result extends resultLowPriorityImplicits
         def asAG[F >: E, B](clazz: Class[B], otherwise: ResultG[F, B]): ResultG[F, B]
 
         /** Pass this to the function ignoring its result */
-        def pass(f: ResultG[E, A] => Any): ResultG[E, A]
+        def pass(f: ResultG[E, A] => Any): ResultG[E, A] =
+            { f(this); this }
+
+        /** Apply a function to a successful value  for its side effects yielding this ResultG unchanged */
+        def sideEffect(f: A => Any): ResultG[E, A]
 
         /** If Okay with a Okay then yield Okay with the inner value. Equivalent to flatMap(x => x) */
         def flatten[F >: E, B](implicit ev: A => ResultG[F, B]): ResultG[F, B]
@@ -409,8 +413,8 @@ object result extends resultLowPriorityImplicits
         def isA[B](implicit m: Manifest[B]): Boolean =
             m.erasure.isInstance(result)
 
-        def pass(f: ResultG[Nothing, A] => Any): Okay[A] =
-            { f(this); this }
+        def sideEffect(f: A => Any): Okay[A] =
+            { f(result); this }
 
         def flatten[E, B](implicit ev: A => ResultG[E, B]): ResultG[E, B] =
             ev(result)
@@ -493,8 +497,8 @@ object result extends resultLowPriorityImplicits
         def asAG[F >: E, B](clazz: Class[B], otherwise: ResultG[F, B]): ResultG[F, B] =
             this
 
-        def pass(f: ResultG[E, Nothing] => Any): FailedG[E] =
-            { f(this); this }
+        def sideEffect(f: Nothing => Any): FailedG[E] =
+            this
 
         def flatten[F >: E, B](implicit ev: Nothing => ResultG[F, B]): FailedG[F] =
             this

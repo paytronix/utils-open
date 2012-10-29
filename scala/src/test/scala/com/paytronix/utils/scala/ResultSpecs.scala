@@ -175,6 +175,12 @@ class OkaySpecTest extends SpecificationWithJUnit { def is =
         { okay pass (result = _) must_== okay } and
         { result must_== okay }
     } ^
+    "sideEffect" ! {
+        var result: String = null
+
+        { okay sideEffect (result = _) must_== okay } and
+        { result must_== "foo" }
+    } ^
     "flatten" ! {
         { Okay(okay).flatten must_== okay } and
         { Okay(Failed("foo")).flatten must beFailedWith("foo") }
@@ -278,6 +284,9 @@ class FailedGSpecTest extends SpecificationWithJUnit {
             { resultUnit must_== failedUnit } and
             { failedInt pass (resultInt = _) must_== failedInt } and
             { resultInt must_== failedInt }
+        } ^
+        "sideEffect" ! {
+            { failedInt sideEffect (_ => sys.error("oh nos!")) must_== failedInt }
         } ^
         "flatten" ! {
             { (Failed("foo"): Result[Result[String]]).flatten must beFailedWith("foo") } and
