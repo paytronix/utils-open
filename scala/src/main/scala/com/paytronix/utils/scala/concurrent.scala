@@ -129,5 +129,41 @@ object concurrent
 
     /** Create a `ReentrantReadWriteLock` wrapped by a `ReadWriteLockWrapper` */
     def readWriteLock(fair: Boolean = false): ReadWriteLock = new ReadWriteLockWrapper(new ReentrantReadWriteLock(fair))
-}
 
+    def readWriteLocked[A](initial: A): ReadWriteLocked[A] =
+        new ReadWriteLocked(initial)
+
+    /** Mutable reference which protects mutation with a read write lock */
+    final class ReadWriteLocked[A](private var current: A) {
+        val lock = readWriteLock()
+
+        def read[B](f: A => B): B =
+            lock.read {
+                f(current)
+            }
+
+        def attemptRead[B](time: Long, unit: TimeUnit)(f: A => B): Option[B] =
+            lock.read.attemptFor(time, unit) {
+                f(current)
+            }
+
+        private def performWrite[B](f: (A, A => Unit) => B): B = {
+            var enabled = true
+            val set: A => Unit = { updated =>
+                if (enabled) current = updated
+                else sys.error("set retained outside of lock perimeter and used")
+            }
+            f(current, set)
+        }
+
+        def write[B](f: (A, A => Unit) => B): B =
+            lock.write {
+                performWrite(f)
+            }
+
+        def attemptWrite[B](time: Long, unit: TimeUnit)(f: (A, A => Unit) => B): Option[B] =
+            lock.write.attemptFor(time, unit) {
+                performWrite(f)
+            }
+    }
+}
