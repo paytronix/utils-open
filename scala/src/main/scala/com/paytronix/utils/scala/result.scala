@@ -705,12 +705,55 @@ object result extends resultLowPriorityImplicits
         last
     }
 
-    /** Implicitly convert an iterable to a IterableResultOps with various extended behaviors  */
+    /** Implicitly convert an `Iterator` to a `IterableResultOps` with various extended behaviors  */
+    implicit def iteratorResultOps[A](iterator: Iterator[A]): IteratorResultOps[A] = IteratorResultOps(iterator)
+
+    /** Implicitly convert an `Iterable` to a `IterableResultOps` with various extended behaviors  */
     implicit def iterableResultOps[A](iterable: Iterable[A]): IterableResultOps[A] = IterableResultOps(iterable)
 
     /** Extension of Iterable that can perform various Result-oriented transforms or operations */
     final case class IterableResultOps[A](iterable: Iterable[A]) {
         /** Sequence each computation in the iterable, yielding Okay iff all computations yield Okay */
+        def sequenceResult[E]()(implicit ev: A <:< (() => ResultG[E, Unit])): ResultG[E, Unit] =
+            iterable.iterator.sequenceResult[E]()
+
+        /**
+         * Sequence a chain of possibly-failing computations with side effects by applying f to each element of seq in turn. If any application of
+         * f results in Failed, then the chain is stopped there and that result returned. Otherwise Okay(()) is returned.
+         */
+        def foreachResult[E](f: A => ResultG[E, Unit]): ResultG[E, Unit] =
+            iterable.iterator.foreachResult[E](f)
+
+        /**
+         * Collect the result of a series of possibly-failing computations, returning Okay(seq) in the case where all succeed, or the first non-Okay
+         * result otherwise.
+         */
+        def mapResult[E, B, That](f: A => ResultG[E, B])(implicit cb: CanBuild[B, That]): ResultG[E, That] =
+            iterable.iterator.mapResult[E, B, That](f)(cb)
+
+        /**
+         * Fold a chain of possibly-failing computations, short circuiting the fold to Failed on the first computation that results in one.
+         * Sequence a chain of possibly-failing computations with side effects by applying f to each element of seq in turn. If any application of
+         * f results in Failed, then the chain is stopped there and that result returned. Otherwise Okay(result) is returned.
+         */
+        def foldLeftResult[E, B](init: B)(f: (B, A) => ResultG[E, B]): ResultG[E, B] =
+            iterable.iterator.foldLeftResult[E, B](init)(f)
+
+        /**
+         * Apply a possibly-failing computation to each element of the iterable, calling some function on non-Okays and collecting the Okays.
+         * Usually the error handling function is some side-effecting function, e.g. logging.
+         */
+        def flattenResult[E, B, That](onError: (A, FailedG[E]) => Unit)(f: A => ResultG[E, B])(implicit cb: CanBuild[B, That]): That =
+            iterable.iterator.flattenResult[E, B, That](onError)(f)(cb)
+
+        /** "Left join" this iterable with a potentially missing right hand side. */
+        def leftJoin[E, B, That](right: ResultG[E, Iterable[B]])(implicit cb: CanBuild[(A, ResultG[E, B]), That]): That =
+            iterable.iterator.leftJoin[E, B, That](right)(cb)
+    }
+
+    /** Extension of Iterator that can perform various Result-oriented transforms or operations */
+    final case class IteratorResultOps[A](iterator: Iterator[A]) {
+        /** Sequence each computation in the iterator, yielding Okay iff all computations yield Okay */
         def sequenceResult[E]()(implicit ev: A <:< (() => ResultG[E, Unit])): ResultG[E, Unit] =
             foreachResult(a => ev(a)())
 
@@ -737,7 +780,6 @@ object result extends resultLowPriorityImplicits
          */
         def foldLeftResult[E, B](init: B)(f: (B, A) => ResultG[E, B]): ResultG[E, B] = {
             // Manually implement rather than use fold so inlining, TCO, and early shortcut can apply
-            val iterator = iterable.iterator
             def iterate(prev: ResultG[E, B]): ResultG[E, B] =
                 prev match {
                     case Okay(b) if iterator.hasNext => iterate(f(b, iterator.next))
@@ -752,7 +794,6 @@ object result extends resultLowPriorityImplicits
          */
         def flattenResult[E, B, That](onError: (A, FailedG[E]) => Unit)(f: A => ResultG[E, B])(implicit cb: CanBuild[B, That]): That = {
             val builder = cb()
-            val iterator = iterable.iterator
             while (iterator.hasNext) {
                 val a = iterator.next
                 f(a) match {
@@ -764,12 +805,15 @@ object result extends resultLowPriorityImplicits
         }
 
         /** "Left join" this iterable with a potentially missing right hand side. */
-        def leftJoin[E, B, That](right: ResultG[E, Iterable[B]])(implicit cb: CanBuild[(A, ResultG[E, B]), That]): That = {
+        def leftJoin[E, B, That](right: ResultG[E, Iterable[B]])(implicit cb: CanBuild[(A, ResultG[E, B]), That]): That =
+            leftJoinIterator[E, B, That](right.map(_.iterator))
+
+        /** "Left join" this iterable with a potentially missing right hand side. */
+        def leftJoinIterator[E, B, That](right: ResultG[E, Iterator[B]])(implicit cb: CanBuild[(A, ResultG[E, B]), That]): That = {
             val builder = cb()
-            val leftIterator = iterable.iterator
-            val rightIteratorResult = right.map(_.iterator)
-            while (leftIterator.hasNext && rightIteratorResult.map(_.hasNext).getOrElse(true)) {
-                builder += ((leftIterator.next, rightIteratorResult.map(_.next)))
+            val leftIterator = iterator
+            while (leftIterator.hasNext && right.map(_.hasNext).getOrElse(true)) {
+                builder += ((leftIterator.next, right.map(_.next)))
             }
             builder.result()
         }
