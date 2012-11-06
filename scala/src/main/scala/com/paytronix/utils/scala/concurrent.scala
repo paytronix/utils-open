@@ -38,6 +38,32 @@ object concurrent
         tryUpdate
     }
 
+    sealed abstract class AtomicTransactionResult[+A, +B]
+    final case class Update[+A, +B](newValue: A, result: B) extends AtomicTransactionResult[A, B]
+    final case class NoUpdate[+B](result: B) extends AtomicTransactionResult[Nothing, B]
+
+    /**
+     * Possibly update a [[java.util.concurrent.atomic.AtomicReference]] by applying an update to the value contained therein.
+     * If an update is attempted and the reference has since moved, the entire transaction will be rewound and applied again with the
+     * new value of the reference along with the result of the previous (aborted) transaction.
+     */
+    def atomicTransaction[A, B](r: AtomicReference[A])(f: (A, Option[B]) => AtomicTransactionResult[A, B]): B = {
+        def tryUpdate(previous: Option[B]): B = {
+            val expectedVal = r.get
+            f(expectedVal, previous) match {
+                case Update(newVal, result) =>
+                    if (!r.compareAndSet(expectedVal, newVal))
+                        tryUpdate(Some(result))
+                    else
+                        result
+                case NoUpdate(result) =>
+                    result
+            }
+        }
+
+        tryUpdate(None)
+    }
+
     /** Wrapper around [[java.lang.ThreadLocal]] that provides a scoped set method */
     trait ThreadLocal[A] {
         /** Initial value of the thread local */
