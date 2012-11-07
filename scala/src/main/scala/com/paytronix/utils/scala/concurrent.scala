@@ -17,7 +17,7 @@
 package com.paytronix.utils.scala
 
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 import java.util.concurrent.locks.{Condition, Lock => JUCLock, ReadWriteLock => JUCReadWriteLock, ReentrantLock, ReentrantReadWriteLock}
 
 /**
@@ -27,6 +27,19 @@ object concurrent
 {
     /** Update a [[java.util.concurrent.atomic.AtomicReference]] by applying an update to the value contained therein, and trying as many times as necessary */
     def atomicUpdate[A](r: AtomicReference[A])(f: A => A): Unit = {
+        def tryUpdate: Unit = {
+            val expectedVal = r.get
+            val newVal = f(expectedVal)
+            if (!r.compareAndSet(expectedVal, newVal)) {
+                tryUpdate
+            }
+        }
+
+        tryUpdate
+    }
+
+    /** Update a [[java.util.concurrent.atomic.AtomicLong]] by applying an update to the value contained therein, and trying as many times as necessary */
+    def atomicUpdate(r: AtomicLong)(f: Long => Long): Unit = {
         def tryUpdate: Unit = {
             val expectedVal = r.get
             val newVal = f(expectedVal)
