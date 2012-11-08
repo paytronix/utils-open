@@ -397,8 +397,8 @@ class LFUCacheLoadSpecTest extends SpecificationWithJUnit {
 
         println(testId + ": waiting for threads to end")
         (writerThreads ++ readerThreads).foreach { th =>
-            th.join(500L)
-            if (th.isAlive) println(testId + ": waited 500ms for " + th + " to end, but it didn't")
+            th.join(5000L)
+            if (th.isAlive) println(testId + ": waited 5s for " + th + " to end, but it didn't")
         }
 
         println(
