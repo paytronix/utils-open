@@ -110,20 +110,33 @@ object cache {
             /** Look up a cache entry based on the alternate key, yielding `Some(entry)` iff the entry is cached. */
             def getEntry(k: K): Option[Entry] =
                 // fold the current state of the index through the write queue to catch pending stores and removals that affect this entry
-                writeQueue.get.foldLeft(() => store.get(k)) { (prev, queueEntry) =>
-                    queueEntry match {
+                writeQueue.get.foldLeft(store.get(k)) { (prev, write) =>
+                    write match {
                         case Store(entry) if projection(entry) == k =>
-                            () => Some(entry)
+                            // store of entry which matches the target key, so use it
+                            Some(entry)
+                        case Store(entry) if prev.map(p => p.key == entry.key && projection(p) == k) getOrElse false =>
+                            // store of entry which is the same entry we were going to use, but the key for this index has changed so discard it
+                            None
                         case Stores(entries) =>
-                            entries.find(entry => projection(entry) == k).map(e => () => Some(e)) getOrElse prev
+                            (prev, entries.find(entry => projection(entry) == k)) match {
+                                case (_, s@Some(entry)) =>
+                                    // store of entry which matches the target key, so use it
+                                    s
+                                case (Some(prev), None) if projection(prev) == k && entries.exists(entry => entry.key == prev.key) =>
+                                    // store of entry which is the same entry we were going to use, but the key for this index has changed so discard it
+                                    None
+                                case _ =>
+                                    prev
+                            }
                         case Remove(entry) if projection(entry) == k =>
-                            () => None
+                            None
                         case Removes(entries) if entries.exists(entry => projection(entry) == k) =>
-                            () => None
+                            None
                         case _ =>
                             prev
                     }
-                }.apply() match {
+                } match {
                     case s@Some(entry) =>
                         entry.touch
                         s
@@ -155,12 +168,24 @@ object cache {
                 }
 
             /** Return the current cache entries indexed by the alternate key */
-            def entryMap: Map[K, Entry] = store
+            def entryMap: Map[K, Entry] =
+                writeQueue.get.foldLeft(store) { (m, write) =>
+                    write match {
+                        case Store(entry) =>
+                            m + (projection(entry) -> entry)
+                        case Stores(entries) =>
+                            m ++ entries.map(entry => (projection(entry) -> entry))
+                        case Remove(entry) =>
+                            m - projection(entry)
+                        case Removes(entries) =>
+                            m -- entries.map(projection)
+                    }
+                }
 
             /** Return the current cache values indexed by the alternate key */
-            def valueMap: Map[K, Value] = store.mapValues(_.value)
+            def valueMap: Map[K, Value] = entryMap.mapValues(_.value)
 
-            indexes ::= this
+            override def toString = "Index(" + projection + ")"
         }
 
         /** Main index by primary key. This is the primary storage of the cache. */
@@ -183,8 +208,14 @@ object cache {
         /** Queue containing writes pending processing by the writer thread */
         private val writeQueue: AtomicReference[Queue[Write]] = new AtomicReference(Queue.empty)
 
-        /** Reference to each index maintained by the cache. Automatically registered by the `Index` constructor */
-        private var indexes: List[Index[_]] = Nil
+        /** Reference to each index maintained by the cache */
+        private lazy val indexes: Seq[Index[_]] = {
+            // ugly, but the only convenient way due to lazy initialization of objects
+            getClass.getMethods.filter { m =>
+                m.getParameterTypes.isEmpty &&
+                classOf[Index[_]].isAssignableFrom(m.getReturnType)
+            }.map(_.invoke(this).asInstanceOf[Index[_]])
+        }
 
         /** Reference to the `CacheWriter` running asynchronously, kept around so it can be manually stopped during unit tests */
         private val writer = new CacheWriter(new WeakReference(this))
@@ -315,10 +346,10 @@ object cache {
         protected implicit def priorityOrdering: Ordering[Priority]
 
         /** Size threshold which will trigger eviction. A cache with `PriorityEvictionPolicy` will evict when another entry and the cache already stores `maxSize` entries */
-        val maxSize: Int
+        def maxSize: Int
 
         /** What fraction of the `maxSize` to evict when performing an eviction. That is, after eviction occurs the cache will have `maxSize` - `maxSize` * `evictFraction` entires */
-        val evictFraction: Double
+        def evictFraction: Double
 
         protected def evictions(aboutToAdd: Int, store: Iterable[Entry]): Iterable[Entry] = {
             val curSize = store.size
@@ -330,7 +361,7 @@ object cache {
     }
 
     /** Least-frequently-used cache, which evicts entries that have been used the least. See `PriorityEvictionPolicy` and `Cache` for more. */
-    class LFUCache[A, B](val maxSize: Int, val evictFraction: Double) extends Cache with PriorityEvictionPolicy {
+    class LFUCache[A, B](var maxSize: Int, var evictFraction: Double) extends Cache with PriorityEvictionPolicy {
         type Key = A
         type Value = B
         type Priority = Long
@@ -362,6 +393,9 @@ object cache {
                 _accessCount += 1
                 _lastAccess = System.nanoTime
             }
+
+            override def toString =
+                "LFUCache.Entry(" + key + ", " + value + ", creation = " + creation + ", accessCount = " + accessCount + ", lastAccess = " + lastAccess + ")"
         }
 
         protected def makeEntry(key: Key, value: Value): Entry = new Entry(key, value, creationOf(key, value))

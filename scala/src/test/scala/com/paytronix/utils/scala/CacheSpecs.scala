@@ -76,22 +76,15 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit { def is =
         val tkey2 = TestKey("bar")
         val tvalue2 = TestValue("biz", "bop")
 
-        //println(lfu + ": store 1")
         lfu.store(tkey, tvalue)
-        //println("store 2")
         lfu.store(tkey2, tvalue2)
-        //println("checks")
 
         { lfu.byKey.get(tkey) must_== Some(tvalue) } and
         { lfu.byKey.get(tkey2) must_== Some(tvalue2) } and
         {
-            //println("pre")
             pre(lfu)
-            //println("after pre, removing")
             lfu.remove(List(tkey, tkey2))
-            //println("removed, posting")
             post(lfu)
-            //println("posted, checking")
             ok
         } and
         { lfu.byKey.get(tkey) must_== None } and
@@ -151,6 +144,175 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit { def is =
             { lfu.store(tkey, tvalue2); lfu.byKey.get(tkey) must_== Some(tvalue2) }
         post(lfu)
         res
+    } ^
+    writerTests("entryMap") { (pre, post) =>
+        val lfu = newLFU
+        val tkey2 = TestKey("bar")
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        lfu.store(tkey, tvalue)
+        lfu.store(tkey2, tvalue2)
+        post(lfu)
+
+        val m = lfu.byKey.entryMap
+
+        { m.get(tkey).map(_.value) must_== Some(tvalue) } and { m.get(tkey2).map(_.value) must_== Some(tvalue2) } and { m.size must_== 2 }
+    } ^
+    writerTests("valueMap") { (pre, post) =>
+        val lfu = newLFU
+        val tkey2 = TestKey("bar")
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        lfu.store(tkey, tvalue)
+        lfu.store(tkey2, tvalue2)
+        post(lfu)
+
+        val m = lfu.byKey.valueMap
+
+        { m.get(tkey) must_== Some(tvalue) } and { m.get(tkey2) must_== Some(tvalue2) } and { m.size must_== 2 }
+    }
+}
+
+class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit { def is =
+    "LFU Cache alternate indexes" ^
+    "starts empty" ! { newIndexedLFU.byB.valueMap must_== Map.empty } ^
+    writerTests("store(single)") { (pre, post) =>
+        val lfu = newIndexedLFU
+
+        pre(lfu)
+        lfu.store(tkey, tvalue)
+        post(lfu)
+
+        lfu.byB.get(tvalue.b) must_== Some(tvalue)
+    } ^
+    writerTests("store(iterable)") { (pre, post) =>
+        val lfu = newIndexedLFU
+        val tkey2 = TestKey("bar")
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        lfu.store(List(tkey -> tvalue, tkey2 -> tvalue2))
+        post(lfu)
+
+        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and { lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+    } ^
+    writerTests("remove(single)") { (pre, post) =>
+        val lfu = newIndexedLFU
+        lfu.store(tkey, tvalue)
+
+        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and
+        {
+            pre(lfu)
+            lfu.remove(tkey)
+            post(lfu)
+            lfu.byB.get(tvalue.b) must_== None
+        }
+    } ^
+    writerTests("remove(iterable)") { (pre, post) =>
+        val lfu = newIndexedLFU
+        val tkey2 = TestKey("bar")
+        val tvalue2 = TestValue("biz", "bop")
+
+        lfu.store(tkey, tvalue)
+        lfu.store(tkey2, tvalue2)
+
+        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and
+        { lfu.byB.get(tvalue2.b) must_== Some(tvalue2) } and
+        {
+            pre(lfu)
+            lfu.remove(List(tkey, tkey2))
+            post(lfu)
+            ok
+        } and
+        { lfu.byB.get(tvalue.b) must_== None } and
+        { lfu.byB.get(tvalue2.b) must_== None }
+    } ^
+    writerTests("store then remove") { (pre, post) =>
+        val lfu = newIndexedLFU
+
+        pre(lfu)
+        lfu.store(tkey, tvalue)
+        lfu.remove(tkey)
+        post(lfu)
+
+        lfu.byB.get(tvalue.b) must_== None
+    } ^
+    writerTests("remove then store") { (pre, post) =>
+        val lfu = newIndexedLFU
+
+        pre(lfu)
+        lfu.remove(tkey)
+        lfu.store(tkey, tvalue)
+        post(lfu)
+
+        lfu.byB.get(tvalue.b) must_== Some(tvalue)
+    } ^
+    writerTests("two separate stores") { (pre, post) =>
+        val lfu = newIndexedLFU
+        val tkey2 = TestKey("bar")
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        lfu.store(tkey, tvalue)
+        lfu.store(tkey2, tvalue2)
+        post(lfu)
+
+        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and { lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+    } ^
+    writerTests("two replacing stores") { (pre, post) =>
+        val lfu = newIndexedLFU
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        val res =
+            { lfu.store(tkey, tvalue ); lfu.byB.get(tvalue.b)  must_== Some(tvalue ) } and
+            {                           lfu.byB.get(tvalue2.b) must_== None          } and
+            { lfu.store(tkey, tvalue2); lfu.byB.get(tvalue.b)  must_== None          } and
+            {                           lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+        post(lfu)
+        res
+    } ^
+    writerTests("two replacing stores with a remove in between") { (pre, post) =>
+        val lfu = newIndexedLFU
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        val res =
+            { lfu.store(tkey, tvalue);  lfu.byB.get(tvalue.b)  must_== Some(tvalue)  } and
+            { lfu.remove(tkey);         lfu.byB.get(tvalue.b)  must_== None          } and
+            { lfu.store(tkey, tvalue2); lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+        post(lfu)
+        res
+    } ^
+    writerTests("entryMap") { (pre, post) =>
+        val lfu = newIndexedLFU
+        val tkey2 = TestKey("bar")
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        lfu.store(tkey, tvalue)
+        lfu.store(tkey2, tvalue2)
+        post(lfu)
+
+        val m = lfu.byB.entryMap
+
+        { m.get(tvalue.b).map(_.value) must_== Some(tvalue) } and { m.get(tvalue2.b).map(_.value) must_== Some(tvalue2) } and { m.size must_== 2 }
+    } ^
+    writerTests("valueMap") { (pre, post) =>
+        val lfu = newIndexedLFU
+        val tkey2 = TestKey("bar")
+        val tvalue2 = TestValue("biz", "bop")
+
+        pre(lfu)
+        lfu.store(tkey, tvalue)
+        lfu.store(tkey2, tvalue2)
+        post(lfu)
+
+        val m = lfu.byB.valueMap
+
+        { m.get(tvalue.b) must_== Some(tvalue) } and { m.get(tvalue2.b) must_== Some(tvalue2) } and { m.size must_== 2 }
     }
 }
 
@@ -181,11 +343,9 @@ class LFUCacheLoadSpecTest extends SpecificationWithJUnit {
                 if (now < endAt) {
                     reads += 1
                     val slot = rand.nextInt(keys)
-                    // println(Thread.currentThread + ": reading " + slot)
                     lfu.byKey.get(slot) match {
                         case Some(l) if l >= savedBarrier => ()
                         case other =>
-                        // println(Thread.currentThread + ": read wrong thing " + other + " expecting " + now)
                         failures.synchronized { failures += ((slot, savedBarrier, other)) }
                     }
                     Thread.`yield`()
@@ -208,7 +368,6 @@ class LFUCacheLoadSpecTest extends SpecificationWithJUnit {
                 if (now < endAt) {
                     writes += 1
                     val slot = writeOrder(offs)
-                    // println(Thread.currentThread + ": writing " + slot + " = " + now)
                     lfu.store(slot, value)
                     offs += 1
                     if (offs >= writeOrder.size) {
