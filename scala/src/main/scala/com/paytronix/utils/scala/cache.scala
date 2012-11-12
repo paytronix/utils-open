@@ -97,6 +97,18 @@ object cache {
         def remove(keys: Iterable[Key]): Unit =
             write(Removes(keys.flatMap(byKey.getEntry)))
 
+        /** Clear the entire contents of the cache */
+        def clear(): Unit =
+            write(Clear)
+
+        /** Estimate the size of the cache. Note: NOT totally accurate, as this does not consider pending writes */
+        def size: Int =
+            byKey.store.size
+
+        /** Report the size of the write queue */
+        def writeQueueSize: Int =
+            writeQueue.get.size
+
         /**
          * A single keyed index into the cache using some alternate key of type `K` that can be projected
          * from a cache entry (usually by way of the primary key or value) using `projection`
@@ -132,6 +144,8 @@ object cache {
                         case Remove(entry) if projection(entry) == k =>
                             None
                         case Removes(entries) if entries.exists(entry => projection(entry) == k) =>
+                            None
+                        case Clear =>
                             None
                         case _ =>
                             prev
@@ -179,6 +193,8 @@ object cache {
                             m - projection(entry)
                         case Removes(entries) =>
                             m -- entries.map(projection)
+                        case Clear =>
+                            Map.empty
                     }
                 }
 
@@ -197,6 +213,7 @@ object cache {
         private final case class Stores(entry: Iterable[Entry]) extends Write
         private final case class Remove(entry: Entry) extends Write
         private final case class Removes(entries: Iterable[Entry]) extends Write
+        private final case object Clear extends Write
 
         /** Instance of Unsafe so park and unpark can be used */
         private val unsafe = {
@@ -285,6 +302,12 @@ object cache {
                 index.store --= es.map(index.projection)
             }
 
+        /** Process a `Clear` request while in the writer thread */
+        private def internalClear(): Unit =
+            indexes.foreach { case index => // `case` important here to capture existential
+                index.store = Map.empty
+            }
+
         /** Process all the entries in the write queue at entry using `internalStore` and `internalRemove` and then remove those processed entries from the queue */
         private[cache] def processWrites(): Unit = {
             val queue = writeQueue.get
@@ -293,6 +316,7 @@ object cache {
                 case Stores(entries) => internalStore(entries)
                 case Remove(key)     => internalRemove(key)
                 case Removes(keys)   => internalRemove(keys)
+                case Clear           => internalClear()
             }
             atomicUpdate(writeQueue)(_ drop queue.size)
         }
