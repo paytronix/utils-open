@@ -507,31 +507,7 @@ case class SingletonCoder[T](inst: T, encodedFields: List[JField] = Nil) extends
     def encodeAvro(classLoader: ClassLoader, in: T, out: Encoder) = Okay(())
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) = Okay(inst)
-    def encodeMongoDB(classLoader: ClassLoader, in: T) = catchingCoderException(Okay(toMongoDB(encodedFields)))
-
-    private def toMongoDB(in: List[JField]): AnyRef = {
-        val dbObject = new BasicDBObject
-
-        for (JField(n, v) <- in) {
-            dbObject.put(n, toMongoDB(v))
-        }
-
-        dbObject
-    }
-
-    private def toMongoDB(in: JValue): AnyRef =
-        in match {
-            case JArray(a)      => a.map(toMongoDB).asJava
-            case JBool(b)       => b.asInstanceOf[AnyRef]
-            case JDouble(d)     => d.asInstanceOf[AnyRef]
-            case JField(n, v)   => sys.error("should not have called toMongoDB on a JField!")
-            case JInt(i)        =>
-                if (i > BigInt(java.lang.Integer.MAX_VALUE.toString) || i < BigInt(java.lang.Integer.MIN_VALUE.toString)) i.toString
-                else i.intValue.asInstanceOf[AnyRef]
-            case JObject(jfs)   => toMongoDB(jfs)
-            case JString(s)     => s
-            case JNothing|JNull => null
-        }
+    def encodeMongoDB(classLoader: ClassLoader, in: T) = catchingCoderException(Okay(MongoUtils.fromJValue(encodedFields)))
 }
 
 /** Insecure coder which always decodes a default value and encodes to nothing in an insecure context, and operates normally in a secure one */
@@ -1201,45 +1177,46 @@ object ShortCoder extends StringSafeCoder[Short] {
 }
 
 
-/** Map a String to a JString */
-object StringCoder extends StringSafeCoder[String] {
-    val mostSpecificClass = classOf[String]
-
+/** Map something that encodes as a string to a JString */
+abstract class StringLikeCoder[T] extends StringSafeCoder[T] {
     def decode(classLoader: ClassLoader, in: JValue) =
         in match {
-            case JString(s)     => Okay(s)
+            case JString(s)     => decodeString(classLoader, s)
             case JNothing|JNull => FailedG("required but missing", Nil)
             case _              => FailedG("not a string", Nil)
         }
 
-    def encode(classLoader: ClassLoader, in: String) =
-        Okay(JString(in))
-
-    def decodeString(classLoader: ClassLoader, in: String) =
-        Okay(in)
-
-    def encodeString(classLoader: ClassLoader, in: String) =
-        Okay(in)
+    def encode(classLoader: ClassLoader, in: T) =
+        encodeString(classLoader, in).map(s => JString(s))
 
     val avroSchema = Schema.create(Schema.Type.STRING)
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        tryCatch.value(in.readString(null).toString()) | parameter(Nil)
+        tryCatch.value(in.readString(null).toString()).orElse(parameter(Nil)).flatMap(decodeString(classLoader, _))
 
-    def encodeAvro(classLoader: ClassLoader, in: String, out: Encoder) =
-        if (in == null) FailedG("cannot encode null string", Nil)
-        else tryCatch.value(out.writeString(in)) | parameter(Nil)
+    def encodeAvro(classLoader: ClassLoader, in: T, out: Encoder) =
+        encodeString(classLoader, in).flatMap { s =>
+            if (s == null) FailedG("cannot encode null string", Nil)
+            else tryCatch.value(out.writeString(s)) | parameter(Nil)
+        }
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
-            case s: String => Okay(s)
+            case s: String => decodeString(classLoader, s)
             case null      => FailedG("required but missing", Nil)
             case _         => FailedG("not a string", Nil)
         }
-    def encodeMongoDB(classLoader: ClassLoader, in: String) =
-        Okay(in)
+    def encodeMongoDB(classLoader: ClassLoader, in: T) =
+        encodeString(classLoader, in)
 
     override def toString = "StringCoder"
+}
+
+object StringCoder extends StringLikeCoder[String] {
+    val mostSpecificClass = classOf[String]
+
+    def decodeString(classLoader: ClassLoader, s: String) = Okay(s)
+    def encodeString(classLoader: ClassLoader, s: String) = Okay(s)
 }
 
 /** Abstract superclass of coders that code JavaDate or some subclass using SimpleDateFormat */
