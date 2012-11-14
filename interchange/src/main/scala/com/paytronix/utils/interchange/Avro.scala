@@ -16,12 +16,20 @@
 
 package com.paytronix.utils.interchange
 
+import java.security.MessageDigest
 import java.util.Arrays
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable.WeakHashMap
+import scala.util.MurmurHash.stringHash
+
+import net.liftweb.json.JsonAST.{JObject, JValue, render}
+import net.liftweb.json.JsonParser.parse
+import net.liftweb.json.Printer.compact
 import org.apache.avro.Schema
 import org.apache.avro.io.{DecoderFactory, ResolvingDecoder}
+
 import com.paytronix.utils.scala.reflection.splitFullyQualifiedName
+import com.paytronix.utils.scala.result.{Result, tryCatch}
 
 /** Object that holds a thread-local cache for Avro ResolvingDecoders */
 private object ResolvingDecoderCache {
@@ -96,4 +104,19 @@ object AvroUtils {
             case UNION   => return "U" + in.getTypes.size + "__" + in.getTypes.asScala.map(encodeSchemaName).mkString("")
         }
     }
+
+    def hashSchema(in: JValue): Result[Array[Byte]] =
+        tryCatch.value {
+            val s = compact(render(in.transform {
+                case JObject(fields) => JObject(fields.sortBy(_.name))
+            }))
+
+            val md = MessageDigest.getInstance("SHA-512")
+            md.digest(s.getBytes("UTF-8"))
+        }
+
+    def hashSchema(in: Schema): Result[Array[Byte]] =
+        tryCatch.result {
+            hashSchema(parse(in.toString))
+        }
 }
