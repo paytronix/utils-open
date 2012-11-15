@@ -94,7 +94,7 @@ object MoreHelpers extends SpecificationFeatures {
         ) ^ (
             if (!outOfBoundJValues.isEmpty) {
                 outOfBoundJValues.map { outOfBoundJValue =>
-                    ("fail to decode invalid JValues " + name + " (" + json(outOfBoundJValue) + ")") ! {
+                    ("fail to decode invalid JValues " + name + " (" + printJSON(outOfBoundJValue) + ")") ! {
                         def beFailure(checkedValue: JValue): Matcher[Result[_]] =
                             (v: Result[_]) =>
                                 if (!v.isDefined) ok("failed decoding " + checkedValue + ", as it should")

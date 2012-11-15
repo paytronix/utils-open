@@ -44,12 +44,12 @@ object Helpers extends SpecificationFeatures {
             sys.error("extended reflection requires named classes, not anonymous ones, due to signature information being elided for those classes")
     }
 
-    def json(in: JValue): String = in match {
+    def printJSON(in: JValue): String = in match {
         case JNothing => "<nothing>"
         case other => compact(render(in))
     }
-    def json(in: ResultG[_, JValue]): String = in match {
-        case Okay(jv) => "Okay(" + json(jv) + ")"
+    def printJSON(in: ResultG[_, JValue]): String = in match {
+        case Okay(jv) => "Okay(" + printJSON(jv) + ")"
         case other => other.toString
     }
 
@@ -58,8 +58,8 @@ object Helpers extends SpecificationFeatures {
             if (actualResult.map(_ == expected) getOrElse false)
                 ok
             else {
-                val actualResultJSON = json(actualResult)
-                val expectedJSON = "Okay(" + json(expected) + ")"
+                val actualResultJSON = printJSON(actualResult)
+                val expectedJSON = "Okay(" + printJSON(expected) + ")"
                 if (actualResultJSON == expectedJSON)
                     ko(actualResult + " does not match Okay(" + expected + ")")
                 else
