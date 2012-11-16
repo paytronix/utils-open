@@ -322,6 +322,14 @@ object result extends resultLowPriorityImplicits
                     case FailedG(_, a) => a
                 }
         }
+
+        /** Another way of writing `Failed("reason") unless predicate`; yield `Okay(())` if `p` is `true`, `r` otherwise */
+        def unless[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
+            if (p) Okay(()) else r
+
+        /** Converse of `unless`; yield `Okay(())` if `p` is `false`, `r` otherwise */
+        def when[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
+            if (p) r else Okay(())
     }
 
     trait FailedParameterImplicits {
