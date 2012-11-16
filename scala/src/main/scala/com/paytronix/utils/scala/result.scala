@@ -182,6 +182,9 @@ object result extends resultLowPriorityImplicits
         /** If Okay, applies function to value and yields Okay with its result */
         def map[B](f: A => B): ResultG[E, B]
 
+        /** Replace any `Okay` value with `()` (`Unit`). Equivalent to `result.map(_ => ())` */
+        def unit: ResultG[E, Unit] = map(_ => ())
+
         /**
          * If Failed, then either modify the Failed somehow or replace with another Result.
          *
