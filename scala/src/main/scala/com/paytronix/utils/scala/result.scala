@@ -308,12 +308,20 @@ object result extends resultLowPriorityImplicits
                 }
         }
 
-        /** Unify a `ResultG` where the failure parameter is compatible with the success type */
-        def unify[A](in: ResultG[A, A]): A =
-            in match {
-                case Okay(a) => a
-                case FailedG(_, a) => a
-            }
+        /** Allow unifying a `ResultG` where the failure parameter is compatible with the success type */
+        implicit def unify[A](in: ResultG[A, A]): Unifier[A] = Unifier(in)
+
+        object Unifier {
+            implicit def toResult[A](in: Unifier[A]): A = in.unify
+        }
+
+        final case class Unifier[+A](result: ResultG[A, A]) {
+            lazy val unify: A =
+                result match {
+                    case Okay(a) => a
+                    case FailedG(_, a) => a
+                }
+        }
     }
 
     trait FailedParameterImplicits {
