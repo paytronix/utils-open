@@ -54,8 +54,10 @@ private object ResolvingDecoderCache {
 
 /** Object with helpers for doing Avro work */
 object AvroUtils {
+    /** Create a union schema representing a nullable value of the given input schema, with index 0 meaning value present and index 1 meaning null / not present */
     def nullable(in: Schema): Schema = Schema.createUnion(Arrays.asList(in, Schema.create(Schema.Type.NULL)))
 
+    /** Split a Class formal name into a pair containing namespace and unqualified name */
     def nameAndNamespaceFromClass(clazz: Class[_]): (String, String) = {
         val rawName = clazz.getName
         splitFullyQualifiedName (
@@ -64,6 +66,7 @@ object AvroUtils {
         )
     }
 
+    /** Encode the name of a schema for use in generating various automatically generated record types, e.g. for tuples */
     def encodeSchemaName(in: Schema): String = {
         import Schema.Type._
 
@@ -105,6 +108,15 @@ object AvroUtils {
         }
     }
 
+    /** Convert a `JValue` into an Avro `Schema` */
+    def schemaFromJValue(in: JValue): Result[Schema] =
+        tryCatch.value(new Schema.Parser().parse(compact(render(in))))
+
+    /** Convert a `Schema` into an Avro `JValue` */
+    def schemaToJValue(s: Schema): Result[JValue] =
+        tryCatch.value(parse(s.toString))
+
+    /** Produce a hash from a canonical version of the given schema JSON, for addressing the schema without transmitting it in its entirety */
     def hashSchema(in: JValue): Result[Array[Byte]] =
         tryCatch.value {
             val s = compact(render(in.transform {
@@ -115,8 +127,7 @@ object AvroUtils {
             md.digest(s.getBytes("UTF-8"))
         }
 
+    /** Produce a hash from a canonical version of the given `Schema`, for addressing the schema without transmitting it in its entirety */
     def hashSchema(in: Schema): Result[Array[Byte]] =
-        tryCatch.result {
-            hashSchema(parse(in.toString))
-        }
+        schemaToJValue(in).flatMap(hashSchema)
 }
