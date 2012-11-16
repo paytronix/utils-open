@@ -307,6 +307,13 @@ object result extends resultLowPriorityImplicits
                     case Okay(a) => f(a, z)
                 }
         }
+
+        /** Unify a `ResultG` where the failure parameter is compatible with the success type */
+        def unify[A](in: ResultG[A, A]): A =
+            in match {
+                case Okay(a) => a
+                case FailedG(_, a) => a
+            }
     }
 
     trait FailedParameterImplicits {
