@@ -36,6 +36,7 @@ import scala.collection.generic.{CanBuild, CanBuildFrom}
 import scala.collection.immutable.{Map => ImmutableMap, Set => ImmutableSet}
 import scala.collection.mutable.{ArrayBuffer, Buffer, Builder, Map => MutableMap, Set => MutableSet}
 import scala.reflect.Manifest
+
 import com.mongodb.{BasicDBObject, DBObject}
 import net.liftweb.json.Implicits.string2jvalue
 import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString, JValue, render}
@@ -381,6 +382,42 @@ trait FlattenableCoder {
     self: ComposableCoder[_] =>
 
     val flatten: Boolean
+}
+
+/** Coder that uses a lens to extract/inject the value the be coded from some other thing */
+class MappedCoder[T, U](val injector: U => Result[T], val extractor: T => Result[U], val underlying: ComposableCoder[U])(implicit m: Manifest[T]) extends ComposableCoder[T] {
+    import ComposableCoder.CoderResult
+
+    val mostSpecificClass = m.erasure.asInstanceOf[Class[T]]
+
+    protected def inject(u: U): CoderResult[T] = injector(u) | parameter(Nil)
+    protected def extract(t: T): CoderResult[U] = extractor(t) | parameter(Nil)
+
+    def decode(classLoader: ClassLoader, in: JValue): CoderResult[T] =
+        underlying.decode(classLoader, in) flatMap inject
+    def encode(classLoader: ClassLoader, in: T): CoderResult[JValue] =
+        extract(in) flatMap { underlying.encode(classLoader, _) }
+
+    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder): CoderResult[T] =
+        underlying.decodeAvro(classLoader, in) flatMap inject
+    def encodeAvro(classLoader: ClassLoader, in: T, out: Encoder): CoderResult[Unit] =
+        extract(in) flatMap { underlying.encodeAvro(classLoader, _, out) }
+    val avroSchema = underlying.avroSchema
+
+    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef): CoderResult[T] =
+        underlying.decodeMongoDB(classLoader, in) flatMap inject
+    def encodeMongoDB(classLoader: ClassLoader, in: T): CoderResult[AnyRef] =
+        extract(in) flatMap { underlying.encodeMongoDB(classLoader, _) }
+}
+
+/** Coder that uses a lens to extract/inject the value the be coded from some other thing */
+class StringSafeMappedCoder[T, U](injector: U => Result[T], extractor: T => Result[U], underlying: StringSafeCoder[U])(implicit m: Manifest[T]) extends MappedCoder[T, U](injector, extractor, underlying)(m) with StringSafeCoder[T] {
+    import ComposableCoder.CoderResult
+
+    def decodeString(classLoader: ClassLoader, in: String): CoderResult[T] =
+        underlying.decodeString(classLoader, in) flatMap inject
+    def encodeString(classLoader: ClassLoader, in: T): CoderResult[String] =
+        extract(in) flatMap { underlying.encodeString(classLoader, _) }
 }
 
 /** Identity coder (just capture/emit some JValue) */
