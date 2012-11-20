@@ -23,10 +23,7 @@ object json {
                         _ match {
                             case JNothing => JObject(jfields.filterNot(_.name == name))
                             case newValue =>
-                                JObject(jfields.map {
-                                    case JField(`name`, _) => JField(name, newValue)
-                                    case other => other
-                                })
+                                JObject(JField(name, newValue) :: jfields.filterNot(_.name == name))
                         }
                     case other =>
                         _ match {
