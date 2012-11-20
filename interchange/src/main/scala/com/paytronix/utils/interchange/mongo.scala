@@ -16,11 +16,15 @@
 
 package com.paytronix.utils.interchange
 
-import scala.collection.JavaConverters.{asScalaBufferConverter, bufferAsJavaListConverter, mapAsScalaMapConverter}
+import java.nio.ByteBuffer
+import java.util.regex.Pattern
+import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaSetConverter, bufferAsJavaListConverter, mapAsScalaMapConverter}
 import scala.collection.mutable.ArrayBuffer
 
-import com.mongodb.{BasicDBObject, DBObject}
+import com.mongodb.{BasicDBList, BasicDBObject, DBObject}
 import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JInt, JField, JNothing, JNull, JObject, JString, JValue}
+import org.bson.BSONObject
+import org.bson.types.{Binary, BSONTimestamp, ObjectId}
 
 import com.paytronix.utils.scala.result.Result
 
@@ -46,9 +50,10 @@ trait CodedMongoObject[T] {
 }
 
 object MongoUtils {
+    // FIXME very exceptionful
     def toJValue(a: Any): JValue =
         a match {
-            case null => JNull
+            case null                     => JNull
             case l: java.util.List[_]     => JArray(l.asScala.map(toJValue).toList)
             case b: Boolean               => JBool(b)
             case d: Double                => JDouble(d)
@@ -57,12 +62,41 @@ object MongoUtils {
             case bi: java.math.BigInteger => JInt(new BigInt(bi))
             case bi: BigInt               => JInt(bi)
             case i: Int                   => JInt(BigInt(i))
+            case s: String                => JString(s)
+
             case m: java.util.Map[_, _] =>
                 JObject(m.asScala.map {
                     case (k: String, v) => JField(k, toJValue(v))
                     case kvp => sys.error("expected map with string keys, but got " + kvp)
                 }.toList)
-            case s: String => JString(s)
+
+            case bso: BSONObject =>
+                JObject(bso.keySet.asScala.map {
+                    case k => JField(k, toJValue(bso.get(k)))
+                }.toList)
+
+            case p: Pattern =>
+                var fls = ""
+                if ((p.flags & Pattern.CASE_INSENSITIVE) != 0) fls += "i"
+                if ((p.flags & Pattern.MULTILINE) != 0) fls += "m"
+                if ((p.flags & Pattern.DOTALL) != 0) fls += "s"
+                JObject(JField("$regex", JString(p.toString)) :: JField("$options", JString(fls)) :: Nil)
+            case r: scala.util.matching.Regex =>
+                toJValue(r.pattern)
+            case jud: java.util.Date =>
+                JObject(JField("$date", JInt(BigInt(jud.getTime))) :: Nil)
+            case jod: org.joda.time.ReadableInstant =>
+                JObject(JField("$date", JInt(BigInt(jod.getMillis))) :: Nil)
+            case b: Binary =>
+                val base64 = ByteBufferCoder.encodeString(getClass.getClassLoader, ByteBuffer.wrap(b.getData).limit(b.length).asInstanceOf[ByteBuffer]).orThrow
+                JObject(JField("$binary", JString(base64)) :: JField("$type", JString("%02x".format(b.getType))) :: Nil)
+            case t: BSONTimestamp =>
+                JObject(JField("$timestamp", JObject(JField("t", JInt(BigInt(t.getTime))) :: JField("i", JInt(BigInt(t.getInc))) :: Nil)) :: Nil)
+            case oid: ObjectId =>
+                JObject(JField("$oid", JString(oid.toString)) :: Nil)
+
+            case _ =>
+                sys.error("unhandled type in MongoDB data: " + a.getClass.getName + " (" + (try String.valueOf(a) catch { case e: Exception => "<" + e.toString + ">" }) + ")")
         }
 
     def fromJValue(in: JObject): DBObject =
@@ -78,16 +112,58 @@ object MongoUtils {
         dbObject
     }
 
+    def fromJValues(in: Seq[JValue]): DBObject = {
+        val dbList = new BasicDBList
+
+        for (x <- in)
+            dbList.add(fromJValue(x))
+
+        dbList
+    }
+
+    private def fieldOrThrow(fls: List[JField], s: String): JValue =
+        fls.find(_.name == s).getOrElse(sys.error("required field " + s + " was missing"))
+
+    // FIXME very exceptionful
     def fromJValue(in: JValue): AnyRef =
         in match {
-            case JArray(a)      => ArrayBuffer(a.map(fromJValue)).asJava
+            case JObject(jfs) =>
+                jfs.find {
+                    case JField("$regex"|"$date"|"$binary"|"$timestamp"|"$oid", _) => true
+                    case _ => false
+                } match {
+                    case Some(JField("$regex", v)) =>
+                        val pattern = v.asInstanceOf[JString].s
+                        val flags = jfs.find(_.name == "$options").map(_.asInstanceOf[JString].s).map { s =>
+                            (if (s contains 'i') Pattern.CASE_INSENSITIVE else 0) | (if (s contains 'm') Pattern.MULTILINE else 0) | (if (s contains 's') Pattern.DOTALL else 0)
+                        }.getOrElse(0)
+                        java.util.regex.Pattern.compile(pattern, flags)
+                    case Some(JField("$date", v)) =>
+                        val millis = v.asInstanceOf[JInt].num.intValue
+                        new java.util.Date(millis)
+                    case Some(JField("$binary", v)) =>
+                        val typ = Integer.parseInt(fieldOrThrow(jfs, "$type").asInstanceOf[JString].s, 16)
+                        val bytes = ByteBufferCoder.decodeString(getClass.getClassLoader, v.asInstanceOf[JString].s).orThrow.array
+                        new Binary(typ.asInstanceOf[Byte], bytes)
+                    case Some(JField("$timestamp", v)) =>
+                        val sub = v.asInstanceOf[JObject].obj
+                        val time = fieldOrThrow(sub, "time").asInstanceOf[JInt].num.intValue
+                        val inc = fieldOrThrow(sub, "inc").asInstanceOf[JInt].num.intValue
+                        new BSONTimestamp(time, inc)
+                    case Some(JField("$oid", v)) =>
+                        val id = v.asInstanceOf[JString].s
+                        new ObjectId(id)
+                    case _ =>
+                        fromJValue(jfs)
+                }
+
+            case JArray(a)      => fromJValues(a)
             case JBool(b)       => b.asInstanceOf[AnyRef]
             case JDouble(d)     => d.asInstanceOf[AnyRef]
             case JField(n, v)   => sys.error("should not have called fromJValue on a JField!")
             case JInt(i)        =>
                 if (i > BigInt(java.lang.Integer.MAX_VALUE.toString) || i < BigInt(java.lang.Integer.MIN_VALUE.toString)) i.toString
                 else i.intValue.asInstanceOf[AnyRef]
-            case JObject(jfs)   => fromJValue(jfs)
             case JString(s)     => s
             case JNothing|JNull => null
         }
