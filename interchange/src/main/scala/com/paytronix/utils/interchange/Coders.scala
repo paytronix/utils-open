@@ -55,6 +55,7 @@ import com.paytronix.utils.scala.concurrent.ThreadLocal
 import com.paytronix.utils.scala.log.resultLoggerOps
 import com.paytronix.utils.scala.reflection.{classByName, paranamer, splitFullyQualifiedName}
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, cast, firstOrLastG, iterableResultOps, optionOps, parameter, tryCatch, tryCatching}
+import javax.print.attribute.standard.DateTimeAtCompleted
 
 
 /** Object that contains thread-local settings for coding and decoding */
@@ -1413,6 +1414,7 @@ abstract class JodaDateTimeCoder[T] extends StringSafeCoder[T] {
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         in match {
+            case dt: DateTime      => Okay(fromDateTime(dt))
             case d: java.util.Date => Okay(fromDateTime(new DateTime(d)))
             case s: String         => decodeString(classLoader, s)
             case null              => FailedG("required but missing", Nil)
@@ -1427,7 +1429,7 @@ object DateTimeCoder extends JodaDateTimeCoder[DateTime] {
     val mostSpecificClass = classOf[DateTime]
 
     val defaultFormatString = "yyyy-MM-dd HH:mm:ss Z"
-    override val additionalFormats = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z")
+    override val additionalFormats = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z", "yyyy-MM-dd'T'HH:mm:ss.SSSZ")
 
     protected def fromDateTime(in: DateTime) = in
     protected def toDateTime(in: DateTime) = in
