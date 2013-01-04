@@ -325,15 +325,15 @@ object result extends resultLowPriorityImplicits
                     case FailedG(_, a) => a
                 }
         }
-
-        /** Another way of writing `Failed("reason") unless predicate`; yield `Okay(())` if `p` is `true`, `r` otherwise */
-        def unless[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
-            if (p) Okay(()) else r
-
-        /** Converse of `unless`; yield `Okay(())` if `p` is `false`, `r` otherwise */
-        def when[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
-            if (p) r else Okay(())
     }
+
+    /** Another way of writing `Failed("reason") unless predicate`; yield `Okay(())` if `p` is `true`, `r` otherwise */
+    def unless[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
+        if (p) Okay(()) else r
+
+    /** Converse of `unless`; yield `Okay(())` if `p` is `false`, `r` otherwise */
+    def when[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
+        if (p) r else Okay(())
 
     trait FailedParameterImplicits {
         /** Allow a string to be used with ResultG's `|` operator to wrap a failure with a new explanatory message. For example: `rslt | "explanation"` */
