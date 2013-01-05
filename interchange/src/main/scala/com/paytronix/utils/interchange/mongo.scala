@@ -29,8 +29,10 @@ import org.bson.types.{Binary, BSONTimestamp, ObjectId}
 import com.paytronix.utils.scala.result.Result
 
 trait CodedMongoObject[T] {
-    implicit val manifest: Manifest[T]
-    lazy val coder = Coding.forClass[T]
+    def objectManifest: Manifest[T]
+    private implicit def codedMongoObjectManifest = objectManifest
+
+    lazy val coder = Coding.forClass[T](objectManifest)
 
     /** Implicitly convert a coded object to a DBObject, throwing an exception if coding fails */
     implicit def toDBObjectOrThrow(obj: T): DBObject =
