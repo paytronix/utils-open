@@ -3456,7 +3456,7 @@ extends ComposableCoder[T] with FlattenableCoder
  *
  *     object MyServiceMeta extends StandardServiceMeta {
  *         ...
- *         applyTo("myAction") { _.inputCoder = Coding.forClass[MyServiceArguments].flatMap(SingleArgumentCoder.apply) }
+ *         applyTo("myAction") { _.inputCoder = Coding.forClass[MyServiceArguments].flatMap(FlatArgumentArrayCoder.apply) }
  *         ...
  *     }
  *
@@ -3476,8 +3476,9 @@ case class FlatArgumentArrayCoder(valueCoders: ComposableCoder[_]*) extends Comp
         } map { result => Array[AnyRef](result: _*) }
 
     def encode(classLoader: ClassLoader, in: Array[AnyRef]) =
-        valueCoders.mapResult {
-            _.forceEncode(classLoader, in(0))
+        valueCoders.zipWithIndex
+        .mapResult { case (coder, i) =>
+            coder.forceEncode(classLoader, in(i))
         } map { _ reduceLeft (_ merge _) }
 
     val avroSchema =
