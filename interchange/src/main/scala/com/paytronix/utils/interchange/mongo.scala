@@ -63,7 +63,10 @@ object MongoUtils {
             case bd: BigDecimal           => JDouble(bd.doubleValue)
             case bi: java.math.BigInteger => JInt(new BigInt(bi))
             case bi: BigInt               => JInt(bi)
+            case b: Byte                  => JInt(BigInt(b))
+            case s: Short                 => JInt(BigInt(s))
             case i: Int                   => JInt(BigInt(i))
+            case l: Long                  => JInt(BigInt(l))
             case s: String                => JString(s)
 
             case m: java.util.Map[_, _] =>
@@ -164,8 +167,9 @@ object MongoUtils {
             case JDouble(d)     => d.asInstanceOf[AnyRef]
             case JField(n, v)   => sys.error("should not have called fromJValue on a JField!")
             case JInt(i)        =>
-                if (i > BigInt(java.lang.Integer.MAX_VALUE.toString) || i < BigInt(java.lang.Integer.MIN_VALUE.toString)) i.toString
-                else i.intValue.asInstanceOf[AnyRef]
+                if (i >= BigInt(java.lang.Integer.MIN_VALUE.toString) && i <= BigInt(java.lang.Integer.MAX_VALUE.toString)) i.longValue.asInstanceOf[AnyRef]
+                else if (i >= BigInt(java.lang.Integer.MIN_VALUE.toString) && i <= BigInt(java.lang.Integer.MAX_VALUE.toString)) i.intValue.asInstanceOf[AnyRef]
+                else i.toString
             case JString(s)     => s
             case JNothing|JNull => null
         }
