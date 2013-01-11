@@ -107,6 +107,58 @@ object concurrent
         }
     }
 
+    /** Groups some lock wrappers together to allow locking the whole stack. Does not try to detect or prevent deadlocks. */
+    def lockGroup(locks: LockWrapper[_ <: JUCLock]*) = LockGroup(locks)
+
+    /** Groups some lock wrappers together to allow locking the whole stack. Does not try to detect or prevent deadlocks. */
+    final case class LockGroup(locks: Seq[LockWrapper[_ <: JUCLock]]) {
+        def apply[B](f: => B): B = {
+            var locked: List[LockWrapper[_ <: JUCLock]] = Nil
+            try {
+                locks.foreach { lock =>
+                    lock.underlying.lock()
+                    locked ::= lock
+                }
+                f
+            } finally locked.foreach(_.underlying.unlock())
+        }
+
+        def interruptibly[B](f: => B): B = {
+            var locked: List[LockWrapper[_ <: JUCLock]] = Nil
+            try {
+                locks.foreach { lock =>
+                    lock.underlying.lockInterruptibly()
+                    locked ::= lock
+                }
+                f
+            } finally locked.foreach(_.underlying.unlock())
+        }
+
+        def attempt[B](f: => B): Option[B] = {
+            var locked: List[LockWrapper[_ <: JUCLock]] = Nil
+            try {
+                if (locks.foldLeft(true) { (b, lock) =>
+                    b && lock.underlying.tryLock() && {
+                        locked ::= lock
+                        true
+                    }
+                }) Some(f) else None
+            } finally locked.foreach(_.underlying.unlock())
+        }
+
+        def attemptFor[B](time: Long, unit: TimeUnit)(f: => B): Option[B] = {
+            var locked: List[LockWrapper[_ <: JUCLock]] = Nil
+            try {
+                if (locks.foldLeft(true) { (b, lock) =>
+                    b && lock.underlying.tryLock(time, unit) && {
+                        locked ::= lock
+                        true
+                    }
+                }) Some(f) else None
+            } finally locked.foreach(_.underlying.unlock())
+        }
+    }
+
     /** Wrapper around a [[java.util.concurrent.locks.Lock]] to make it nicer to use from scala */
     class LockWrapper[A <: JUCLock](val underlying: A) {
         def apply[B](f: => B): B = {
