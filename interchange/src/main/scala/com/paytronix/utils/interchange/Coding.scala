@@ -394,17 +394,26 @@ trait Coding {
  *     }
  */
 trait ModifyObjectCoding extends Coding {
-    private var modification: Option[PartialFunction[FieldCoding, Option[FieldCoding]]] = None
+    private var modification: PartialFunction[FieldCoding, Option[FieldCoding]] = { case _ if false => None }
 
     protected var flatten: Boolean = false
 
-    protected def modify(pf: PartialFunction[FieldCoding, Option[FieldCoding]]): Unit = modification = Some(pf)
+    protected def modify(pf: PartialFunction[FieldCoding, Option[FieldCoding]]): Unit = modification = modification orElse pf
+
+    protected def insecure(field: String, substitution: Result[Any]): Unit =
+        modify {
+            case fc@FieldCoding(`field`, coder: ComposableCoder[t], _, _) =>
+                Some(fc.copy(coder=InsecureCoder(coder, substitution.asInstanceOf[Result[t]])))
+        }
+
+    protected def default(field: String, value: Any): Unit =
+        modify {
+            case fc@FieldCoding(`field`, coder: ComposableCoder[t], _, _) =>
+                Some(fc.copy(coder=DefaultingCoder(coder, value.asInstanceOf[t])))
+        }
 
     def makeCoder(default: => Result[ComposableCoder[_]], classTypeR: ClassTypeR)(implicit builder: Builder) =
-        for {
-            coder <- Reflection.reflectObjectCoder(classTypeR.reflectionModel.getClassLoader, classTypeR): Result[ObjectCoder[_]]
-            modifier <- modification.toResult
-        } yield coder.modify(flatten, modifier)
+        Reflection.reflectObjectCoder[Any](classTypeR.reflectionModel.getClassLoader, classTypeR).map(_.modify(flatten, modification))
 }
 
 /**

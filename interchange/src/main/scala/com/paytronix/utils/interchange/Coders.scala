@@ -578,6 +578,35 @@ case class InsecureCoder[T](coder: ComposableCoder[T], substitute: Result[T]) ex
         else coder.encodeMongoDB(classLoader, in)
 }
 
+/** Coder which substitutes some default values for nulls/missing */
+case class DefaultingCoder[T](coder: ComposableCoder[T], default: T) extends ComposableCoder[T]
+{
+    val mostSpecificClass = coder.mostSpecificClass
+
+    def decode(classLoader: ClassLoader, in: JValue) =
+        in match {
+            case JNull|JNothing => Okay(default)
+            case _              => coder.decode(classLoader, in)
+        }
+    def encode(classLoader: ClassLoader, in: T) =
+        coder.encode(classLoader, in)
+
+    // FIXME Avro defaulting isn't implemented
+    val avroSchema = coder.avroSchema
+    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
+        coder.decodeAvro(classLoader, in)
+    def encodeAvro(classLoader: ClassLoader, in: T, out: Encoder) =
+        coder.encodeAvro(classLoader, in, out)
+
+    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
+        in match {
+            case null => Okay(default)
+            case _    => coder.decodeMongoDB(classLoader, in)
+        }
+    def encodeMongoDB(classLoader: ClassLoader, in: T) =
+        coder.encodeMongoDB(classLoader, in)
+}
+
 /**
  * Coder which always returns the given Failed when decoding or encoding is attempted. Usually used in places where a Coder is
  * required, but couldn't be built and there is no acceptable place to give back a Result until later (e.g. during initialization of
