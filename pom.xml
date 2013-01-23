@@ -18,6 +18,7 @@
 
     <modules>
         <module>java</module>
+        <module>lift</module>
         <module>packaging</module>
         <module>scala</module>
         <module>standalone</module>
@@ -83,6 +84,11 @@
                         <artifactId>joda-time</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>net.liftweb</groupId>
+                <artifactId>lift-webkit_${lift.scala.compatibility.version}</artifactId>
+                <version>${lift.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>
