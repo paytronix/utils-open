@@ -401,15 +401,17 @@ trait ModifyObjectCoding extends Coding {
     protected def modify(pf: PartialFunction[FieldCoding, Option[FieldCoding]]): Unit = modification = modification orElse pf
 
     protected def insecure(field: String, substitution: Result[Any]): Unit =
-        modify {
-            case fc@FieldCoding(`field`, coder: ComposableCoder[t], _, _) =>
-                Some(fc.copy(coder=InsecureCoder(coder, substitution.asInstanceOf[Result[t]])))
+        modify { case fc@FieldCoding(`field`, coder, _, _) =>
+            coder match { case typedCoder: ComposableCoder[t] =>
+                Some(fc.copy(coder=InsecureCoder(typedCoder, substitution.asInstanceOf[Result[t]])))
+            }
         }
 
     protected def default(field: String, value: Any): Unit =
-        modify {
-            case fc@FieldCoding(`field`, coder: ComposableCoder[t], _, _) =>
-                Some(fc.copy(coder=DefaultingCoder(coder, value.asInstanceOf[t])))
+        modify { case fc@FieldCoding(`field`, coder, _, _) =>
+            coder match { case typedCoder: ComposableCoder[t] =>
+                Some(fc.copy(coder=DefaultingCoder(typedCoder, value.asInstanceOf[t])))
+            }
         }
 
     def makeCoder(default: => Result[ComposableCoder[_]], classTypeR: ClassTypeR)(implicit builder: Builder) =
@@ -538,6 +540,9 @@ object WrapperCoding {
 
                     def encodeAvro(classLoader: ClassLoader, in: t, out: Encoder) =
                         coder.encodeAvro(classLoader, in, out)
+
+                    def encodeAvroDefaultJson(classLoader: ClassLoader, in: t) =
+                        coder.encodeAvroDefaultJson(classLoader, in)
 
                     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
                         coder.decodeMongoDB(classLoader, in)

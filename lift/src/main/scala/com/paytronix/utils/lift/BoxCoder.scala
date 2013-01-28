@@ -191,12 +191,12 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                                          "", "net.liftweb.common", false)
 
     fullSchema.setFields(Arrays.asList (
-        new Schema.Field("value", valueCoder.avroSchema, "", null)
+        AvroUtils.makeField("value", valueCoder.avroSchema)
     ))
 
     val avroSchema = Schema.createUnion(Arrays.asList (
-        fullSchema,
         Schema.create(Schema.Type.NULL),
+        fullSchema,
         BoxCoder.failureSchema
     ))
 
@@ -205,11 +205,10 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
             def decodeBaseFailure() = {
                 val message = in.readString(null).toString
                 in.readIndex() match {
-                    case 0 => decodeFailure() map { chain => Failure(message, Empty, Full(chain)) }
-                    case 1 => {
+                    case 0 =>
                         in.readNull()
                         Okay(Failure(message))
-                    }
+                    case 1 => decodeFailure() map { chain => Failure(message, Empty, Full(chain)) }
                     case other => FailedG("read unknown union index " + other + " from Avro for Failure chain", Nil)
                 }
             }
@@ -218,7 +217,7 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                 in.readIndex() match {
                     case 0 => decodeBaseFailure()
 
-                    case 1 => {
+                    case 1 =>
                         implicit val builder = new extendedreflection.Builder(classLoader)
                         decodeBaseFailure flatMap { baseFailure =>
                             val isAClassName = in.readString(null).toString
@@ -236,7 +235,6 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                                 } yield baseFailure ~> param
                             } | parameter(Nil)
                         }
-                    }
 
                     case other => FailedG("read unknown union index " + other + " from Avro for Failure", Nil)
                 }
@@ -247,8 +245,8 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
 
         tryCatch.value {
             in.readIndex() match {
-                case 0 => valueCoder.decodeAvro(classLoader, in).map(Full.apply)
-                case 1 => Okay(Empty)
+                case 0 => Okay(Empty)
+                case 1 => valueCoder.decodeAvro(classLoader, in).map(Full.apply)
                 case 2 => decodeFailure()
                 case other => FailedG("read unknown union index " + other + " from Avro for Box", Nil)
             }
@@ -262,17 +260,17 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                     out.writeString(message)
                     chain match {
                         case Full(nested) => {
-                            out.writeIndex(0)
+                            out.writeIndex(1)
                             encodeFailure(nested)
                         }
 
                         case _ =>
-                            Okay(out.writeIndex(1))
+                            Okay(out.writeIndex(0))
                     }
                 }
 
                 in match {
-                    case ParamFailure(message, _, chain, param) if param.asInstanceOf[AnyRef] ne null => {
+                    case ParamFailure(message, _, chain, param) if param.asInstanceOf[AnyRef] != null =>
                         implicit val builder = new extendedreflection.Builder(classLoader)
                         val paramClass = param.asInstanceOf[AnyRef].getClass()
 
@@ -298,12 +296,10 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
                                 out.writeIndex(0)
                                 encodeBaseFailure(message, chain)
                         }
-                    }
 
-                    case Failure(message, _, chain) => {
+                    case Failure(message, _, chain) =>
                         out.writeIndex(0)
                         encodeBaseFailure(message, chain)
-                    }
                 }
             } catch {
                 case e: Exception => FailedG(e, Nil)
@@ -311,20 +307,17 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
 
         tryCatch.value {
             in match {
-                case Full(v) => {
+                case Empty =>
                     out.writeIndex(0)
-                    valueCoder.encodeAvro(classLoader, v, out)
-                }
-
-                case Empty => {
-                    out.writeIndex(1)
                     Okay(())
-                }
 
-                case failure: Failure => {
+                case Full(v) =>
+                    out.writeIndex(1)
+                    valueCoder.encodeAvro(classLoader, v, out)
+
+                case failure: Failure =>
                     out.writeIndex(2)
                     encodeFailure(failure)
-                }
             }
         }.orElse(parameter(Nil)).flatten
     }
@@ -468,20 +461,20 @@ object BoxCoder {
 
     // wrapper since you can't nest unions
     failureSchema.setFields(Arrays.asList (
-        new Schema.Field("failure", Schema.createUnion(Arrays.asList(plainFailureSchema, paramFailureSchema)), "", null)
+        AvroUtils.makeField("failure", (Schema.createUnion(Arrays.asList(plainFailureSchema, paramFailureSchema)), None))
     ))
 
     plainFailureSchema.setFields(Arrays.asList (
-        new Schema.Field("failure", Schema.create(Schema.Type.STRING), "", null),
-        new Schema.Field("chain",   AvroUtils.nullable(failureSchema), "", null)
+        AvroUtils.makeField("failure", (Schema.create(Schema.Type.STRING), None)),
+        AvroUtils.makeField("chain",   AvroUtils.nullable(failureSchema))
     ))
 
     paramFailureSchema.setFields(Arrays.asList (
-        new Schema.Field("failure",     Schema.create(Schema.Type.STRING), "", null),
-        new Schema.Field("chain",       AvroUtils.nullable(failureSchema), "", null),
-        new Schema.Field("paramIsA",    Schema.create(Schema.Type.STRING), "", null),
-        new Schema.Field("paramSchema", Schema.create(Schema.Type.STRING), "", null),
-        new Schema.Field("paramData",   Schema.create(Schema.Type.BYTES),  "", null)
+        AvroUtils.makeField("failure",     (Schema.create(Schema.Type.STRING), None)),
+        AvroUtils.makeField("chain",       AvroUtils.nullable(failureSchema)),
+        AvroUtils.makeField("paramIsA",    (Schema.create(Schema.Type.STRING), None)),
+        AvroUtils.makeField("paramSchema", (Schema.create(Schema.Type.STRING), None)),
+        AvroUtils.makeField("paramData",   (Schema.create(Schema.Type.BYTES), None))
     ))
 }
 

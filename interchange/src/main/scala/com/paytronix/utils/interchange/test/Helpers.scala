@@ -86,7 +86,7 @@ object Helpers extends SpecificationFeatures {
     def avroRoundTripExpect[T](inst: Coder[T], value: T)(matcher: Matcher[Result[T]]): SpecsResult =
         inst.encodeAvro(value) must beLike {
             case Okay(encoded) =>
-                inst.decodeAvro(inst.avroSchema, encoded) must matcher
+                inst.decodeAvro(inst.avroSchema._1, encoded) must matcher
             case FailedG(throwable, _) =>
                 throwable.printStackTrace()
                 ko("encoding " + value + " to avro failed due to " + throwable.toString + " (see log)")

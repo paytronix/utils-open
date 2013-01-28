@@ -43,7 +43,7 @@ class AvroSchemaGenerator {
 					for {
 						typeR <- builder.typeRFor(clazz)
 						coder <- Coding.forType(clazz.getClassLoader, typeR)
-					} yield foundSchemas += coder.implementation.avroSchema
+					} yield foundSchemas += coder.implementation.avroSchema._1
 				}.logError("Failed to generate schema for " + className)
 			}
 		}
