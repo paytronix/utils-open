@@ -45,9 +45,9 @@ import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JField, JInt, JNothing,
  * floats, etc are preferred.
  */
 object XML {
-    private val INVALID_ELEM_CHARS      = """[^\w.-]"""
-    private val INVALID_ELEM_CHAR_REGEX = INVALID_ELEM_CHARS.r
-    private val INVALID_ELEM_NAME_REGEX = (".*" + INVALID_ELEM_CHARS + ".*").r
+    private val InvalidElemChars      = """[^\w.-]"""
+    private val InvalidElemCharRegex = InvalidElemChars.r
+    private val InvalidElemNameRegex = (".*" + InvalidElemChars + ".*").r
 
     /** Convert JSON to XML */
     def fromJSON(in: JValue): NodeSeq =
@@ -64,7 +64,7 @@ object XML {
             case JString(s) if Character.isWhitespace(s.charAt(0)) || Character.isWhitespace(s.charAt(s.length-1)) =>
                 PCData(s)
             case JString(s) => Text(s)
-            case JField(n@INVALID_ELEM_NAME_REGEX(), v) => Elem(null, INVALID_ELEM_CHAR_REGEX.replaceAllIn(n, "_"), Null, TopScope, fromJSON(v): _*)
+            case JField(n@InvalidElemNameRegex(), v) => Elem(null, InvalidElemCharRegex.replaceAllIn(n, "_"), Null, TopScope, fromJSON(v): _*)
             case JField(n, v)     => Elem(null, n, Null, TopScope, fromJSON(v): _*)
         }
 
