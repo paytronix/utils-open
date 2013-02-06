@@ -10,7 +10,7 @@ import net.liftweb.json.JsonAST.{JString, JValue}
 import org.apache.avro.Schema
 import org.apache.avro.io.{Encoder, ResolvingDecoder}
 import org.slf4j.{Logger, LoggerFactory}
-import com.paytronix.utils.interchange.{OverrideCoding, StringCoder, StringSafeCoder}
+import com.paytronix.utils.interchange.{OverrideCoding, StringLikeCoder}
 import com.paytronix.utils.scala.concurrent.ThreadLocal
 import com.paytronix.utils.scala.result.{Failed, Okay, Result, ResultG, parameter, tryCatch, tryCatching}
 
@@ -82,30 +82,13 @@ case class SoftwareVersion(text: String) extends Ordered[SoftwareVersion] {
 object SoftwareVersionCoding extends OverrideCoding(SoftwareVersionCoder)
 
 /** Map a SoftwareVersion to a JString */
-object SoftwareVersionCoder extends StringSafeCoder[SoftwareVersion] {
+object SoftwareVersionCoder extends StringLikeCoder[SoftwareVersion] {
     val mostSpecificClass = classOf[SoftwareVersion]
-
-    def decode(classLoader: ClassLoader, in: JValue) =
-        StringCoder.decode(classLoader, in) flatMap { s => SoftwareVersion.parse(s) | parameter(Nil) }
-    def encode(classLoader: ClassLoader, in: SoftwareVersion) =
-        tryCatch.value(JString(in.text)) | parameter(Nil)
 
     def decodeString(classLoader: ClassLoader, in: String) =
         SoftwareVersion.parse(in) | parameter(Nil)
     def encodeString(classLoader: ClassLoader, in: SoftwareVersion) =
         tryCatch.value(in.text) | parameter(Nil)
-
-    val avroSchema = Schema.create(Schema.Type.STRING)
-
-    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        tryCatch.value(in.readString(null).toString).flatMap(SoftwareVersion.parse) | parameter(Nil)
-    def encodeAvro(classLoader: ClassLoader, in: SoftwareVersion, out: Encoder) =
-        tryCatch.value(out.writeString(in.text)) | parameter(Nil)
-
-    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
-        StringCoder.decodeMongoDB(classLoader, in).flatMap(s => SoftwareVersion.parse(s) | parameter(Nil))
-    def encodeMongoDB(classLoader: ClassLoader, in: SoftwareVersion) =
-        tryCatch.value(in.toString) | parameter(Nil)
 
     override def toString = "SoftwareVersionCoder"
 }
