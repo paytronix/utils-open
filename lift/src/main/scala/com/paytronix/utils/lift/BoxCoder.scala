@@ -17,6 +17,7 @@
 package com.paytronix.utils.lift
 
 import java.util.Arrays
+
 import com.mongodb.BasicDBObject
 import net.liftweb.common.{Box, Empty, EmptyBox, Failure, Full, ParamFailure}
 import net.liftweb.json.Implicits.string2jvalue
@@ -24,7 +25,9 @@ import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JField, JInt, JNothing,
 import net.liftweb.util.ControlHelpers.tryo
 import org.apache.avro.Schema
 import org.apache.avro.io.{Encoder, ResolvingDecoder}
+import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 import org.slf4j.{Logger, LoggerFactory}
+
 import com.paytronix.utils.extendedreflection
 import com.paytronix.utils.interchange.{AvroUtils, CoderSettings, Coding, ComposableCoder, OptionLikeCoder, UnitCoder}
 import com.paytronix.utils.scala.log.{loggerResultOps, resultLoggerOps}
@@ -187,18 +190,18 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
 
     // Avro encoding
 
-    val fullSchema = Schema.createRecord("Full__" + AvroUtils.encodeSchemaName(valueCoder.avroSchema),
+    val fullSchema = Schema.createRecord("Full__" + AvroUtils.encodeSchemaName(valueCoder.avroSchema._1),
                                          "", "net.liftweb.common", false)
 
     fullSchema.setFields(Arrays.asList (
         AvroUtils.makeField("value", valueCoder.avroSchema)
     ))
 
-    val avroSchema = Schema.createUnion(Arrays.asList (
+    val avroSchema = (Schema.createUnion(Arrays.asList (
         Schema.create(Schema.Type.NULL),
         fullSchema,
         BoxCoder.failureSchema
-    ))
+    )), Some(jsonNodeFactory.nullNode))
 
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) = {
         def decodeFailure(): CoderResult[Failure] = {
@@ -322,6 +325,11 @@ case class BoxCoder[T](valueCoder: ComposableCoder[T], hideFailures: Option[Bool
         }.orElse(parameter(Nil)).flatten
     }
 
+    def encodeAvroDefaultJson(classLoader: ClassLoader, in: Box[T]) =
+        in match {
+            case Empty => Okay(jsonNodeFactory.nullNode)
+            case _ => FailedG("Avro cannot encode non-Empty Boxes", Nil)
+        }
 
     // MongoDB encoding
 
