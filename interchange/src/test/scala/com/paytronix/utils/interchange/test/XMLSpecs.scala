@@ -39,6 +39,13 @@ class JSONToXMLSpecTest extends SpecificationWithJUnit { def is =
     "nonempty array"              ! { fromJSON(List(1,2,3)) must_== <array><item>1</item><item>2</item><item>3</item></array> } ^
     "empty object"                ! { fromJSON(JObject(Nil)) must_== <empty /> } ^
     "nonempty object"             ! { fromJSON(("foo" -> "bar") ~ ("baz" -> "qux")) must_== (<foo>bar</foo> ++ <baz>qux</baz>) } ^
+    "invalid element name" ! {
+        fromJSON(
+            JField("abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-1234567890./;:'m", JNull)
+        ) must_== (
+            <abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-1234567890.____m><null /></abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-1234567890.____m>
+        )
+    } ^
     "nontrivial object" ! {
         fromJSON (
             ("enforceUniqueFields" -> JArray(Nil)) ~

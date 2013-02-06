@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2013 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,13 +45,16 @@ import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JField, JInt, JNothing,
  * floats, etc are preferred.
  */
 object XML {
+    private val InvalidElemChars      = """[^\w.-]"""
+    private val InvalidElemCharRegex = InvalidElemChars.r
+    private val InvalidElemNameRegex = (".*" + InvalidElemChars + ".*").r
+
     /** Convert JSON to XML */
     def fromJSON(in: JValue): NodeSeq =
         in match {
             case JArray(elements) => <array>{ elements.map(e => <item>{ fromJSON(e) }</item>)(breakOut) }</array>
             case JBool(b)         => Text(b.toString)
             case JDouble(d)       => Text(d.toString)
-            case JField(n, v)     => Elem(null, n, Null, TopScope, fromJSON(v): _*)
             case JInt(i)          => Text(i.toString)
             case JNothing         => NodeSeq.Empty
             case JNull            => <null />
@@ -61,6 +64,8 @@ object XML {
             case JString(s) if Character.isWhitespace(s.charAt(0)) || Character.isWhitespace(s.charAt(s.length-1)) =>
                 PCData(s)
             case JString(s) => Text(s)
+            case JField(n@InvalidElemNameRegex(), v) => Elem(null, InvalidElemCharRegex.replaceAllIn(n, "_"), Null, TopScope, fromJSON(v): _*)
+            case JField(n, v)     => Elem(null, n, Null, TopScope, fromJSON(v): _*)
         }
 
     /** Convert XML to JSON */
