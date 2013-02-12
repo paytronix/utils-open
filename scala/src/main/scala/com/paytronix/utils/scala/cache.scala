@@ -324,7 +324,7 @@ object cache {
         /** Wait until the write queue has entries by continually `park`ing the thread to be woken by `unpark` or when 100ms elapses, then process the write queue */
         private[cache] def waitForAndProcessWrites(): Unit = {
             while (writeQueue.get.isEmpty)
-                unsafe.park(false, 100)
+                unsafe.park(false, 100000000)
             processWrites()
         }
 
