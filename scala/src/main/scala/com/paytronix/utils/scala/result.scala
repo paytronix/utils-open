@@ -337,22 +337,22 @@ object result extends resultLowPriorityImplicits
 
     trait FailedParameterImplicits {
         /** Allow a string to be used with ResultG's `|` operator to wrap a failure with a new explanatory message. For example: `rslt | "explanation"` */
-        implicit def stringAsFailedMessage[E](s: String): FailedG[E] => FailedG[E] =
+        implicit def stringAsFailedMessage[E](s: => String): FailedG[E] => FailedG[E] =
             failed => FailedG(s, failed.throwable, failed.parameter)
 
         /** Allow a FailedParameter to be used with ResultG's `|` operator to attach or replace a parameter. For example `rslt | MyFailedParameter("foo")` */
-        implicit def failedParameterAsParameter[E <: FailedParameter](parameter: E): FailedG[Any] => FailedG[E] =
+        implicit def failedParameterAsParameter[E <: FailedParameter](parameter: => E): FailedG[Any] => FailedG[E] =
             failed => FailedG(failed.throwable, parameter)
 
         /**
          * Allow a pair (usually written with `->`) to be used with ResultG's `|` operator to wrap a failure with a new message and parameter.
          * For example `rslt | ("explanation" -> param)`
          */
-        implicit def pairAsFailed[E](pair: (String, E)): FailedG[Any] => FailedG[E] =
+        implicit def pairAsFailed[E](pair: => (String, E)): FailedG[Any] => FailedG[E] =
             failed => FailedG(pair._1, failed.throwable, pair._2)
 
         /** Allow a ResultG to be used with ResultG's `|` to replace a failure with some alternate. For example `rslt | Okay("default value")` */
-        implicit def resultAsReplacement[E, A](replacement: ResultG[E, A]): FailedG[Any] => ResultG[E, A] =
+        implicit def resultAsReplacement[E, A](replacement: => ResultG[E, A]): FailedG[Any] => ResultG[E, A] =
             _ => replacement
     }
 
