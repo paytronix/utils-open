@@ -24,133 +24,20 @@ import org.apache.avro.Schema
 import org.apache.avro.io.{Encoder, ResolvingDecoder}
 import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 import org.joda.time.{DateTime, Duration, LocalDate, LocalDateTime, LocalTime}
-import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
+import org.joda.time.format.{DateTimeFormat, DateTimeFormatter, ISODateTimeFormat}
 import org.slf4j.LoggerFactory
 
 import com.paytronix.utils.scala.log.resultLoggerOps
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, firstOrLastG, parameter, tryCatch}
 
-/** Abstract superclass of coders that code JavaDate or some subclass using SimpleDateFormat */
-abstract class DateCoder[T <: JavaDate] extends StringSafeCoder[T] {
-    implicit private val logger = LoggerFactory.getLogger(getClass)
-
-    import ComposableCoder.CoderResult
-    protected val additionalFormats: List[String] = Nil
-
-    val defaultFormatString: String
-    lazy val formats: List[String] = defaultFormatString :: additionalFormats
-
-    protected def createFromDate(in: JavaDate): CoderResult[T] = createFromMillisSinceEpoch(in.getTime)
-    protected def createFromMillisSinceEpoch(in: Long): CoderResult[T]
-
-    def decode(classLoader: ClassLoader, in: JValue) =
-        in match {
-            case JString(s)     => decodeString(classLoader, s)
-            case JNothing|JNull => FailedG("required but missing", Nil)
-            case _              => FailedG("not a string", Nil)
-        }
-
-    def encode(classLoader: ClassLoader, in: T) =
-        formatDate(in).map(JString.apply)
-
-    def decodeString(classLoader: ClassLoader, in: String) =
-        for {
-            parsed <- firstOrLastG (
-                FailedG("incorrectly formatted date -- expected format like  " + formatDate(new JavaDate()).getOrElse("SYSTEM ERROR"), Nil),
-                formats
-            )(parseDate(in, _))
-            instance <- createFromDate(parsed)
-        } yield instance
-
-    def encodeString(classLoader: ClassLoader, in: T) =
-        formatDate(in)
-
-    private def parseDate(in: String, fmtStr: String) =
-        tryCatch.value {
-            val dateFormat = new SimpleDateFormat(fmtStr)
-            dateFormat.setLenient(false)
-            dateFormat.parse(in)
-        } | parameter(Nil)
-
-    private def formatDate(in: JavaDate) =
-        tryCatch.value(new SimpleDateFormat(defaultFormatString).format(in)).logError("Failed to format date: " + String.valueOf(in)) | parameter(Nil)
-
-    lazy val avroSchema = (Schema.create(Schema.Type.LONG), None)
-
-    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        createFromMillisSinceEpoch(in.readLong())
-
-    def encodeAvro(classLoader: ClassLoader, in: T, out: Encoder) = {
-        out.writeLong(in.getTime)
-        Okay(())
-    }
-
-    def encodeAvroDefaultJson(classLoader: ClassLoader, in: T) =
-        Okay(jsonNodeFactory.numberNode(in.getTime))
-
-    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
-        in match {
-            case d: JavaDate => createFromDate(d)
-            case s: String   => decodeString(classLoader, s)
-            case null        => FailedG("required but missing", Nil)
-            case _           => FailedG("not a date", Nil)
-        }
-
-    def encodeMongoDB(classLoader: ClassLoader, in: T) =
-        Okay(in)
-}
-
-/** Map a Java Date to a JString */
-object JavaDateCoder extends DateCoder[JavaDate] {
-    val mostSpecificClass = classOf[JavaDate]
-
-    val defaultFormatString = "yyyy-MM-dd HH:mm:ss Z"
-    override val additionalFormats = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z")
-
-    override protected def createFromDate(in: JavaDate) =
-        Okay(in)
-
-    protected def createFromMillisSinceEpoch(in: Long) =
-        Okay(new JavaDate(in))
-
-    override def toString = "JavaDateCoder"
-}
-
-/** Map a Java SQL Date to a JString */
-object JavaSqlDateCoder extends DateCoder[java.sql.Date] {
-    val mostSpecificClass = classOf[java.sql.Date]
-
-    val defaultFormatString = "yyyy-MM-dd"
-    override val additionalFormats = List("E MMM dd yyyy", "E, dd MMM yy")
-
-    protected def createFromMillisSinceEpoch(in: Long) =
-        Okay(new java.sql.Date(in))
-
-    override def toString = "JavaSqlDateCoder"
-}
-
-/** Map a Java SQL Timestamp to a JString */
-object JavaSqlTimestampCoder extends DateCoder[java.sql.Timestamp] {
-    val mostSpecificClass = classOf[java.sql.Timestamp]
-
-    val defaultFormatString = "yyyy-MM-dd hh:mm:ss.SSS"
-    override val additionalFormats = List("yyyy-MM-dd hh:mm:ss")
-
-    protected def createFromMillisSinceEpoch(in: Long) =
-        Okay(new java.sql.Timestamp(in))
-
-    override def toString = "JavaSqlTimestampCoder"
-}
-
 /** Abstract superclass of coders that code ReadableDateTime or some subclass using DateTimeFormatter */
-abstract class JodaDateTimeCoder[T] extends StringSafeCoder[T] {
+abstract class DateTimeCoderBase[T] extends StringSafeCoder[T] {
     import ComposableCoder.{CoderResult, FailedPath}
 
-    protected val additionalFormats: List[String] = Nil
+    protected val additionalFormatters: List[DateTimeFormatter] = Nil
 
-    val defaultFormatString: String
-    lazy val formats: List[String] = defaultFormatString :: additionalFormats
-    lazy val formatters: List[DateTimeFormatter] = formats map DateTimeFormat.forPattern
+    val defaultFormatter: DateTimeFormatter
+    lazy val formatters: List[DateTimeFormatter] = defaultFormatter :: additionalFormatters
 
     protected def fromDateTime(in: DateTime): T
     protected def toDateTime(in: T): DateTime
@@ -204,44 +91,83 @@ abstract class JodaDateTimeCoder[T] extends StringSafeCoder[T] {
         Okay(toDateTime(in).toDate)
 }
 
-object DateTimeCoder extends JodaDateTimeCoder[DateTime] {
+object DateTimeCoder extends DateTimeCoderBase[DateTime] {
     val mostSpecificClass = classOf[DateTime]
 
-    val defaultFormatString = "yyyy-MM-dd HH:mm:ss Z"
-    override val additionalFormats = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z", "yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z")
+    override val additionalFormatters = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
 
     protected def fromDateTime(in: DateTime) = in
     protected def toDateTime(in: DateTime) = in
 }
 
-object LocalDateCoder extends JodaDateTimeCoder[LocalDate] {
+object LocalDateCoder extends DateTimeCoderBase[LocalDate] {
     val mostSpecificClass = classOf[LocalDate]
 
-    val defaultFormatString = "yyyy-MM-dd"
-    override val additionalFormats = List("E MMM dd yyyy", "E, dd MMM yy")
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd")
+    override val additionalFormatters = List("E MMM dd yyyy", "E, dd MMM yy").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
 
     protected def fromDateTime(in: DateTime) = in.toLocalDate
     protected def toDateTime(in: LocalDate) = in.toDateTimeAtStartOfDay
 }
 
-object LocalDateTimeCoder extends JodaDateTimeCoder[LocalDateTime] {
+object LocalDateTimeCoder extends DateTimeCoderBase[LocalDateTime] {
     val mostSpecificClass = classOf[LocalDateTime]
 
-    val defaultFormatString = "yyyy-MM-dd HH:mm:ss"
-    override val additionalFormats = List("E MMM dd HH:mm:ss yyyy", "E, dd MMM yy HH:mm:ss")
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss")
+    override val additionalFormatters = List("E MMM dd HH:mm:ss yyyy", "E, dd MMM yy HH:mm:ss").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
 
     protected def fromDateTime(in: DateTime) = in.toLocalDateTime
     protected def toDateTime(in: LocalDateTime) = in.toDateTime
 }
 
-object LocalTimeCoder extends JodaDateTimeCoder[LocalTime] {
+object LocalTimeCoder extends DateTimeCoderBase[LocalTime] {
     val mostSpecificClass = classOf[LocalTime]
 
-    val defaultFormatString = "yyyy-MM-dd hh:mm:ss.SSS"
-    override val additionalFormats = List("yyyy-MM-dd hh:mm:ss")
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss.SSS")
+    override val additionalFormatters = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss") :: ISODateTimeFormat.localTimeParser :: Nil
 
     protected def fromDateTime(in: DateTime) = in.toLocalTime
     protected def toDateTime(in: LocalTime) = in.toDateTimeToday
+}
+
+/** Map a Java Date to a JString */
+object JavaDateCoder extends DateTimeCoderBase[JavaDate] {
+    val mostSpecificClass = classOf[JavaDate]
+
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z")
+    override val additionalFormatters = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
+
+    protected def fromDateTime(in: DateTime) = in.toDate
+    protected def toDateTime(in: JavaDate) = new DateTime(in)
+
+    override def toString = "JavaDateCoder"
+}
+
+/** Map a Java SQL Date to a JString */
+object JavaSqlDateCoder extends DateTimeCoderBase[java.sql.Date] {
+    val mostSpecificClass = classOf[java.sql.Date]
+
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd")
+    override val additionalFormatters = List("E MMM dd yyyy", "E, dd MMM yy").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
+
+    protected def fromDateTime(in: DateTime) = new java.sql.Date(in.getMillis)
+    protected def toDateTime(in: java.sql.Date) = new DateTime(in)
+
+    override def toString = "JavaSqlDateCoder"
+}
+
+/** Map a Java SQL Timestamp to a JString */
+object JavaSqlTimestampCoder extends DateTimeCoderBase[java.sql.Timestamp] {
+    val mostSpecificClass = classOf[java.sql.Timestamp]
+
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss.SSS")
+    override val additionalFormatters = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss") :: ISODateTimeFormat.dateTime :: Nil
+
+    protected def fromDateTime(in: DateTime) = new java.sql.Timestamp(in.getMillis)
+    protected def toDateTime(in: java.sql.Timestamp) = new DateTime(in)
+
+    override def toString = "JavaSqlTimestampCoder"
 }
 
 object DurationCoder extends StringSafeCoder[Duration] {

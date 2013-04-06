@@ -264,14 +264,72 @@ class StringCoderSpecTest extends SpecificationWithJUnit {
 }
 
 class JavaDateCoderSpecTest extends SpecificationWithJUnit {
+    val testDate = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z").parse("2010-09-01 11:12:13 -0400")
     def is = simpleTest (
         name="JavaDateCoder",
         inst=Coder(cl, JavaDateCoder),
         normalValues=List[(java.util.Date, JString)](
-            (new java.text.SimpleDateFormat(JavaDateCoder.defaultFormatString).parse("2010-09-01 11:12:13 -0400"), JString("2010-09-01 11:12:13 -0400"))
+            (testDate, JString("2010-09-01 11:12:13 -0400"))
         ),
         stringDecodeValues=List[(java.util.Date, String)](
-            (new java.text.SimpleDateFormat(JavaDateCoder.defaultFormatString).parse("2010-09-01 11:12:13 -0400"), "2010-09-01 11:12:13 -0400")
+            (testDate, "2010-09-01 11:12:13 -0400")
+        ),
+        outOfBoundJValues=JNothing :: JNull :: JString("not a valid date!") :: JBool(false) :: Nil
+    ) ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss-zzzz"     ! { JavaDateCoder.decodeString(getClass.getClassLoader, "2010-09-01T11:12:13-0400")     must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ssZ"         ! { JavaDateCoder.decodeString(getClass.getClassLoader, "2010-09-01T15:12:13Z")         must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss+zzzz"     ! { JavaDateCoder.decodeString(getClass.getClassLoader, "2010-09-01T19:12:13+0400")     must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss.sss-zzzz" ! { JavaDateCoder.decodeString(getClass.getClassLoader, "2010-09-01T11:12:13.000-0400") must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss.sssZ"     ! { JavaDateCoder.decodeString(getClass.getClassLoader, "2010-09-01T15:12:13.000Z")     must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss.sss+zzzz" ! { JavaDateCoder.decodeString(getClass.getClassLoader, "2010-09-01T19:12:13.000+0400") must_== Okay(testDate) }
+}
+
+class DateTimeCoderSpecTest extends SpecificationWithJUnit {
+    val testDate = ISODateTimeFormat.dateTime.parseDateTime("2010-09-01T11:12:13-0400")
+    def is = simpleTest (
+        name="DateTimeCoder",
+        inst=Coder(cl, DateTimeCoder),
+        normalValues=List[(java.util.Date, JString)](
+            (testDate, JString("2010-09-01 11:12:13 -0400"))
+        ),
+        stringDecodeValues=List[(java.util.Date, String)](
+            (testDate, "2010-09-01 11:12:13 -0400")
+        ),
+        outOfBoundJValues=JNothing :: JNull :: JString("not a valid date!") :: JBool(false) :: Nil
+    ) ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss-zzzz"     ! { DateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T11:12:13-0400")     must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ssZ"         ! { DateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T15:12:13Z")         must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss+zzzz"     ! { DateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T19:12:13+0400")     must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss.sss-zzzz" ! { DateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T11:12:13.000-0400") must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss.sssZ"     ! { DateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T15:12:13.000Z")     must_== Okay(testDate) } ^
+    "support ISO8601 format yyyy-mm-ddThh:mm:ss.sss+zzzz" ! { DateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T19:12:13.000+0400") must_== Okay(testDate) }
+}
+
+class LocalDateTimeSpecTest extends SpecificationWithJUnit {
+    val testDate = ISODateTimeFormat.dateTime.parseLocalDateTime("2010-09-01T11:12:13")
+    def is = simpleTest (
+        name="LocalDateTime",
+        inst=Coder(cl, LocalDateTime),
+        normalValues=List[(java.util.Date, JString)](
+            (testDate, JString("2010-09-01 11:12:13 -0400"))
+        ),
+        stringDecodeValues=List[(java.util.Date, String)](
+            (testDate, "2010-09-01 11:12:13 -0400")
+        ),
+        outOfBoundJValues=JNothing :: JNull :: JString("not a valid date!") :: JBool(false) :: Nil
+    )
+}
+
+class LocalDateCoderSpecTest extends SpecificationWithJUnit {
+    val testDate = ISODateTimeFormat.localDateParser.parseLocalDate("2010-09-01")
+    def is = simpleTest (
+        name="LocalDateCoder",
+        inst=Coder(cl, LocalDateCoder),
+        normalValues=List[(java.sql.Date, JString)](
+            (testDate, JString("2010-09-01"))
+        ),
+        stringDecodeValues=List[(java.sql.Date, String)](
+            (testDate, "2010-09-01")
         ),
         outOfBoundJValues=JNothing :: JNull :: JString("not a valid date!") :: JBool(false) :: Nil
     )
@@ -282,11 +340,11 @@ class JavaSqlDateCoderSpecTest extends SpecificationWithJUnit {
         name="JavaSqlDateCoder",
         inst=Coder(cl, JavaSqlDateCoder),
         normalValues=List[(java.sql.Date, JString)](
-            (new java.sql.Date(new java.text.SimpleDateFormat(JavaSqlDateCoder.defaultFormatString).parse("2010-09-01").getTime),
+            (new java.sql.Date(new java.text.SimpleDateFormat("yyyy-MM-dd").parse("2010-09-01").getTime),
              JString("2010-09-01"))
         ),
         stringDecodeValues=List[(java.sql.Date, String)](
-            (new java.sql.Date(new java.text.SimpleDateFormat(JavaSqlDateCoder.defaultFormatString).parse("2010-09-01").getTime),
+            (new java.sql.Date(new java.text.SimpleDateFormat("yyyy-MM-dd").parse("2010-09-01").getTime),
              "2010-09-01")
         ),
         outOfBoundJValues=JNothing :: JNull :: JString("not a valid date!") :: JBool(false) :: Nil
