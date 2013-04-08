@@ -41,6 +41,9 @@ abstract class DateTimeCoderBase[T] extends StringSafeCoder[T] {
 
     protected def fromDateTime(in: DateTime): T
     protected def toDateTime(in: T): DateTime
+    protected def parseDate(in: String, formatter: DateTimeFormatter): CoderResult[T]
+    protected def formatDate(in: T): CoderResult[String] =
+        tryCatch.valueG(parameter(Nil))(formatters.head.print(toDateTime(in)))
 
     def decode(classLoader: ClassLoader, in: JValue) =
         in match {
@@ -50,22 +53,16 @@ abstract class DateTimeCoderBase[T] extends StringSafeCoder[T] {
         }
 
     def encode(classLoader: ClassLoader, in: T) =
-        formatDate(toDateTime(in)).map(JString.apply)
+        formatDate(in).map(JString.apply)
 
     def decodeString(classLoader: ClassLoader, in: String) =
         firstOrLastG (
-            FailedG("incorrectly formatted date -- expected format like  " + formatDate(new DateTime()), Nil: FailedPath),
+            FailedG("incorrectly formatted date -- expected format like  " + formatDate(fromDateTime(new DateTime())), Nil: FailedPath),
             formatters
-        )(parseDate(in, _)) map fromDateTime
+        )(parseDate(in, _))
 
     def encodeString(classLoader: ClassLoader, in: T) =
-        formatDate(toDateTime(in))
-
-    private def parseDate(in: String, formatter: DateTimeFormatter): CoderResult[DateTime] =
-        tryCatch.valueG(parameter(Nil))(formatter.parseDateTime(in))
-
-    private def formatDate(in: DateTime): CoderResult[String] =
-        tryCatch.valueG(parameter(Nil))(formatters.head.print(in))
+        formatDate(in)
 
     lazy val avroSchema = (Schema.create(Schema.Type.LONG), None)
 
@@ -97,6 +94,8 @@ object DateTimeCoder extends DateTimeCoderBase[DateTime] {
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z")
     override val additionalFormatters = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
 
+    protected def parseDate(in: String, formatter: DateTimeFormatter) =
+        tryCatch.valueG(parameter(Nil))(formatter.parseDateTime(in))
     protected def fromDateTime(in: DateTime) = in
     protected def toDateTime(in: DateTime) = in
 }
@@ -107,6 +106,8 @@ object LocalDateCoder extends DateTimeCoderBase[LocalDate] {
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd")
     override val additionalFormatters = List("E MMM dd yyyy", "E, dd MMM yy").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
 
+    protected def parseDate(in: String, formatter: DateTimeFormatter) =
+        tryCatch.valueG(parameter(Nil))(formatter.parseLocalDate(in))
     protected def fromDateTime(in: DateTime) = in.toLocalDate
     protected def toDateTime(in: LocalDate) = in.toDateTimeAtStartOfDay
 }
@@ -115,8 +116,10 @@ object LocalDateTimeCoder extends DateTimeCoderBase[LocalDateTime] {
     val mostSpecificClass = classOf[LocalDateTime]
 
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss")
-    override val additionalFormatters = List("E MMM dd HH:mm:ss yyyy", "E, dd MMM yy HH:mm:ss").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
+    override val additionalFormatters = List("E MMM dd HH:mm:ss yyyy", "E, dd MMM yy HH:mm:ss").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateOptionalTimeParser // FIXME not the best choice
 
+    protected def parseDate(in: String, formatter: DateTimeFormatter) =
+        tryCatch.valueG(parameter(Nil))(formatter.parseLocalDateTime(in))
     protected def fromDateTime(in: DateTime) = in.toLocalDateTime
     protected def toDateTime(in: LocalDateTime) = in.toDateTime
 }
@@ -124,9 +127,11 @@ object LocalDateTimeCoder extends DateTimeCoderBase[LocalDateTime] {
 object LocalTimeCoder extends DateTimeCoderBase[LocalTime] {
     val mostSpecificClass = classOf[LocalTime]
 
-    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss.SSS")
-    override val additionalFormatters = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss") :: ISODateTimeFormat.localTimeParser :: Nil
+    val defaultFormatter = DateTimeFormat.forPattern("HH:mm:ss.SSS")
+    override val additionalFormatters = DateTimeFormat.forPattern("HH:mm:ss") :: ISODateTimeFormat.localTimeParser :: Nil
 
+    protected def parseDate(in: String, formatter: DateTimeFormatter) =
+        tryCatch.valueG(parameter(Nil))(formatter.parseLocalTime(in))
     protected def fromDateTime(in: DateTime) = in.toLocalTime
     protected def toDateTime(in: LocalTime) = in.toDateTimeToday
 }
@@ -138,6 +143,8 @@ object JavaDateCoder extends DateTimeCoderBase[JavaDate] {
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z")
     override val additionalFormatters = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
 
+    protected def parseDate(in: String, formatter: DateTimeFormatter) =
+        tryCatch.valueG(parameter(Nil))(formatter.parseDateTime(in).toDate)
     protected def fromDateTime(in: DateTime) = in.toDate
     protected def toDateTime(in: JavaDate) = new DateTime(in)
 
@@ -151,6 +158,8 @@ object JavaSqlDateCoder extends DateTimeCoderBase[java.sql.Date] {
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd")
     override val additionalFormatters = List("E MMM dd yyyy", "E, dd MMM yy").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
 
+    protected def parseDate(in: String, formatter: DateTimeFormatter) =
+        tryCatch.valueG(parameter(Nil))(new java.sql.Date(formatter.parseLocalDate(in).toDateTimeAtStartOfDay.getMillis))
     protected def fromDateTime(in: DateTime) = new java.sql.Date(in.getMillis)
     protected def toDateTime(in: java.sql.Date) = new DateTime(in)
 
@@ -161,9 +170,11 @@ object JavaSqlDateCoder extends DateTimeCoderBase[java.sql.Date] {
 object JavaSqlTimestampCoder extends DateTimeCoderBase[java.sql.Timestamp] {
     val mostSpecificClass = classOf[java.sql.Timestamp]
 
-    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss.SSS")
-    override val additionalFormatters = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss") :: ISODateTimeFormat.dateTime :: Nil
+    val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS")
+    override val additionalFormatters = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss") :: ISODateTimeFormat.localDateOptionalTimeParser :: Nil // FIXME not the best choice
 
+    protected def parseDate(in: String, formatter: DateTimeFormatter) =
+        tryCatch.valueG(parameter(Nil))(new java.sql.Timestamp(formatter.parseLocalDateTime(in).toDateTime.getMillis))
     protected def fromDateTime(in: DateTime) = new java.sql.Timestamp(in.getMillis)
     protected def toDateTime(in: java.sql.Timestamp) = new DateTime(in)
 
