@@ -8,7 +8,7 @@
     <groupId>paytronix.utils.internal</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>13.1-iso8601-SNAPSHOT</version>
 
     <name>Paytronix Internal Utils - Parent</name>
 
@@ -38,7 +38,6 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <paytronix.utils.version>1.0.0-SNAPSHOT</paytronix.utils.version>
         <scala.version>2.9.2</scala.version>
         <scala.compatibility.version>2.9.2</scala.compatibility.version>
         <lift.scala.compatibility.version>2.9.1</lift.scala.compatibility.version>
@@ -119,27 +118,27 @@
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>extendedreflection</artifactId>
-                <version>${paytronix.utils.version}</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>interchange</artifactId>
-                <version>${paytronix.utils.version}</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>lift</artifactId>
-                <version>${paytronix.utils.version}</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>scala</artifactId>
-                <version>${paytronix.utils.version}</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>validation</artifactId>
-                <version>${paytronix.utils.version}</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>paytronix.utils.internal</groupId>
