@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>13.1-iso8601-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>scala</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>13.1-iso8601-SNAPSHOT</version>
 
     <name>Paytronix Utils - Miscellaneous Scala</name>
     <description>Library with various Scala utilities and types.</description>

@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>13.1-iso8601-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>extendedreflection</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>13.1-iso8601-SNAPSHOT</version>
 
     <name>Paytronix Utils - Extended Reflection</name>
     <description>Library which melds Java reflection and Scala compiler signature inspection to generate a richer reflection model than just Java reflection can provide</description>
