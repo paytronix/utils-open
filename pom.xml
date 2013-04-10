@@ -118,27 +118,27 @@
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>extendedreflection</artifactId>
-                <version>13.1-iso8601-SNAPSHOT</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>interchange</artifactId>
-                <version>13.1-iso8601-SNAPSHOT</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>lift</artifactId>
-                <version>13.1-iso8601-SNAPSHOT</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>scala</artifactId>
-                <version>13.1-iso8601-SNAPSHOT</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>validation</artifactId>
-                <version>13.1-iso8601-SNAPSHOT</version>
+                <version>13.1.20130410</version>
             </dependency>
             <dependency>
                 <groupId>paytronix.utils.internal</groupId>
