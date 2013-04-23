@@ -224,7 +224,7 @@ class AvroUnionDefaultingSpecTest extends SpecificationWithJUnit { def is =
 
 class AvroWrapperDefaultingSpecTest extends SpecificationWithJUnit { def is =
     "Avro defaulting of wrappers" ^
-    "Mapped"               ! { testDefaulting(new MappedCoder[CaseClass, Int](i => Okay(CaseClass(i, null, None)), cc => Okay(cc.foo), IntCoder), CaseClass(1234, null, None)) } ^
+    "Mapped"               ! { testDefaulting(IntCoder.transform(i => Okay(CaseClass(i, null, None)))(cc => Okay(cc.foo)), CaseClass(1234, null, None)) } ^
     "null"                 ! { testDefaulting(NullCoder(StringCoder), null) } ^
     "\"foo\" (not usable)" ! { testDefaultingNotUsable(NullCoder(StringCoder), "foo") } ^
     "None"                 ! { testDefaulting(OptionCoder(StringCoder), None) } ^
