@@ -24,50 +24,51 @@ import org.apache.avro.Schema
 import org.apache.avro.io.{Encoder, ResolvingDecoder}
 import org.codehaus.jackson.JsonNode
 import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
+import scalaz.BijectionT
 
 import com.paytronix.utils.scala.result.{Okay, Failed, FailedG, Result, parameter}
 
-/** Coder that uses a lens to extract/inject the value the be coded from some other thing */
-class MappedCoder[T, U](val injector: U => Result[T], val extractor: T => Result[U], val underlying: ComposableCoder[U])(implicit m: Manifest[T]) extends ComposableCoder[T] {
+/** `Coder` that composes a bijection with some coder */
+case class CoderBijection[T, U](bijection: BijectionT[Result, Result, T, U], underlying: ComposableCoder[U])(implicit m: Manifest[T]) extends ComposableCoder[T] {
     import ComposableCoder.CoderResult
 
     val mostSpecificClass = m.erasure.asInstanceOf[Class[T]]
 
-    protected def inject(u: U): CoderResult[T] = injector(u) | parameter(Nil)
-    protected def extract(t: T): CoderResult[U] = extractor(t) | parameter(Nil)
+    protected def fromUnderlying(u: U): CoderResult[T] = bijection.from(u) | parameter(Nil)
+    protected def toUnderlying(t: T): CoderResult[U] = bijection.to(t) | parameter(Nil)
 
     def decode(classLoader: ClassLoader, in: JValue): CoderResult[T] =
-        underlying.decode(classLoader, in) flatMap inject
+        underlying.decode(classLoader, in) flatMap fromUnderlying
     def encode(classLoader: ClassLoader, in: T): CoderResult[JValue] =
-        extract(in) flatMap { underlying.encode(classLoader, _) }
+        toUnderlying(in) flatMap { underlying.encode(classLoader, _) }
 
     def avroSchema = underlying.avroSchema
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder): CoderResult[T] =
-        underlying.decodeAvro(classLoader, in) flatMap inject
+        underlying.decodeAvro(classLoader, in) flatMap fromUnderlying
     def encodeAvro(classLoader: ClassLoader, in: T, out: Encoder): CoderResult[Unit] =
-        extract(in) flatMap { underlying.encodeAvro(classLoader, _, out) }
+        toUnderlying(in) flatMap { underlying.encodeAvro(classLoader, _, out) }
     def encodeAvroDefaultJson(classLoader: ClassLoader, in: T): CoderResult[JsonNode] =
-        extract(in) flatMap { underlying.encodeAvroDefaultJson(classLoader, _) }
+        toUnderlying(in) flatMap { underlying.encodeAvroDefaultJson(classLoader, _) }
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef): CoderResult[T] =
-        underlying.decodeMongoDB(classLoader, in) flatMap inject
+        underlying.decodeMongoDB(classLoader, in) flatMap fromUnderlying
     def encodeMongoDB(classLoader: ClassLoader, in: T): CoderResult[AnyRef] =
-        extract(in) flatMap { underlying.encodeMongoDB(classLoader, _) }
+        toUnderlying(in) flatMap { underlying.encodeMongoDB(classLoader, _) }
 }
 
-/** Coder that uses a lens to extract/inject the value the be coded from some other thing */
-class StringSafeMappedCoder[T, U](injector: U => Result[T], extractor: T => Result[U], underlying: StringSafeCoder[U])(implicit m: Manifest[T]) extends MappedCoder[T, U](injector, extractor, underlying)(m) with StringSafeCoder[T] {
+/** `StringSafeCoder` that composes a bijection with some `StringSafeCoder` */
+class StringSafeCoderBijection[T, U](bijection: BijectionT[Result, Result, T, U], underlying: StringSafeCoder[U])(implicit m: Manifest[T])
+extends CoderBijection[T, U](bijection, underlying)(m) with StringSafeCoder[T] {
     import ComposableCoder.CoderResult
 
     def decodeString(classLoader: ClassLoader, in: String): CoderResult[T] =
-        underlying.decodeString(classLoader, in) flatMap inject
+        underlying.decodeString(classLoader, in) flatMap fromUnderlying
     def encodeString(classLoader: ClassLoader, in: T): CoderResult[String] =
-        extract(in) flatMap { underlying.encodeString(classLoader, _) }
+        toUnderlying(in) flatMap { underlying.encodeString(classLoader, _) }
 }
 
 /** Insecure coder which always decodes a default value and encodes to nothing in an insecure context, and operates normally in a secure one */
-case class InsecureCoder[T](coder: ComposableCoder[T], substitute: Result[T]) extends ComposableCoder[T]
-{
+case class InsecureCoder[T](coder: ComposableCoder[T], substitute: Result[T]) extends ComposableCoder[T] {
     import ComposableCoder.atTerminal
 
     val mostSpecificClass = coder.mostSpecificClass
@@ -98,8 +99,7 @@ case class InsecureCoder[T](coder: ComposableCoder[T], substitute: Result[T]) ex
 }
 
 /** Coder which substitutes some default values for nulls/missing */
-case class DefaultingCoder[T](coder: ComposableCoder[T], default: T) extends ComposableCoder[T]
-{
+case class DefaultingCoder[T](coder: ComposableCoder[T], default: T) extends ComposableCoder[T] {
     val mostSpecificClass = coder.mostSpecificClass
 
     def decode(classLoader: ClassLoader, in: JValue) =
@@ -138,8 +138,7 @@ case class DefaultingCoder[T](coder: ComposableCoder[T], default: T) extends Com
  * Coder that allows for null -- if JNothing or JNull is decoded null is decoded, otherwise the nested coder is delegated to.
  * Ideally, the type argument would be <: AnyRef, but that requires too many forced downcasts everywhere.
  */
-case class NullCoder[T](valueCoder: ComposableCoder[T]) extends ComposableCoder[T]
-{
+case class NullCoder[T](valueCoder: ComposableCoder[T]) extends ComposableCoder[T] {
     import ComposableCoder.catchingCoderException
 
     val mostSpecificClass = valueCoder.mostSpecificClass
@@ -200,8 +199,7 @@ case class NullCoder[T](valueCoder: ComposableCoder[T]) extends ComposableCoder[
 }
 
 /** Coder for Option[T] */
-case class OptionCoder[T](valueCoder: ComposableCoder[T]) extends OptionLikeCoder[Option[T]]
-{
+case class OptionCoder[T](valueCoder: ComposableCoder[T]) extends OptionLikeCoder[Option[T]] {
     import ComposableCoder.catchingCoderException
 
     val mostSpecificClass = classOf[Option[T]]
