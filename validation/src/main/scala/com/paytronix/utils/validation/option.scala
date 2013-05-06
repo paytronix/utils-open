@@ -51,5 +51,11 @@ object option {
         case Some(v) => Left(error :: Nil)
         case None => Right(())
     }
+
+    /** Either unwrap the `Option` or substitute some default value. The `ValidationFunction` equivalent of `getOrElse` */
+    def defaultsTo[A](substitute: A): ValidationFunction[Option[A], A] = _ match {
+        case Some(v) => Right(v)
+        case None    => Right(substitute)
+    }
 }
 
