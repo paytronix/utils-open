@@ -19,7 +19,7 @@ package com.paytronix.utils.interchange
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 
-import net.liftweb.json.JsonAST.{JBool, JDouble, JInt, JNothing, JNull, JString, JValue, render}
+import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JInt, JNothing, JNull, JString, JValue, render}
 import net.liftweb.json.JsonParser.parse
 import net.liftweb.json.Printer.compact
 import org.apache.avro.Schema
@@ -37,32 +37,44 @@ object JValueCoder extends ComposableCoder[JValue] {
     def decode(classLoader: ClassLoader, in: JValue) = Okay(in)
     def encode(classLoader: ClassLoader, in: JValue) = Okay(in)
 
+    def decodeString(classLoader: ClassLoader, in: String) =
+        catchingCoderException(Okay(parse("[" + in + "]"))).flatMap {
+            case JArray(List(v)) => Okay(v)
+            case other => FailedG("expected an array with one element, not " + other, Nil)
+        }
+
+    def encodeString(classLoader: ClassLoader, in: JValue) =
+        catchingCoderException(Okay(compact(render(in))))
+
     lazy val avroSchema = (Schema.create(Schema.Type.STRING), None)
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
-        catchingCoderException(Okay(parse(in.readString(null).toString)))
+        catchingCoderException(Okay(in.readString(null).toString)).flatMap(decodeString(classLoader, _))
     def encodeAvro(classLoader: ClassLoader, in: JValue, out: Encoder) =
-        catchingCoderException(Okay(out.writeString(compact(render(in)))))
+        encodeString(classLoader, in).flatMap(s => catchingCoderException(Okay(out.writeString(s))))
     def encodeAvroDefaultJson(classLoader: ClassLoader, in: JValue) =
-        catchingCoderException(Okay(jsonNodeFactory.textNode(compact(render(in)))))
+        encodeString(classLoader, in).flatMap(s => catchingCoderException(Okay(jsonNodeFactory.textNode(s))))
 
     def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
         if (in == null) Okay(JNothing)
-        else catchingCoderException(Okay(parse(in.toString)))
+        else decodeString(classLoader, in.toString)
 
     def encodeMongoDB(classLoader: ClassLoader, in: JValue) =
-        catchingCoderException(Okay(compact(render(in))))
+        encodeString(classLoader, in)
 
     override def toString = "JValueCoder"
 }
 
 /** Unit coder, which codes the Unit */
-object UnitCoder extends ComposableCoder[Unit] {
+object UnitCoder extends StringSafeCoder[Unit] {
     import ComposableCoder.catchingCoderException
 
     val mostSpecificClass = classOf[Unit]
 
     def decode(classLoader: ClassLoader, in: JValue) = Okay(())
     def encode(classLoader: ClassLoader, in: Unit) = Okay(JNothing)
+
+    def decodeString(classLoader: ClassLoader, in: String) = Okay(())
+    def encodeString(classLoader: ClassLoader, in: Unit) = Okay("")
 
     lazy val avroSchema = (Schema.create(Schema.Type.NULL), Some(jsonNodeFactory.nullNode))
     def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) = catchingCoderException(Okay(in.readNull()))
