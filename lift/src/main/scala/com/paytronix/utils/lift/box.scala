@@ -45,8 +45,7 @@ object box
     def failureToException[A](box: Box[A]): Exception =
         box match {
             case Full(_) => throw new IllegalArgumentException("failureToException called on a Full -- should only ever be called on Failure or Empty")
-            case Empty => new RuntimeException("Unknown cause")
-
+            case Empty                                        => new RuntimeException("Unknown cause")
             case Failure(msg, Full(throwable), Full(failure)) => new FailureBoxException(msg, throwable, failure)
             case Failure(msg, _,               Full(failure)) => new RuntimeException(msg, failureToException(failure))
             case Failure(msg, Full(throwable), _)             => new RuntimeException(msg, throwable)
