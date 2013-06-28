@@ -21,13 +21,13 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>13.3-SNAPSHOT</version>
+        <version>13.3-pxscrocodile-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>com.paytronix.utils</groupId>
     <artifactId>validation</artifactId>
-    <version>13.3-SNAPSHOT</version>
+    <version>13.3-pxscrocodile-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Paytronix Utils - Validation</name>
