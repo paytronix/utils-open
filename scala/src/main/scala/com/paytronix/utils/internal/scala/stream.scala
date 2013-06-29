@@ -84,4 +84,11 @@ object stream
             }
         iterate(vs)
     }
+
+    implicit def streamGroupBy[A](s: Stream[A]): StreamOps[A] = StreamOps(s)
+
+    final case class StreamOps[A](s: Stream[A]) {
+        def streamGroupBy[B](f: A => B): Stream[(B, Seq[A])] =
+            com.paytronix.utils.internal.scala.stream.streamGroupBy(f)(s)
+    }
 }
