@@ -52,8 +52,8 @@ abstract class DateTimeCoderBase[T] extends StringSafeCoder[T] {
             case _              => FailedG("not a string", Nil)
         }
 
-    def encode(classLoader: ClassLoader, in: T) =
-        formatDate(in).map(JString.apply)
+    def encode(classLoader: ClassLoader, in: T): CoderResult[JValue] =
+        encodeString(classLoader, in).map(JString.apply)
 
     def decodeString(classLoader: ClassLoader, in: String) =
         firstOrLastG (
