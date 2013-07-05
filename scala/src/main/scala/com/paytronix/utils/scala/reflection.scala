@@ -72,10 +72,11 @@ object reflection {
      */
     def instantiateOrFindObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] =
         instantiate(loader, name) orElse (_ match {
-            case Failed(_: ClassNotFoundException) => findObjectInstance(loader, name + "$")
+            // If there's an object with this name, we'll get an InstantiationException, not a ClassNotFoundException
+            case Failed(_: InstantiationException) => findObjectInstance(loader, name + "$")
             case f@Failed(_)                       => f
         })
-3
+
     /**
      * Reduce a type towards a concrete Class.
      *
