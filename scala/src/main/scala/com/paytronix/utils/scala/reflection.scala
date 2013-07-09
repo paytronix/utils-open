@@ -62,8 +62,8 @@ object reflection {
      */
     def findObjectInstanceOrInstantiate(loader: ClassLoader, name: String): Result[AnyRef] =
         findObjectInstance(loader, name + "$") orElse (_ match {
-            case Failed(_: ClassNotFoundException) => instantiate(loader, name)
-            case f@Failed(_)                       => f
+            case Failed(_: ClassNotFoundException|_: InstantiationException) => instantiate(loader, name)
+            case f@Failed(_)                                                 => f
         })
 
     /**
@@ -73,8 +73,8 @@ object reflection {
     def instantiateOrFindObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] =
         instantiate(loader, name) orElse (_ match {
             // If there's an object with this name, we'll get an InstantiationException, not a ClassNotFoundException
-            case Failed(_: InstantiationException) => findObjectInstance(loader, name + "$")
-            case f@Failed(_)                       => f
+            case Failed(_: ClassNotFoundException|_: InstantiationException) => findObjectInstance(loader, name + "$")
+            case f@Failed(_)                                                 => f
         })
 
     /**
