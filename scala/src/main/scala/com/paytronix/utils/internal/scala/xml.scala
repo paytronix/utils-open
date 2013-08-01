@@ -213,4 +213,17 @@ object xml {
 
     /** Convert a NodeSeq into a string suitable for text by composing {@link TextTransformer} with {@link stripXML} */
     def xhtmlToText(ns: NodeSeq): String = stripXML(TextTransformer(<wrapper>{ ns }</wrapper>))
+
+    /** Strip out any text nodes which contain nothing but whitespace. Good for compacting XML, but be careful you don't accidentally lose data as a result! */
+    def stripEmptyTextNodes(parent: Node): Node = {
+        def removeEmpty(node: Node): Seq[Node] = node match {
+            case Elem(pre,lab,md,scp,child@_*) => Elem(pre,lab,md,scp, (child flatMap removeEmpty):_*)
+            case Text(s) if (s.trim == "")     => Seq.empty[Node]
+            case _                             => node
+        }
+        parent match {
+          case Elem(pre, lab, md, scp, child@_*) => Elem(pre, lab, md, scp, (child flatMap removeEmpty):_*)
+          case _                                 => parent
+        }
+    }
 }
