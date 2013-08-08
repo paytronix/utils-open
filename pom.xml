@@ -20,7 +20,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>13.3-pxscrocodile-SNAPSHOT</version>
+    <version>13.4-angus-SNAPSHOT</version>
 
     <name>Paytronix Utils - Parent</name>
     <inceptionYear>2009</inceptionYear>
@@ -192,7 +192,7 @@
             <dependency>
                 <groupId>org.scalaz</groupId>
                 <artifactId>scalaz-core_${scala.compatibility.version}</artifactId>
-                <version>7.0.0-M5</version>
+                <version>7.0.2</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
