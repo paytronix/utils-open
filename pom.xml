@@ -8,7 +8,7 @@
     <groupId>paytronix.utils.internal</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>13.3-pxscrocodile-SNAPSHOT</version>
+    <version>13.4-angus-SNAPSHOT</version>
 
     <name>Paytronix Internal Utils - Parent</name>
 
@@ -118,27 +118,27 @@
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>extendedreflection</artifactId>
-                <version>13.3-pxscrocodile-SNAPSHOT</version>
+                <version>13.4-angus-SNAPSHOT</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>interchange</artifactId>
-                <version>13.3-pxscrocodile-SNAPSHOT</version>
+                <version>13.4-angus-SNAPSHOT</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>lift</artifactId>
-                <version>13.3-pxscrocodile-SNAPSHOT</version>
+                <version>13.4-angus-SNAPSHOT</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>scala</artifactId>
-                <version>13.3-pxscrocodile-SNAPSHOT</version>
+                <version>13.4-angus-SNAPSHOT</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>validation</artifactId>
-                <version>13.3-pxscrocodile-SNAPSHOT</version>
+                <version>13.4-angus-SNAPSHOT</version>
             </dependency>
             <dependency>
                 <groupId>paytronix.utils.internal</groupId>
