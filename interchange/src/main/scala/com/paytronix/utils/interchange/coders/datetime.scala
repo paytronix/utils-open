@@ -91,8 +91,22 @@ abstract class DateTimeCoderBase[T] extends StringSafeCoder[T] {
 object DateTimeCoder extends DateTimeCoderBase[DateTime] {
     val mostSpecificClass = classOf[DateTime]
 
+    // Formatter used for encoding
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z")
-    override val additionalFormatters = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
+
+    override val additionalFormatters = {
+        // Strings representing some additional time formats allowed for decoding
+        val additionalFormatStrings = List(
+            "yyyy-MM-dd HH:mm:ss z",
+            "E MMM dd HH:mm:ss Z yyyy",
+            "E MMM dd HH:mm:ss z yyyy",
+            "E, dd MMM yy HH:mm:ss Z",
+            "E, dd MMM yy HH:mm:ss z"
+        )
+
+        // Everything above, plus ISO8601 is allowed (with or without milliseconds)
+        additionalFormatStrings.map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
+    }
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
         tryCatch.valueG(parameter(Nil))(formatter.parseDateTime(in))
@@ -103,8 +117,19 @@ object DateTimeCoder extends DateTimeCoderBase[DateTime] {
 object LocalDateCoder extends DateTimeCoderBase[LocalDate] {
     val mostSpecificClass = classOf[LocalDate]
 
+    // Formatter used for encoding
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd")
-    override val additionalFormatters = List("E MMM dd yyyy", "E, dd MMM yy").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
+
+    override val additionalFormatters = {
+        // Strings representing some additional time formats allowed for decoding
+        val additionalFormatStrings = List(
+            "E MMM dd yyyy",
+            "E, dd MMM yy"
+        )
+
+        // Everything above, plus http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#localDateParser()
+        additionalFormatStrings.map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
+    }
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
         tryCatch.valueG(parameter(Nil))(formatter.parseLocalDate(in))
@@ -115,8 +140,16 @@ object LocalDateCoder extends DateTimeCoderBase[LocalDate] {
 object LocalDateTimeCoder extends DateTimeCoderBase[LocalDateTime] {
     val mostSpecificClass = classOf[LocalDateTime]
 
+    // Formatter used for encoding
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss")
-    override val additionalFormatters = List("E MMM dd HH:mm:ss yyyy", "E, dd MMM yy HH:mm:ss").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateOptionalTimeParser // FIXME not the best choice
+
+    override val additionalFormatters = {
+        // Strings representing some additional time formats allowed for decoding
+        val additionalFormatStrings = List("E MMM dd HH:mm:ss yyyy", "E, dd MMM yy HH:mm:ss")
+
+        // Everything above, plus http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#localDateOptionalTimeParser()
+        additionalFormatStrings.map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateOptionalTimeParser // FIXME not the best choice
+    }
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
         tryCatch.valueG(parameter(Nil))(formatter.parseLocalDateTime(in))
@@ -127,7 +160,10 @@ object LocalDateTimeCoder extends DateTimeCoderBase[LocalDateTime] {
 object LocalTimeCoder extends DateTimeCoderBase[LocalTime] {
     val mostSpecificClass = classOf[LocalTime]
 
+    // Formatter used for encoding
     val defaultFormatter = DateTimeFormat.forPattern("HH:mm:ss.SSS")
+
+    // Additional formatters allowed for decoding
     override val additionalFormatters = DateTimeFormat.forPattern("HH:mm:ss") :: ISODateTimeFormat.localTimeParser :: Nil
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
@@ -140,8 +176,22 @@ object LocalTimeCoder extends DateTimeCoderBase[LocalTime] {
 object JavaDateCoder extends DateTimeCoderBase[JavaDate] {
     val mostSpecificClass = classOf[JavaDate]
 
+    // Formatter used for encoding
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z")
-    override val additionalFormatters = List("E MMM dd HH:mm:ss Z yyyy", "E, dd MMM yy HH:mm:ss Z").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
+
+    override val additionalFormatters = {
+        // Strings representing some additional time formats allowed for decoding
+        val additionalFormatStrings = List(
+            "yyyy-MM-dd HH:mm:ss z",
+            "E MMM dd HH:mm:ss Z yyyy",
+            "E MMM dd HH:mm:ss z yyyy",
+            "E, dd MMM yy HH:mm:ss Z",
+            "E, dd MMM yy HH:mm:ss z"
+        )
+
+        // Everything above, plus ISO8601 is allowed (with or without milliseconds)
+        additionalFormatStrings.map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.dateTime :+ ISODateTimeFormat.dateTimeNoMillis
+    }
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
         tryCatch.valueG(parameter(Nil))(formatter.parseDateTime(in).toDate)
@@ -155,8 +205,19 @@ object JavaDateCoder extends DateTimeCoderBase[JavaDate] {
 object JavaSqlDateCoder extends DateTimeCoderBase[java.sql.Date] {
     val mostSpecificClass = classOf[java.sql.Date]
 
+    // Formatter used for encoding
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd")
-    override val additionalFormatters = List("E MMM dd yyyy", "E, dd MMM yy").map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
+
+    override val additionalFormatters = {
+        // Strings representing some additional time formats allowed for decoding
+        val additionalFormatStrings = List(
+            "E MMM dd yyyy",
+            "E, dd MMM yy"
+        )
+
+        // Everything above, plus http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#localDateParser()
+        additionalFormatStrings.map(DateTimeFormat.forPattern) :+ ISODateTimeFormat.localDateParser
+    }
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
         tryCatch.valueG(parameter(Nil))(new java.sql.Date(formatter.parseLocalDate(in).toDateTimeAtStartOfDay.getMillis))
@@ -170,7 +231,10 @@ object JavaSqlDateCoder extends DateTimeCoderBase[java.sql.Date] {
 object JavaSqlTimestampCoder extends DateTimeCoderBase[java.sql.Timestamp] {
     val mostSpecificClass = classOf[java.sql.Timestamp]
 
+    // Formatter used for encoding
     val defaultFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS")
+
+    // Additional formatters allowed for decoding
     override val additionalFormatters = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss") :: ISODateTimeFormat.localDateOptionalTimeParser :: Nil // FIXME not the best choice
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
