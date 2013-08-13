@@ -97,11 +97,8 @@ object DateTimeCoder extends DateTimeCoderBase[DateTime] {
     override val additionalFormatters = {
         // Strings representing some additional time formats allowed for decoding
         val additionalFormatStrings = List(
-            "yyyy-MM-dd HH:mm:ss z",
             "E MMM dd HH:mm:ss Z yyyy",
-            "E MMM dd HH:mm:ss z yyyy",
-            "E, dd MMM yy HH:mm:ss Z",
-            "E, dd MMM yy HH:mm:ss z"
+            "E, dd MMM yy HH:mm:ss Z"
         )
 
         // Everything above, plus ISO8601 is allowed (with or without milliseconds)
@@ -112,6 +109,8 @@ object DateTimeCoder extends DateTimeCoderBase[DateTime] {
         tryCatch.valueG(parameter(Nil))(formatter.parseDateTime(in))
     protected def fromDateTime(in: DateTime) = in
     protected def toDateTime(in: DateTime) = in
+
+    override def toString = "DateTimeCoder"
 }
 
 object LocalDateCoder extends DateTimeCoderBase[LocalDate] {
@@ -135,6 +134,8 @@ object LocalDateCoder extends DateTimeCoderBase[LocalDate] {
         tryCatch.valueG(parameter(Nil))(formatter.parseLocalDate(in))
     protected def fromDateTime(in: DateTime) = in.toLocalDate
     protected def toDateTime(in: LocalDate) = in.toDateTimeAtStartOfDay
+
+    override def toString = "LocalDateCoder"
 }
 
 object LocalDateTimeCoder extends DateTimeCoderBase[LocalDateTime] {
@@ -155,6 +156,8 @@ object LocalDateTimeCoder extends DateTimeCoderBase[LocalDateTime] {
         tryCatch.valueG(parameter(Nil))(formatter.parseLocalDateTime(in))
     protected def fromDateTime(in: DateTime) = in.toLocalDateTime
     protected def toDateTime(in: LocalDateTime) = in.toDateTime
+
+    override def toString = "LocalDateTimeCoder"
 }
 
 object LocalTimeCoder extends DateTimeCoderBase[LocalTime] {
@@ -170,6 +173,8 @@ object LocalTimeCoder extends DateTimeCoderBase[LocalTime] {
         tryCatch.valueG(parameter(Nil))(formatter.parseLocalTime(in))
     protected def fromDateTime(in: DateTime) = in.toLocalTime
     protected def toDateTime(in: LocalTime) = in.toDateTimeToday
+
+    override def toString = "LocalTimeCoder"
 }
 
 /** Map a Java Date to a JString */
@@ -182,11 +187,8 @@ object JavaDateCoder extends DateTimeCoderBase[JavaDate] {
     override val additionalFormatters = {
         // Strings representing some additional time formats allowed for decoding
         val additionalFormatStrings = List(
-            "yyyy-MM-dd HH:mm:ss z",
             "E MMM dd HH:mm:ss Z yyyy",
-            "E MMM dd HH:mm:ss z yyyy",
-            "E, dd MMM yy HH:mm:ss Z",
-            "E, dd MMM yy HH:mm:ss z"
+            "E, dd MMM yy HH:mm:ss Z"
         )
 
         // Everything above, plus ISO8601 is allowed (with or without milliseconds)
