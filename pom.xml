@@ -41,7 +41,7 @@
         <scala.version>2.9.2</scala.version>
         <scala.compatibility.version>2.9.2</scala.compatibility.version>
         <lift.scala.compatibility.version>2.9.1</lift.scala.compatibility.version>
-        <lift.version>2.4</lift.version>
+        <lift.version>2.4.1</lift.version>
     </properties>
 
     <dependencyManagement>
