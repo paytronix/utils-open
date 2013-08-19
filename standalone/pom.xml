@@ -3,7 +3,7 @@
     <parent>
         <groupId>paytronix.utils.internal</groupId>
         <artifactId>parent</artifactId>
-        <version>13.3-pxscrocodile-SNAPSHOT</version>
+        <version>13.3.20130819</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -12,7 +12,7 @@
     <artifactId>standalone</artifactId>
     <packaging>jar</packaging>
     <name>Paytronix Internal Utils - Standalone Utility Support</name>
-    <version>13.3-pxscrocodile-SNAPSHOT</version>
+    <version>13.3.20130819</version>
 
     <build>
         <plugins>
