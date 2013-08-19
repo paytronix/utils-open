@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>13.3-pxscrocodile-SNAPSHOT</version>
+        <version>13.3.20130819</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils.maven</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>13.3-pxscrocodile-SNAPSHOT</version>
+    <version>13.3.20130819</version>
 
     <name>Paytronix Maven Utils - Parent</name>
 
