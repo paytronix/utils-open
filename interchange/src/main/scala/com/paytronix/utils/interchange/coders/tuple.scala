@@ -83,7 +83,7 @@ trait TupleCoder {
     def encodeMongoDBTuple(classLoader: ClassLoader, in: ValueType): CoderResult[AnyRef] = {
         val a = Array.ofDim[AnyRef](arity)
         (1 to arity) foreachResult (
-            (i: Int) => coders(i).encodeMongoDB(classLoader, in.productElement(i).asInstanceOf[AnyRef]).map(a(i) = _)
+            (i: Int) => coders(i).encodeMongoDB(classLoader, in.productElement(i-1).asInstanceOf[AnyRef]).map(a(i) = _)
         ) then Okay(a)
     }
 }

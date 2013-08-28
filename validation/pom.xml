@@ -21,13 +21,13 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>13.1-iso8601-SNAPSHOT</version>
+        <version>13.3.20130819</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>com.paytronix.utils</groupId>
     <artifactId>validation</artifactId>
-    <version>13.1-iso8601-SNAPSHOT</version>
+    <version>13.3.20130819</version>
     <packaging>jar</packaging>
 
     <name>Paytronix Utils - Validation</name>
@@ -96,6 +96,14 @@
         <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.joda</groupId>
+            <artifactId>joda-convert</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

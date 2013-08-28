@@ -23,6 +23,7 @@ import net.liftweb.json.Printer.compact
 import org.apache.avro.Schema
 import org.apache.avro.io.{DatumReader, DatumWriter, Decoder, DecoderFactory, Encoder, EncoderFactory, ResolvingDecoder}
 import org.codehaus.jackson.JsonNode
+import scalaz.BijectionT
 
 import com.paytronix.utils.scala.concurrent.ThreadLocal
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, cast, parameter, tryCatch}
@@ -66,6 +67,14 @@ final case class Coder[T](contextClassLoader: ClassLoader, implementation: Compo
     * okayCoder.asInstanceOf[Coder[U]] will compile but always fail)
     */
     def asCoderFor[U]: Coder[U] = this.asInstanceOf[Coder[U]]
+
+    /** Wrap an injection/extraction function pair around this coder, to code values of a different type */
+    def transform[U](to: T => Result[U])(from: U => Result[T])(implicit m: Manifest[U]): Coder[U] =
+        Coder(contextClassLoader, implementation.transform(to)(from))
+
+    /** Wrap a bijection around this coder, to code values of a different type */
+    def biject[U](bijection: BijectionT[Result, Result, U, T])(implicit m: Manifest[U]): Coder[U] =
+        Coder(contextClassLoader, implementation.biject(bijection))
 
     /** Attempt conversion of a JValue to a value of the mapped type */
     def decode(in: JValue): Result[T] = formatFailedPath(implementation.decode(contextClassLoader, in))
@@ -253,6 +262,14 @@ abstract class ComposableCoder[T] {
      * (e.g. okayCoder.asInstanceOf[ComposableCoder[U]] will compile but always fail)
      */
     def asCoderFor[U]: ComposableCoder[U] = this.asInstanceOf[ComposableCoder[U]]
+
+    /** Wrap an injection/extraction function pair around this coder, to code values of a different type */
+    def transform[U](to: T => Result[U])(from: U => Result[T])(implicit m: Manifest[U]): CoderBijection[U, T] =
+        new CoderBijection(BijectionT.bijection(from, to), this)
+
+    /** Wrap a bijection around this coder, to code values of a different type */
+    def biject[U](bijection: BijectionT[Result, Result, U, T])(implicit m: Manifest[U]): CoderBijection[U, T] =
+        new CoderBijection(bijection, this)
 
     /** Attempt conversion of a JValue to a value of the mapped type */
     def decode(classLoader: ClassLoader, in: JValue): CoderResult[T]

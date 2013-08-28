@@ -126,6 +126,29 @@ object MoreHelpers extends SpecificationFeatures {
 
 import MoreHelpers._
 
+class JValueCoderSpecTest extends SpecificationWithJUnit {
+    val coder = Coder(cl, JValueCoder)
+    def is = simpleTest (
+        name="JValueCoder",
+        inst = coder,
+        normalValues=List(JInt(BigInt(1)) -> JInt(BigInt(1)), JArray(List(JInt(BigInt(2)))) -> JArray(List(JInt(BigInt(2))))),
+        stringDecodeValues=Nil,
+        outOfBoundJValues=Nil
+    ) ^
+    "decode scalar values from MongoDB" ! { coder.decodeMongoDB("1") must_== Okay(JInt(BigInt(1))) } ^
+    "decode array values from MongoDB" ! { coder.decodeMongoDB("[2]") must_== Okay(JArray(List(JInt(BigInt(2))))) }
+}
+
+class UnitCoderSpecTest extends SpecificationWithJUnit {
+    def is = simpleTest (
+        name="UnitCoder",
+        inst = Coder(cl, UnitCoder),
+        normalValues=List(() -> JNothing),
+        stringDecodeValues=List(() -> ""),
+        outOfBoundJValues=Nil
+    )
+}
+
 class JavaBigDecimalCoderSpecTest extends SpecificationWithJUnit {
     def is = simpleTest (
         name="JavaBigDecimalCoder",

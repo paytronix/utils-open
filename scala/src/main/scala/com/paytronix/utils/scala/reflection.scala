@@ -61,14 +61,21 @@ object reflection {
      * (e.g. `foo.bar.Baz$$Zip`) but without the trailing $, since it will use the name without the $ for the instantiate case.
      */
     def findObjectInstanceOrInstantiate(loader: ClassLoader, name: String): Result[AnyRef] =
-        findObjectInstance(loader, name + "$") orElse instantiate(loader, name)
+        findObjectInstance(loader, name + "$") orElse (_ match {
+            case Failed(_: ClassNotFoundException|_: InstantiationException) => instantiate(loader, name)
+            case f@Failed(_)                                                 => f
+        })
 
     /**
      * Given the name of an object or class, try to instantiate it first or failing that locate it as an object instance.
      * The inverse order of operations from findObjectInstanceOrInstantiate, for when a class is preferred over an object of the same name.
      */
     def instantiateOrFindObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] =
-        instantiate(loader, name) orElse findObjectInstance(loader, name + "$")
+        instantiate(loader, name) orElse (_ match {
+            // If there's an object with this name, we'll get an InstantiationException, not a ClassNotFoundException
+            case Failed(_: ClassNotFoundException|_: InstantiationException) => findObjectInstance(loader, name + "$")
+            case f@Failed(_)                                                 => f
+        })
 
     /**
      * Reduce a type towards a concrete Class.

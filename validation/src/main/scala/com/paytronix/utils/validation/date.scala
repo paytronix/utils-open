@@ -77,11 +77,7 @@ object date {
     def beforeDaysInFuture[A <: java.util.Date](i: Int, error: ValidationError = tooFarInFutureError): ValidationFunction[A, A] =
         in => {
                 val cal = java.util.Calendar.getInstance
-                println(i)
                 cal.add(java.util.Calendar.DAY_OF_MONTH, i)
-                println(cal.getTime)
-                println(in)
-                println(cal.after(in))
                 if (cal.getTime.after(in)) Right(in)
                 else Left(error :: Nil)
         }

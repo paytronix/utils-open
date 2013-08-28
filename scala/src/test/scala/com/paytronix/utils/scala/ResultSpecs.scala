@@ -140,13 +140,14 @@ class OkaySpecTest extends SpecificationWithJUnit { def is =
         okay.map(_ + "bar") must_== Okay("foobar")
     } ^
     "| (orElse)" ! {
-        { (okay | "bar") must_== okay }
-        { (okay | parameter("bar")) must_== okay }
-        { (okay | MyFailedParameter("bar")) must_== okay }
-        { (okay | ("bar" -> Nil)) must_== okay }
-        { (okay | Failed("bar")) must_== okay }
-        { (okay | Okay("bar")) must_== okay }
-        { (okay | { case Failed(throwable) => FailedG(throwable, "foo" + throwable.getMessage) }) must_== okay }
+        { (okay | "bar") must_== okay } and
+        { (okay | parameter("bar")) must_== okay } and
+        { (okay | MyFailedParameter("bar")) must_== okay } and
+        { (okay | ("bar" -> Nil)) must_== okay } and
+        { (okay | Failed("bar")) must_== okay } and
+        { (okay | Okay("bar")) must_== okay } and
+        { (okay | { case Failed(throwable) => FailedG(throwable, "foo" + throwable.getMessage) }) must_== okay } and
+        { (okay | { f => throw new UnsupportedOperationException() }) must not (throwAn[UnsupportedOperationException]) }
     } ^
     "orNull" ! {
         okay.orNull must_== "foo"
@@ -238,12 +239,12 @@ class FailedGSpecTest extends SpecificationWithJUnit {
             { failedInt.map(_ + "bar") must_== failedInt }
         } ^
         "| (orElse)" ! {
-            { (failedInt | "bar") must (beFailedWith("bar", 1) and beFailedWithCause("failed message")) } and
-            { (failedInt | parameter("bar")) must (beFailedWith("failed message", "bar") and beFailedWithoutCause) } and
+            { (failedInt | "bar")                    must (beFailedWith("bar", 1) and beFailedWithCause("failed message")) } and
+            { (failedInt | parameter("bar"))         must (beFailedWith("failed message", "bar") and beFailedWithoutCause) } and
             { (failedInt | MyFailedParameter("bar")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause) } and
-            { (failedInt | ("bar" -> Nil)) must (beFailedWith("bar", Nil) and beFailedWithCause("failed message")) } and
-            { (failedInt | Failed("bar")) must (beFailedWith("bar") and beFailedWithoutCause) } and
-            { (failedInt | Okay("bar")) must_== Okay("bar") } and
+            { (failedInt | ("bar" -> Nil))           must (beFailedWith("bar", Nil) and beFailedWithCause("failed message")) } and
+            { (failedInt | Failed("bar"))            must (beFailedWith("bar") and beFailedWithoutCause) } and
+            { (failedInt | Okay("bar"))              must_== Okay("bar") } and
             { (failedInt | { case FailedG(throwable, _) => FailedG(throwable, "foo" + throwable.getMessage) }) must beFailedWith("failed message", "foofailed message") and beFailedWithoutCause }
         } ^
         "orNull" ! {

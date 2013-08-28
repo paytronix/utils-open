@@ -192,7 +192,7 @@ case class ScalaSeqCoder[T](valueCoder: ComposableCoder[T]) extends ListLikeCode
     val mostSpecificClass = classOf[Seq[T]]
 
     protected def builder() = {
-        val cb = implicitly[CanBuild[T, mutable.ArrayBuffer[T]]]
+        val cb = implicitly[CanBuild[T, Vector[T]]]
         cb()
     }
     protected def valueAsIterable(in: Seq[T]) = in
