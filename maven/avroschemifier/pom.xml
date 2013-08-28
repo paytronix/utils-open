@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils.maven</groupId>
         <artifactId>parent</artifactId>
-        <version>13.4-SNAPSHOT</version>
+        <version>13.4-angus-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils.maven</groupId>
     <artifactId>avroschemifier-maven-plugin</artifactId>
     <packaging>maven-plugin</packaging>
-    <version>13.4-SNAPSHOT</version>
+    <version>13.4-angus-SNAPSHOT</version>
 
     <name>Paytronix Maven Utils - Avro Schemifier Plugin</name>
     <description>Maven plugin that generates Avro schema files from classes using Interchange reflection.</description>
