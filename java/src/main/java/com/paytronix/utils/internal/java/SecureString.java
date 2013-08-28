@@ -23,6 +23,7 @@ import javax.crypto.spec.IvParameterSpec;
 // Scala to generate random 8-byte keys (a1, a2, a3, and so on):
 
 /*
+  val r = new java.util.Random()
   def mkkey = (
       (1 to 8)
       map (_ => (r.nextInt % 256).asInstanceOf[Byte])
