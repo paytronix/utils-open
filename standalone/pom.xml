@@ -3,7 +3,7 @@
     <parent>
         <groupId>paytronix.utils.internal</groupId>
         <artifactId>parent</artifactId>
-        <version>13.4-SNAPSHOT</version>
+        <version>13.4-angus-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -12,7 +12,7 @@
     <artifactId>standalone</artifactId>
     <packaging>jar</packaging>
     <name>Paytronix Internal Utils - Standalone Utility Support</name>
-    <version>13.4-SNAPSHOT</version>
+    <version>13.4-angus-SNAPSHOT</version>
 
     <build>
         <plugins>
@@ -52,6 +52,10 @@
         <dependency>
             <groupId>net.liftweb</groupId>
             <artifactId>lift-util_${lift.scala.compatibility.version}</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.rogach</groupId>
+            <artifactId>scallop_2.9.2</artifactId>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
