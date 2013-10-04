@@ -1,0 +1,38 @@
+<?xml version="1.0" ?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <parent>
+        <groupId>paytronix.utils.internal.scm</groupId>
+        <artifactId>parent</artifactId>
+        <version>13.4-angus-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>paytronix.utils.internal.scm</groupId>
+    <artifactId>mongostorage</artifactId>
+    <packaging>jar</packaging>
+    <name>Paytronix Internal Utils - SCM Mongo Storage</name>
+    <version>13.4-angus-SNAPSHOT</version>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency><groupId>com.paytronix.utils</groupId><artifactId>interchange</artifactId></dependency>
+        <dependency><groupId>com.paytronix.utils</groupId><artifactId>scala</artifactId></dependency>
+        <dependency><groupId>paytronix.utils.internal.scm</groupId><artifactId>engine</artifactId></dependency>
+
+        <dependency><groupId>org.mongodb</groupId><artifactId>mongo-java-driver</artifactId><version>2.8.0</version></dependency>
+        <dependency><groupId>org.mongodb</groupId><artifactId>casbah-core_${scala.compatibility.version}</artifactId><version>2.4.1</version></dependency>
+        <dependency><groupId>org.mongodb</groupId><artifactId>casbah-query_${scala.compatibility.version}</artifactId><version>2.4.1</version></dependency>
+
+        <dependency><groupId>junit</groupId><artifactId>junit</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.specs2</groupId><artifactId>specs2_${scala.compatibility.version}</artifactId><scope>test</scope></dependency>
+    </dependencies>
+</project>

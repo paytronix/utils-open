@@ -21,6 +21,7 @@
         <module>lift</module>
         <module>packaging</module>
         <module>scala</module>
+        <module>scm</module>
         <module>standalone</module>
     </modules>
 
@@ -83,6 +84,11 @@
                         <artifactId>joda-time</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>net.liftweb</groupId>
+                <artifactId>lift-json_${lift.scala.compatibility.version}</artifactId>
+                <version>${lift.version}</version>
             </dependency>
             <dependency>
                 <groupId>net.liftweb</groupId>

@@ -1,0 +1,48 @@
+<?xml version="1.0" ?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <parent>
+        <groupId>paytronix.utils.internal</groupId>
+        <artifactId>parent</artifactId>
+        <version>13.4-angus-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>paytronix.utils.internal.scm</groupId>
+    <artifactId>parent</artifactId>
+    <packaging>pom</packaging>
+    <name>Paytronix Internal Utils - SCM</name>
+    <version>13.4-angus-SNAPSHOT</version>
+
+    <modules>
+        <module>common</module>
+        <module>engine</module>
+        <module>mongostorage</module>
+        <module>utility</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>paytronix.utils.internal.scm</groupId>
+                <artifactId>common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>paytronix.utils.internal.scm</groupId>
+                <artifactId>engine</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>paytronix.utils.internal.scm</groupId>
+                <artifactId>mongostorage</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>paytronix.utils.internal.scm</groupId>
+                <artifactId>utility</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>
