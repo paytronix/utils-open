@@ -29,7 +29,7 @@ import com.paytronix.utils.internal.scm.common.context.{Path, QualifiedSegment, 
 import com.paytronix.utils.internal.scm.engine.ConfigurationStorage
 import com.paytronix.utils.interchange.{Coding, ExplicitUnionCoding, MongoUtils}
 import com.paytronix.utils.scala.log.resultLoggerOps
-import com.paytronix.utils.scala.result.{Result, optionOps, tryCatch}
+import com.paytronix.utils.scala.result.{Failed, Okay, Result, iterableResultOps, optionOps, tryCatch}
 
 /*
 { "ts" : { "t" : 1352690978000, "i" : 1 },
@@ -106,7 +106,24 @@ final case class OplogDelete(ns: String/*, h: Long, v: Int*/, o: DBObject) exten
 final case class OplogDbCmd(ns: String/*, h: Long, v: Int*/) extends OplogEntry
 final case class OplogNoop(ns: String/*, h: Long, v: Int*/) extends OplogEntry
 
-abstract class MongoConfigurationStorageImpl extends ConfigurationStorage {
+object MongoConfigurationStorageUtils {
+    /**
+     * Parse a specification string with one or more Mongo server addresses separated by pipes and possibly with explicit port numbers given with a colon.
+     *
+     * Example string: mongohost1|mongohost2:12345
+     */
+    def parseAddressesFromString(spec: String, defaultPort: Option[Int] = None): Result[Seq[ServerAddress]] =
+        spec.split('|').map(_.trim).toSeq.mapResult { s =>
+            s.split(':') match {
+                case Array(host, port)                    => Okay(new ServerAddress(host, Integer.parseInt(port)))
+                case Array(host) if defaultPort.isDefined => Okay(new ServerAddress(host, defaultPort.getOrElse(sys.error("default port was defined and now it's not"))))
+                case Array(host)                          => Okay(new ServerAddress(host))
+                case other => Failed("expected " + s + " to be either host or host:port, not " + other)
+            }
+        }
+}
+
+abstract class MongoConfigurationStorageImpl(serverAddresses: Seq[ServerAddress], database: String) extends ConfigurationStorage {
     protected implicit val logger = LoggerFactory.getLogger(getClass)
     protected def locateConfigurationEngine: Result[ConfigurationEngine]
 
@@ -117,26 +134,8 @@ abstract class MongoConfigurationStorageImpl extends ConfigurationStorage {
 
     RegisterJodaTimeConversionHelpers()
 
-    val defaultPort = Option(System.getProperty("paytronix.configuration.mongo.defaultPort")).map(_.trim).filter(_ != "").map(Integer.parseInt)
-
-    val mongoAddresses = System.getProperty("paytronix.configuration.mongo.hosts") match {
-        case null => sys.error("paytronix.configuration.mongo.hosts needs to be set a pipe-separated list of MongoDB instances to use for configuration")
-        case value =>
-            value.split('|').map(_.trim).map { s =>
-                s.split(':') match {
-                    case Array(host, port) => new ServerAddress(host, Integer.parseInt(port))
-                    case Array(host) if defaultPort.isDefined => new ServerAddress(host, defaultPort.getOrElse(sys.error("default port was defined and now it's not")))
-                    case Array(host) => new ServerAddress(host)
-                    case other => sys.error("expected " + s + " to be either host or host:port, not " + other)
-                }
-            }
-    }
-
-    val mongoDatabase = System.getProperty("paytronix.configuration.mongo.database")
-    if (mongoDatabase == null) sys.error("paytronix.configuration.mongo.database needs to be set to the name of the database in mongo to use for configuration")
-
-    val connection = MongoConnection(mongoAddresses.toList)
-    val configurationDatabase = connection(mongoDatabase)
+    val connection = MongoConnection(serverAddresses.toList)
+    val configurationDatabase = connection(database)
     val localDatabase = connection("local")
 
     val nodesCollectionRO = configurationDatabase(nodesCollectionName)
@@ -162,11 +161,13 @@ abstract class MongoConfigurationStorageImpl extends ConfigurationStorage {
 
     val recentlyDeletedNodesReaper = new RecentlyDeletedNodesReaper
     val recentlyDeletedNodesReaperTimer = new Timer("Config recently deleted nodes reaper")
-    recentlyDeletedNodesReaperTimer.scheduleAtFixedRate(recentlyDeletedNodesReaper, 1000L * 60L * 60L, 1000L * 60L * 60L)
 
-    oplogReaderThread.start()
+    def startWatching() = {
+        recentlyDeletedNodesReaperTimer.scheduleAtFixedRate(recentlyDeletedNodesReaper, 1000L * 60L * 60L, 1000L * 60L * 60L)
+        oplogReaderThread.start()
+    }
 
-    def stop() = {
+    def stopWatching() = {
         oplogReader.continue = false
         oplogReaderThread.interrupt()
         recentlyDeletedNodesReaperTimer.cancel()
@@ -183,7 +184,7 @@ abstract class MongoConfigurationStorageImpl extends ConfigurationStorage {
         def query: MongoDBObject =
             lastSeen match {
                 case Some(found) => MongoDBObject("ts" -> MongoDBObject("$gt" -> found))
-                case _ => MongoDBObject()
+                case _           => MongoDBObject()
             }
 
         // now invalidate that we've gotten a timestamp
