@@ -42,11 +42,11 @@ final case class Watch(identifier: WatchIdentifierImpl, filter: Filter, watcher:
 trait ConfigurationEngineImpl extends ConfigurationEngine {
     protected def logger: Logger
     protected def locateStorage: Result[ConfigurationStorage]
-    protected def cookedCacheGet(n: Node): Option[NodeContents] = None // cookedCache.byKey.get
-    protected def cookedCacheStore(n: Node, c: NodeContents): Unit = () // cookedCache.store
-    protected def rawCacheGet(n: Node): Option[NodeContents] = None // rawCache.byKey.get
-    protected def rawCacheStore(n: Node, c: NodeContents): Unit = () // rawCacheStore
-    protected def rawCacheStoreMany(pairs: Iterable[(Node, NodeContents)]): Unit = () // rawCacheStore
+    protected def cookedCacheGet(n: Node): Option[NodeContents] = None
+    protected def cookedCacheStore(n: Node, c: NodeContents): Unit = ()
+    protected def rawCacheGet(n: Node): Option[NodeContents] = None
+    protected def rawCacheStore(n: Node, c: NodeContents): Unit = ()
+    protected def rawCacheStoreMany(pairs: Iterable[(Node, NodeContents)]): Unit = ()
 
     private implicit def implicitLogger = logger
 
