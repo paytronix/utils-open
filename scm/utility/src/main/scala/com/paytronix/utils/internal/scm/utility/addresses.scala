@@ -5,32 +5,41 @@
 
 package com.paytronix.utils.internal.scm.utility
 
+import org.slf4j.LoggerFactory
+
 import com.paytronix.utils.internal.scm.common.context.Segment.stringOps
 import com.paytronix.utils.internal.scm.common.context.{QualifiedSegment, Path, root}
-import com.paytronix.utils.scala.result.tryCatch
-import org.slf4j.LoggerFactory
+import com.paytronix.utils.scala.result.{Result, optionOps, tryCatch}
 
 object addresses {
     private implicit val logger = LoggerFactory.getLogger(getClass)
 
-    lazy val siteName =
-        System.getProperty("paytronix.site") match {
-            case null =>
-                logger.error("paytronix.site system property not set, so using site \"unknown\". It's pretty much guaranteed this won't work out well")
-                "unknown"
-            case other =>
-                other
-        }
+    def setSiteInfo(siteName: String, serverName: String, instanceName: String): Unit = {
+        _siteName = Some(siteName)
+        _serverName = Some(serverName)
+        _instanceName = Some(instanceName)
+    }
+
+    private var _siteName: Option[String] = None
+    private var _serverName: Option[String] = None
+    private var _instanceName: Option[String] = None
+
+    def sitePath:     Result[Path] = (_siteName.toResult | "no site information set") map { site => root / ("site" ~ site) }
+    def serverPath:   Result[Path] = for { server   <- _serverName.toResult   | "no site information set"; site   <- sitePath   } yield site / ("server" ~ server)
+    def instancePath: Result[Path] = for { instance <- _instanceName.toResult | "no site information set"; server <- serverPath } yield server / ("instance" ~ instance)
 
     // Temporary solution for Issue26191: Mega FIXME
     private def parentMerchant(merchantId: Int): Int = merchantId match {
         case wellsfargo if (wellsfargo > 10000) && (wellsfargo < 20000) => 10000
-        case positouch if (positouch > 20000) && (positouch < 30000)    => 20000
-        case _                                                          => 2
+        case positouch  if (positouch  > 20000) && (positouch  < 30000) => 20000
+        case _                                                          =>     2
     }
 
     private def parentPathFragment(parentMerchantId: Int): Path = ("parent" ~ parentMerchantId.toString)
     private def merchantPathFragment(merchantId: Int): Path     = ("merchant" ~ merchantId.toString)
+
+    def siteMerchantPath(merchantId: Int): Result[Path] =
+        sitePath map { _ / parentPathFragment(parentMerchant(merchantId)) / merchantPathFragment(merchantId) }
 
     def merchantPath(merchantId: Int): Path =
         root / parentPathFragment(parentMerchant(merchantId)) / merchantPathFragment(merchantId)
