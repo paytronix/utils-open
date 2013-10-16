@@ -15,10 +15,10 @@ import net.liftweb.json.JsonAST.{JField, JObject, JString, JValue, render}
 import net.liftweb.json.JsonParser.parse
 import net.liftweb.json.Printer.{compact, pretty}
 import org.joda.time.format.ISODateTimeFormat
-import org.slf4j.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 import com.paytronix.utils.internal.scm.common.{
-    CacheEntry, CachingConfigurationEngine, ConfigurationEngine,
+    CacheEntry, CachingConfigurationEngine, ConfigurationReadEngine, ConfigurationReadWriteEngine, ConfigurationWatchEngine,
     AspectName, KeyPath, Node, NodeContents, aspect,
     Filter, AspectFilter, ContextFilter, NodeFilter, Unfiltered,
     InheritanceRule, InheritanceRules,
@@ -39,89 +39,56 @@ final class WatchIdentifierImpl extends WatchIdentifier
 
 final case class Watch(identifier: WatchIdentifierImpl, filter: Filter, watcher: WeakReference[Watcher])
 
-trait ConfigurationEngineImpl extends ConfigurationEngine {
-    protected def logger: Logger
-    protected def locateStorage: Result[ConfigurationStorage]
+object ConfigurationEngineImpl {
+    val InheritanceRulesAspect = "configuration.InheritanceRules"
+}
+
+import ConfigurationEngineImpl.InheritanceRulesAspect
+
+object ConfigurationReadEngineImpl {
+    def apply(storage: ConfigurationReadStorage): ConfigurationReadEngineImpl =
+        new ConfigurationReadEngineImpl {
+            def locateStorage = Okay(storage)
+        }
+}
+
+trait ConfigurationReadEngineImpl extends ConfigurationReadEngine {
+    protected def logger: Logger = LoggerFactory.getLogger(getClass)
+    protected def locateStorage: Result[ConfigurationReadStorage]
+
+    // these explicit override hooks seem a little gross, oh well, it's nice to be able to choose caching and watching a la carte
     protected def cookedCacheGet(n: Node): Option[NodeContents] = None
     protected def cookedCacheStore(n: Node, c: NodeContents): Unit = ()
     protected def rawCacheGet(n: Node): Option[NodeContents] = None
     protected def rawCacheStore(n: Node, c: NodeContents): Unit = ()
     protected def rawCacheStoreMany(pairs: Iterable[(Node, NodeContents)]): Unit = ()
+    protected def clearCachedAspect(aspect: AspectName): Unit = ()
+    protected def clearCachedNodes(nodes: Iterable[Node]): Unit = ()
+    protected def clearAllCached(): Unit = ()
+    protected def triggerAspectWatches(aspect: AspectName): Unit = ()
+    protected def triggerNodeWatches(nodes: Iterable[Node]): Unit = ()
+    protected def triggerAllWatches(): Unit = ()
 
-    private implicit def implicitLogger = logger
-
-    val InheritanceRulesAspect = "configuration.InheritanceRules"
+    protected implicit def implicitLogger = logger
 
     val inheritanceRulesCache: AtomicReference[Map[AspectName, InheritanceRules]] = new AtomicReference(Map.empty)
-    val watches:               AtomicReference[Vector[Watch]] = new AtomicReference(Vector.empty)
-
-    val watchRunner: FutureTaskRunner = {
-        val numCores = Runtime.getRuntime.availableProcessors
-        val keepAliveTime = 60000L
-        val workQueue = new LinkedBlockingQueue[Runnable]
-        val exec = new ThreadPoolExecutor(numCores,
-                                          numCores,
-                                          keepAliveTime,
-                                          TimeUnit.MILLISECONDS,
-                                          workQueue,
-                                          new ThreadPoolExecutor.CallerRunsPolicy())
-        scala.concurrent.JavaConversions.asTaskRunner(exec)
-    }
 
     reloadInheritanceRules().logError("Failed to load inheritance rules for first time, stored settings will not be used. This might be okay, if each service correctly registers the rules")
-    watch(inheritanceRuleUpdater, filter(root / id("metadata")).aspect(InheritanceRulesAspect).withDescendants)
-
-    def end(): Unit =
-        watchRunner.shutdown()
-
-    private lazy val inheritanceRuleUpdater = new Watcher {
-        def watchTriggered(event: WatchEvent): Unit =
-            event match {
-                case NodeInvalidated(root/id("metadata")/("aspect" ~ aspectName) aspect InheritanceRules.Aspect) =>
-                    reloadInheritanceRulesForAspect(aspectName).logWarn("Failed to load updated inheritance rules")
-                case AspectInvalidated(InheritanceRules.Aspect) =>
-                    reloadInheritanceRules().logWarn("Failed to load updated inheritance rules")
-                case _ => ()
-            }
-    }
-
-    private def triggerWatch(event: WatchEvent, watch: Watch): Unit =
-        watch.watcher.get match {
-            case Some(watcher) =>
-                spawn {
-                    try {
-                        watcher.watchTriggered(event)
-                    } catch { case e: Exception =>
-                        logger.warn("Failed to callback watch " + watch + " for " + event + " due to exception:", e)
-                    }
-                }(watchRunner)
-            case None =>
-                logger.info("Callback for watch " + watch.identifier + " with filter " + watch.filter + " has been garbage collected, cancelling the watch")
-                unwatch(watch.identifier)
-        }
 
     protected def invalidateAspect(aspect: AspectName): Unit = {
-        val event = AspectInvalidated(aspect)
-
-        watches.get.foreach {
-            case watch@Watch(_, filter, _) if filter(aspect) =>
-                triggerWatch(event, watch)
-            case _ => ()
-        }
+        clearCachedAspect(aspect)
+        triggerAspectWatches(aspect)
     }
 
-    def invalidate(nodes: Iterable[Node]): Unit =
-        nodes.foreach { node =>
-            val event = NodeInvalidated(node)
-            watches.get.foreach {
-                case watch@Watch(_, filter, _) if filter(node) =>
-                    triggerWatch(event, watch)
-                case _ => ()
-            }
-        }
+    def invalidate(nodes: Iterable[Node]): Unit = {
+        clearCachedNodes(nodes)
+        triggerNodeWatches(nodes)
+    }
 
-    def invalidateAll(): Unit =
-        watches.get.foreach { triggerWatch(AllInvalidated, _) }
+    def invalidateAll(): Unit = {
+        clearAllCached()
+        triggerAllWatches()
+    }
 
     private def applyInheritanceRules(aspect: AspectName, chain: Seq[NodeContents]): Result[Option[NodeContents]] =
         inheritanceRulesCache.get.getOrElse(aspect, InheritanceRules.empty).apply(chain)
@@ -222,22 +189,6 @@ trait ConfigurationEngineImpl extends ConfigurationEngine {
             fetchRawNodes(nodes) map { nodes zip _ } map { _ collect { case (n, Some(c)) => n -> c } }
         }
 
-    def updateNode(node: Node, upserts: Seq[(KeyPath, JValue)], deletes: Seq[KeyPath], auditInfo: NodeContents): Result[NodeContents] =
-        locateStorage.flatMap(_.updateNode(node, upserts, deletes, auditInfo)).sideEffect(_ => invalidate(node :: Nil))
-
-    def replaceNode(node: Node, newContents: NodeContents, auditInfo: NodeContents): Result[NodeContents] =
-        locateStorage.flatMap(_.replaceNode(node, newContents, auditInfo)).map(_ => newContents).sideEffect(_ => invalidate(node :: Nil))
-
-    def deleteNode(node: Node, auditInfo: NodeContents): Result[Unit] =
-        locateStorage.flatMap(_.deleteNode(node, auditInfo)).sideEffect(_ => invalidate(node :: Nil))
-
-    def updateInheritanceRulesForAspect(aspectName: AspectName, rules: InheritanceRules): Result[Unit] =
-        for {
-            rulesCoding <- InheritanceRules.coding
-            encodedRules <- rulesCoding.encode(rules).asA[JObject]
-            updatedOk <- replaceNode(root/id("metadata")/("aspect" ~ aspectName) aspect InheritanceRulesAspect, encodedRules, audit.internal("updateInheritanceRulesForAspect"))
-        } yield invalidateAspect(aspectName)
-
     def fetchInheritanceRules(): Result[Map[AspectName, InheritanceRules]] =
         Okay(inheritanceRulesCache.get)
 
@@ -275,6 +226,77 @@ trait ConfigurationEngineImpl extends ConfigurationEngine {
                     NoUpdate(failed)
             }
         }
+}
+
+trait ConfigurationWatchEngineImpl extends ConfigurationReadEngineImpl with ConfigurationWatchEngine {
+    val watchRunner: FutureTaskRunner = {
+        val numCores = Runtime.getRuntime.availableProcessors
+        val keepAliveTime = 60000L
+        val workQueue = new LinkedBlockingQueue[Runnable]
+        val exec = new ThreadPoolExecutor(numCores,
+                                          numCores,
+                                          keepAliveTime,
+                                          TimeUnit.MILLISECONDS,
+                                          workQueue,
+                                          new ThreadPoolExecutor.CallerRunsPolicy())
+        scala.concurrent.JavaConversions.asTaskRunner(exec)
+    }
+
+    watch(inheritanceRuleUpdater, filter(root / id("metadata")).aspect(InheritanceRulesAspect).withDescendants)
+
+    def endWatchSupport(): Unit =
+        watchRunner.shutdown()
+
+    val watches: AtomicReference[Vector[Watch]] = new AtomicReference(Vector.empty)
+
+    private lazy val inheritanceRuleUpdater = new Watcher {
+        def watchTriggered(event: WatchEvent): Unit =
+            event match {
+                case NodeInvalidated(root/id("metadata")/("aspect" ~ aspectName) aspect InheritanceRules.Aspect) =>
+                    reloadInheritanceRulesForAspect(aspectName).logWarn("Failed to load updated inheritance rules")
+                case AspectInvalidated(InheritanceRules.Aspect) =>
+                    reloadInheritanceRules().logWarn("Failed to load updated inheritance rules")
+                case _ => ()
+            }
+    }
+
+    private def triggerWatch(event: WatchEvent, watch: Watch): Unit =
+        watch.watcher.get match {
+            case Some(watcher) =>
+                spawn {
+                    try {
+                        watcher.watchTriggered(event)
+                    } catch { case e: Exception =>
+                        logger.warn("Failed to callback watch " + watch + " for " + event + " due to exception:", e)
+                    }
+                }(watchRunner)
+            case None =>
+                logger.info("Callback for watch " + watch.identifier + " with filter " + watch.filter + " has been garbage collected, cancelling the watch")
+                unwatch(watch.identifier)
+        }
+
+    override protected def triggerAspectWatches(aspect: AspectName): Unit = {
+        val event = AspectInvalidated(aspect)
+
+        watches.get.foreach {
+            case watch@Watch(_, filter, _) if filter(aspect) =>
+                triggerWatch(event, watch)
+            case _ => ()
+        }
+    }
+
+    override protected def triggerNodeWatches(nodes: Iterable[Node]): Unit =
+        nodes.foreach { node =>
+            val event = NodeInvalidated(node)
+            watches.get.foreach {
+                case watch@Watch(_, filter, _) if filter(node) =>
+                    triggerWatch(event, watch)
+                case _ => ()
+            }
+        }
+
+    override protected def triggerAllWatches(): Unit =
+        watches.get.foreach { triggerWatch(AllInvalidated, _) }
 
     def watch(watcher: Watcher, filter: Filter): WatchIdentifier = {
         val ident = new WatchIdentifierImpl
@@ -286,7 +308,7 @@ trait ConfigurationEngineImpl extends ConfigurationEngine {
         atomicUpdate(watches)(_.filterNot(_.identifier == identifier))
 }
 
-trait CachingConfigurationEngineImpl extends ConfigurationEngineImpl with CachingConfigurationEngine {
+trait CachingConfigurationEngineImpl extends ConfigurationReadEngineImpl with CachingConfigurationEngine {
     protected def rawCacheMaxSize: Int
     protected def rawCacheEvictFraction: Double
     protected def cookedCacheMaxSize: Int
@@ -338,4 +360,24 @@ trait CachingConfigurationEngineImpl extends ConfigurationEngineImpl with Cachin
 
     def dumpCookedCache(): Seq[CacheEntry] =
         cookedCache.byKey.entryMap.values.map { e => CacheEntry(e.key, e.value, e.accessCount, e.lastAccess) }.toSeq
+}
+
+trait ConfigurationReadWriteEngineImpl extends CachingConfigurationEngineImpl with ConfigurationReadWriteEngine {
+    protected def locateStorage: Result[ConfigurationReadWriteStorage]
+
+    def updateNode(node: Node, upserts: Seq[(KeyPath, JValue)], deletes: Seq[KeyPath], auditInfo: NodeContents): Result[NodeContents] =
+        locateStorage.flatMap(_.updateNode(node, upserts, deletes, auditInfo)).sideEffect(_ => invalidate(node :: Nil))
+
+    def replaceNode(node: Node, newContents: NodeContents, auditInfo: NodeContents): Result[NodeContents] =
+        locateStorage.flatMap(_.replaceNode(node, newContents, auditInfo)).map(_ => newContents).sideEffect(_ => invalidate(node :: Nil))
+
+    def deleteNode(node: Node, auditInfo: NodeContents): Result[Unit] =
+        locateStorage.flatMap(_.deleteNode(node, auditInfo)).sideEffect(_ => invalidate(node :: Nil))
+
+    def updateInheritanceRulesForAspect(aspectName: AspectName, rules: InheritanceRules): Result[Unit] =
+        for {
+            rulesCoding <- InheritanceRules.coding
+            encodedRules <- rulesCoding.encode(rules).asA[JObject]
+            updatedOk <- replaceNode(root/id("metadata")/("aspect" ~ aspectName) aspect InheritanceRulesAspect, encodedRules, audit.internal("updateInheritanceRulesForAspect"))
+        } yield invalidateAspect(aspectName)
 }

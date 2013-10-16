@@ -7,6 +7,8 @@ package com.paytronix.utils.internal.scm
 
 import net.liftweb.json.JsonAST.JObject
 
+import com.paytronix.utils.interchange.{Coder, OverrideCoding, StringCoder}
+import com.paytronix.utils.internal.scala.ordering.extendedOrderingOps
 import com.paytronix.utils.scala.result.{Failed, Okay, Result}
 
 package object common {
@@ -37,6 +39,12 @@ package common {
             context + "#" + aspect
     }
 
+    object NodeCoding extends OverrideCoding (
+        StringCoder.transform
+            (s => Node.fromString(s))
+            (n => Okay(n.toString))
+    )
+
     object aspect {
         def unapply(in: Node): Option[(Path, AspectName)] =
             Some((in.context, in.aspect))
@@ -48,6 +56,7 @@ package common {
     }
 
     object Node {
+        implicit val ordering = Ordering[Path].on((_: Node).context) andThen Ordering[AspectName].on((_: Node).aspect)
         def fromString(in: String): Result[Node] =
             in.indexOf('#') match {
                 case -1 => Failed("no # found in node path to separate context from aspect")

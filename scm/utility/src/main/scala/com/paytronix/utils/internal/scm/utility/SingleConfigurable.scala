@@ -10,7 +10,10 @@ import net.liftweb.json.Printer.compact
 import org.slf4j.LoggerFactory
 import scalaz.Lens
 
-import com.paytronix.utils.internal.scm.common.{ConfigurationEngine, KeyPath, Node, NodeContents, Watcher, WatchEvent, WatchIdentifier}
+import com.paytronix.utils.internal.scm.common.{
+    ConfigurationReadEngine, ConfigurationReadWriteEngine, ConfigurationWatchEngine,
+    KeyPath, Node, NodeContents, Watcher, WatchEvent, WatchIdentifier
+}
 import com.paytronix.utils.internal.scm.common.Filter.filter
 import com.paytronix.utils.interchange.{Coder, Coding, json}
 import com.paytronix.utils.scala.log.resultLoggerOps
@@ -25,15 +28,15 @@ import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, optionOp
  * Determining what particular changes were made at each update is left to the particular use case, but this trait will not report on any watch trigger
  * that doesn't yield a change to the used portion of the node contents
  */
-trait SingleConfigurable extends Watcher {
+trait SingleReadConfigurable extends Watcher {
     protected implicit val logger = LoggerFactory.getLogger(getClass)
 
-    protected def locateConfigEngine: Result[ConfigurationEngine]
+    protected def locateConfigEngine: Result[ConfigurationReadEngine with ConfigurationWatchEngine]
 
     trait Dependent {
-        def dependencyReconfigured(dependency: SingleConfigurable.this.type): Unit = ()
-        def dependencyUnconfigured(dependency: SingleConfigurable.this.type): Unit = ()
-        def dependencyLostConfiguration(dependency: SingleConfigurable.this.type): Unit = ()
+        def dependencyReconfigured(dependency: SingleReadConfigurable.this.type): Unit = ()
+        def dependencyUnconfigured(dependency: SingleReadConfigurable.this.type): Unit = ()
+        def dependencyLostConfiguration(dependency: SingleReadConfigurable.this.type): Unit = ()
     }
 
     private class DependentWatchIdentifier extends WatchIdentifier
@@ -235,24 +238,6 @@ trait SingleConfigurable extends Watcher {
         finalResult.logWarn(logPrefix + ": Failed to reload configuration from " + node)
     }
 
-    /** Store a new copy of the configured object in the configuration store by encoding it, replacing the current configured state */
-    protected def update(obj: Configured, auditInformation: NodeContents, atNode: Node = node): Result[Unit] =
-        for {
-            configEngine <- locateConfigEngine
-            configCoder <- coderResult | ("can't encode configuration")
-            newJValue <- configCoder.encode(obj) | ("failed to encode configuration " + obj)
-            storedOk <- nodeSubset match {
-                case Some(path) =>
-                    val upserts = List(path -> newJValue)
-                    lazy val renderedUpserts = path.mkString("/") + " -> " + (if (newJValue == JNothing) "<nothing>" else compact(render(newJValue)))
-                    configEngine.updateNode(atNode, upserts, Nil, auditInformation) | ("failed to update " + node + " in configuration storage with " + renderedUpserts)
-                case None =>
-                    lazy val rendered = if (newJValue == JNothing) "<nothing>" else compact(render(newJValue))
-                    configEngine.replaceNode(atNode, newJValue.asInstanceOf[JObject], auditInformation) | ("failed to replace " + node + " in configuration storage with " + rendered)
-            }
-            reloadedOk <- reload()
-        } yield ()
-
     /**
      * Start watching the underlying configuration node for changes and load it for the first time.
      * To ensure timely resource collection, `stop()` should be called when finished.
@@ -301,15 +286,38 @@ trait SingleConfigurable extends Watcher {
     }
 }
 
+trait SingleReadWriteConfigurable extends SingleReadConfigurable {
+    protected def locateConfigEngine: Result[ConfigurationReadWriteEngine with ConfigurationWatchEngine]
+
+    /** Store a new copy of the configured object in the configuration store by encoding it, replacing the current configured state */
+    protected def update(obj: Configured, auditInformation: NodeContents, atNode: Node = node): Result[Unit] =
+        for {
+            configEngine <- locateConfigEngine
+            configCoder <- coderResult | ("can't encode configuration")
+            newJValue <- configCoder.encode(obj) | ("failed to encode configuration " + obj)
+            storedOk <- nodeSubset match {
+                case Some(path) =>
+                    val upserts = List(path -> newJValue)
+                    lazy val renderedUpserts = path.mkString("/") + " -> " + (if (newJValue == JNothing) "<nothing>" else compact(render(newJValue)))
+                    configEngine.updateNode(atNode, upserts, Nil, auditInformation) | ("failed to update " + node + " in configuration storage with " + renderedUpserts)
+                case None =>
+                    lazy val rendered = if (newJValue == JNothing) "<nothing>" else compact(render(newJValue))
+                    configEngine.replaceNode(atNode, newJValue.asInstanceOf[JObject], auditInformation) | ("failed to replace " + node + " in configuration storage with " + rendered)
+            }
+            reloadedOk <- reload()
+        } yield ()
+}
+
 /** Mixin for configuring from a portion of a configuration node */
-trait SingleConfigurableAtPath extends SingleConfigurable {
+trait SingleConfigurableAtPath {
+    self: SingleReadConfigurable =>
     protected def keyPath: KeyPath
 
     override protected lazy val nodeSubset = if (keyPath.isEmpty) None else Some(keyPath)
 }
 
 /** Mixin for managing some active resource(s) that depend on the underlying configuration, such as database connections */
-trait AttachedActiveResource extends SingleConfigurable {
+trait AttachedActiveResource extends SingleReadConfigurable {
     type Resource
 
     /** Called to activate (connect, acquire, whatever) the associated resource when this configurable initializes or is reconfigured */

@@ -6,6 +6,9 @@
 package com.paytronix.utils.internal.scm.common
 package context
 
+import com.paytronix.utils.interchange.{OverrideCoding, StringCoder}
+import com.paytronix.utils.scala.result.Okay
+
 import PartialFunction.condOpt
 
 /** Pair of domain (such as merchant or cardTemplate) and identifier (such as 84 or 3) */
@@ -141,6 +144,12 @@ sealed abstract class Path {
     override def toString =
         segments.mkString("/")
 }
+
+object PathCoding extends OverrideCoding (
+    StringCoder.transform
+        (s => Okay(Path.fromString(s)))
+        (p => Okay(p.toString))
+)
 
 object Path {
     implicit val ordering = Ordering[Iterable[Segment]].on[Path](_.segments)

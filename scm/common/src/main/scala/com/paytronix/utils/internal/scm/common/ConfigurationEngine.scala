@@ -12,9 +12,7 @@ import com.paytronix.utils.scala.result.Result
 import context.Path
 
 /** Interface for a configuration engine, which provides coordination of updates, cache management, and applying the data model appropriately */
-trait ConfigurationEngine {
-    // Data interface
-
+trait ConfigurationReadEngine {
     /** Enumerate all node names under a given root context, optionally filtered by some aspect */
     def enumerateNodesUsingFilter(filter: Filter): Result[Seq[Node]]
 
@@ -36,23 +34,6 @@ trait ConfigurationEngine {
     /** Fetch all nodes using a filter */
     def fetchRawNodesUsingFilter(filter: Filter): Result[Seq[(Node, NodeContents)]]
 
-    /** Update some key paths of an existing node. Upserts are the keys to insert or update (upsert), and deletes are the paths to remove. */
-    def updateNode(node: Node, upserts: Seq[(KeyPath, JValue)], deletes: Seq[KeyPath], auditInformation: NodeContents): Result[NodeContents]
-
-    /** Replace the contents of a node wholesale. */
-    def replaceNode(node: Node, newContents: NodeContents, auditInformation: NodeContents): Result[NodeContents]
-
-    /** Delete a single node. */
-    def deleteNode(node: Node, auditInformation: NodeContents): Result[Unit]
-
-    // Inheritance rules interface
-
-    /**
-     * Update the inheritance rules for an aspect.
-     * If any rules are already registered for the aspect, any of them that share a keyPath with the new rules will be overwritten.
-     */
-    def updateInheritanceRulesForAspect(aspect: AspectName, rules: InheritanceRules): Result[Unit]
-
     /** Fetch the inheritance rules. */
     def fetchInheritanceRules(): Result[Map[AspectName, InheritanceRules]]
 
@@ -65,8 +46,19 @@ trait ConfigurationEngine {
     /** Reload inheritance rules for a particular aspect */
     def reloadInheritanceRulesForAspect(aspect: AspectName): Result[Unit]
 
-    // Watches
+    // Semi-internal functions
 
+    /** Callback from a ConfigurationStore indicating some nodes changed */
+    def invalidate(nodes: Iterable[Node]): Unit
+
+    /**
+     * Callback from a ConfigurationStore indicating the underlying storage service cannot guarantee
+     * that writes didn't go unnoticed, and so the cache needs to be cleared and all nodes invalidated
+     */
+    def invalidateAll(): Unit
+}
+
+trait ConfigurationWatchEngine {
     /**
      * Set a watch on any nodes matching the given filters (union of all filters) that triggers the given function
      * when the contents of the cooked node may have changed.
@@ -83,20 +75,26 @@ trait ConfigurationEngine {
 
     /** Cancel a watch */
     def unwatch(identifier: WatchIdentifier): Unit
-
-    // Semi-internal functions
-
-    /** Callback from a ConfigurationStore indicating some nodes changed */
-    def invalidate(nodes: Iterable[Node]): Unit
-
-    /**
-     * Callback from a ConfigurationStore indicating the underlying storage service cannot guarantee
-     * that writes didn't go unnoticed, and so the cache needs to be cleared and all nodes invalidated
-     */
-    def invalidateAll(): Unit
 }
 
-trait CachingConfigurationEngine extends ConfigurationEngine {
+trait ConfigurationReadWriteEngine extends ConfigurationReadEngine {
+    /** Update some key paths of an existing node. Upserts are the keys to insert or update (upsert), and deletes are the paths to remove. */
+    def updateNode(node: Node, upserts: Seq[(KeyPath, JValue)], deletes: Seq[KeyPath], auditInformation: NodeContents): Result[NodeContents]
+
+    /** Replace the contents of a node wholesale. */
+    def replaceNode(node: Node, newContents: NodeContents, auditInformation: NodeContents): Result[NodeContents]
+
+    /** Delete a single node. */
+    def deleteNode(node: Node, auditInformation: NodeContents): Result[Unit]
+
+    /**
+     * Update the inheritance rules for an aspect.
+     * If any rules are already registered for the aspect, any of them that share a keyPath with the new rules will be overwritten.
+     */
+    def updateInheritanceRulesForAspect(aspect: AspectName, rules: InheritanceRules): Result[Unit]
+}
+
+trait CachingConfigurationEngine extends ConfigurationReadEngine {
     // Cache maintenance functions
 
     /** Clear the raw cache */

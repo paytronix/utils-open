@@ -28,6 +28,7 @@
         <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></dependency>
         <dependency><groupId>com.paytronix.utils</groupId><artifactId>interchange</artifactId></dependency>
         <dependency><groupId>com.paytronix.utils</groupId><artifactId>scala</artifactId></dependency>
+        <dependency><groupId>paytronix.utils.internal</groupId><artifactId>scala</artifactId></dependency>
 
         <dependency><groupId>junit</groupId><artifactId>junit</artifactId><scope>test</scope></dependency>
         <dependency><groupId>org.specs2</groupId><artifactId>specs2_${scala.compatibility.version}</artifactId><scope>test</scope></dependency>

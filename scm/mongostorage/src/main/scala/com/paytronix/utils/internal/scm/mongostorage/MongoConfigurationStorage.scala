@@ -23,88 +23,15 @@ import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 
 import com.paytronix.utils.internal.scm.common.{
-    AspectFilter, AspectName, ConfigurationEngine, ContextFilter, Filter, KeyPath, Node, NodeContents, NodeFilter, Unfiltered
+    AspectFilter, AspectName, ConfigurationReadEngine, ConfigurationReadWriteEngine,
+    ContextFilter, Filter, KeyPath, Node, NodeContents, NodeFilter, Unfiltered
 }
 import com.paytronix.utils.internal.scm.common.context.{Path, QualifiedSegment, UnqualifiedSegment}
-import com.paytronix.utils.internal.scm.engine.ConfigurationStorage
+import com.paytronix.utils.internal.scm.engine.{ConfigurationReadStorage, ConfigurationReadWriteStorage}
 import com.paytronix.utils.interchange.{Coding, ExplicitUnionCoding, MongoUtils}
 import com.paytronix.utils.scala.log.resultLoggerOps
 import com.paytronix.utils.scala.result.{Failed, Okay, Result, iterableResultOps, optionOps, tryCatch}
 
-/*
-{ "ts" : { "t" : 1352690978000, "i" : 1 },
-  "h" : NumberLong(0),
-  "op" : "n",
-  "ns" : "",
-  "o" : { "msg" : "initiating set" } }
-{ "ts" : { "t" : 1352691014000, "i" : 1 },
-  "h" : NumberLong("6532261965744570385"),
-  "op" : "n",
-  "ns" : "",
-  "o" : { "msg" : "Reconfig set", "version" : 2 } }
-{ "ts" : { "t" : 1352691015000, "i" : 1 },
-  "h" : NumberLong("-601414404918963212"),
-  "op" : "n",
-  "ns" : "",
-  "o" : { "msg" : "Reconfig set", "version" : 3 } }
-
-
-PRIMARY> db.foobar.insert({"foo":"bar"})
-PRIMARY> db.foobar.find()
-{ "_id" : ObjectId("50a06dae1121b84215236b8d"), "foo" : "bar" }
-
-{ "ts" : { "t" : 1352691118000, "i" : 1 },
-  "h" : NumberLong("-4652036888196607059"),
-  "op" : "i",
-  "ns" : "test.foobar",
-  "o" : { "_id" : ObjectId("50a06dae1121b84215236b8d"), "foo" : "bar" } }
-
-
-PRIMARY> db.foobar.update({"_id" : ObjectId("50a06dae1121b84215236b8d")}, {"_id" : ObjectId("50a06dae1121b84215236b8d"), "foo": "bar", "biz": "baz"})
-
-{ "ts" : { "t" : 1352691174000, "i" : 1 },
-  "h" : NumberLong("-4930451014729848312"),
-  "op" : "u",
-  "ns" : "test.foobar",
-  "o2" : { "_id" : ObjectId("50a06dae1121b84215236b8d") },
-  "o" : { "_id" : ObjectId("50a06dae1121b84215236b8d"), "foo" : "bar", "biz" : "baz" } }
-
-
-PRIMARY> db.foobar.remove({"foo": "bar"})
-
-{ "ts" : { "t" : 1352691189000, "i" : 1 },
-  "h" : NumberLong("2230588797083296681"),
-  "op" : "d",
-  "ns" : "test.foobar",
-  "b" : true,  // "replJustOnce"
-  "o" : { "_id" : ObjectId("50a06dae1121b84215236b8d") } }
-*/
-
-sealed abstract class OplogEntry {
-    //val ts: OplogTimestamp // need to add coding for BSONTimestamp to get this
-    //val h: Long
-    //val v: Int
-    val ns: String
-}
-
-object OplogEntry {
-    val coding = Coding.forClass[OplogEntry]
-}
-
-object OplogEntryCoding extends ExplicitUnionCoding[OplogEntry] {
-    override val determinantField = "op"
-    alternative[OplogInsert]("i")
-    alternative[OplogUpdate]("u")
-    alternative[OplogDelete]("d")
-    alternative[OplogNoop]("n")
-    alternative[OplogDbCmd]("c")
-}
-
-final case class OplogInsert(ns: String/*, h: Long, v: Int*/, o: DBObject) extends OplogEntry
-final case class OplogUpdate(ns: String/*, h: Long, v: Int*/, o: DBObject, o2: DBObject) extends OplogEntry
-final case class OplogDelete(ns: String/*, h: Long, v: Int*/, o: DBObject) extends OplogEntry
-final case class OplogDbCmd(ns: String/*, h: Long, v: Int*/) extends OplogEntry
-final case class OplogNoop(ns: String/*, h: Long, v: Int*/) extends OplogEntry
 
 object MongoConfigurationStorageUtils {
     /**
@@ -123,152 +50,29 @@ object MongoConfigurationStorageUtils {
         }
 }
 
-abstract class MongoConfigurationStorageImpl(serverAddresses: Seq[ServerAddress], database: String) extends ConfigurationStorage {
+class ReadMongoConfigurationStorage(serverAddresses: Seq[ServerAddress], database: String) extends ConfigurationReadStorage {
     protected implicit val logger = LoggerFactory.getLogger(getClass)
-    protected def locateConfigurationEngine: Result[ConfigurationEngine]
 
     val nodesCollectionName                = "configuration.nodes"
     val recentlyDeletedNodesCollectionName = "configuration.recentlyDeletedNodes"
     val auditLogCollectionName             = "configuration.auditLog"
-    val oplogCollectionName                = "oplog.rs"
 
     RegisterJodaTimeConversionHelpers()
 
     val connection = MongoConnection(serverAddresses.toList)
     val configurationDatabase = connection(database)
-    val localDatabase = connection("local")
 
     val nodesCollectionRO = configurationDatabase(nodesCollectionName)
     nodesCollectionRO.readPreference = ReadPreference.SECONDARY
 
     val nodesCollection = configurationDatabase(nodesCollectionName)
-    nodesCollection.ensureIndex(MongoDBObject("context" -> 1, "aspect" -> 1))
-    nodesCollection.ensureIndex(MongoDBObject("aspect" -> 1))
     nodesCollection.writeConcern = WriteConcern.REPLICAS_SAFE
 
     val recentlyDeletedNodesCollection = configurationDatabase(recentlyDeletedNodesCollectionName)
     recentlyDeletedNodesCollection.writeConcern = WriteConcern.REPLICAS_SAFE
-    recentlyDeletedNodesCollection.ensureIndex(MongoDBObject("ts" -> 1))
 
     val auditLogCollection = configurationDatabase(auditLogCollectionName)
     auditLogCollection.writeConcern = WriteConcern.SAFE
-
-    val oplogCollection = localDatabase(oplogCollectionName)
-    oplogCollection.readPreference = ReadPreference.SECONDARY
-
-    val oplogReader = new OplogReader
-    val oplogReaderThread = new Thread(oplogReader, "Config oplog reader")
-
-    val recentlyDeletedNodesReaper = new RecentlyDeletedNodesReaper
-    val recentlyDeletedNodesReaperTimer = new Timer("Config recently deleted nodes reaper")
-
-    def startWatching() = {
-        recentlyDeletedNodesReaperTimer.scheduleAtFixedRate(recentlyDeletedNodesReaper, 1000L * 60L * 60L, 1000L * 60L * 60L)
-        oplogReaderThread.start()
-    }
-
-    def stopWatching() = {
-        oplogReader.continue = false
-        oplogReaderThread.interrupt()
-        recentlyDeletedNodesReaperTimer.cancel()
-    }
-
-    final class OplogReader extends Runnable {
-        val expectedNS = configurationDatabase.getName + "." + nodesCollectionName
-        val oplogCoding =
-            OplogEntry.coding.orElse("OplogEntry coding cannot be generated, oplog reading cannot be performed").orThrow
-        var continue = true
-        var lastSeen: Option[BSONTimestamp] =
-            oplogCollection.find().sort(MongoDBObject("$natural" -> -1)).limit(1).toSeq.headOption map { _.get("ts").asInstanceOf[BSONTimestamp] }
-
-        def query: MongoDBObject =
-            lastSeen match {
-                case Some(found) => MongoDBObject("ts" -> MongoDBObject("$gt" -> found))
-                case _           => MongoDBObject()
-            }
-
-        // now invalidate that we've gotten a timestamp
-        locateConfigurationEngine.foreach(_.invalidateAll()) // don't care about the result, on first-time startup this will almost always happen
-
-        logger.info("Oplog reader started: " + query)
-
-        @tailrec
-        def run() = {
-            if (!continue) ()
-            else {
-                try {
-                    val curs = oplogCollection.find(query).sort(MongoDBObject("$natural" -> 1))
-                    curs.option = QUERYOPTION_AWAITDATA
-                    curs.option = QUERYOPTION_TAILABLE
-
-                    logger.debug("Waiting for oplog updates")
-                    try {
-                        while (true) {
-                            curs.foreach { dbo =>
-                                try {
-                                    lastSeen = Some(dbo.get("ts").asInstanceOf[BSONTimestamp])
-                                    processOplogEntry(dbo)
-                                } catch { case e: Exception =>
-                                    logger.warn("Exception while processing oplog entry: " + dbo, e)
-                                }
-                            }
-
-                            try Thread.sleep(100L) catch { case _: InterruptedException => () }
-                        }
-                    } catch { case dead: MongoException.CursorNotFound => () }
-                    logger.debug("Requerying as cursor has timed out")
-                } catch {
-                    case ie: InterruptedException => ()
-                    case e: Exception =>
-                        logger.warn("Exception received while processing oplog:", e)
-                }
-                run()
-            }
-        }
-
-        private def processOplogEntry(dbo: DBObject): Unit = {
-            val entry = oplogCoding.decodeMongoDB(dbo).orElse("Failed to parse oplog entry").orThrow
-            // Really noisy
-            //if (logger.isDebugEnabled)
-            //    logger.debug("Recognized oplog update received: " + entry)
-            entry match {
-                case OplogInsert(`expectedNS`, o) =>
-                    val node = makeNode(o)
-                    locateConfigurationEngine.map(_.invalidate(node :: Nil))
-                        .logWarn("Failed to notify configuration service of inserted node " + node)
-
-                case OplogUpdate(`expectedNS`, _, o) =>
-                    nodesCollectionRO.find(o).limit(1).toSeq.headOption.foreach { dbo =>
-                        val node = makeNode(dbo)
-                        locateConfigurationEngine.map(_.invalidate(node :: Nil))
-                            .logWarn("Failed to notify configuration service of updated node " + node)
-                    }
-
-                case OplogDelete(`expectedNS`, o) =>
-                    val _id = o.get("_id").asInstanceOf[ObjectId]
-                    recentlyDeletedNodesCollection.findOne(MongoDBObject("_id" -> _id)).toList match {
-                        case Nil =>
-                            logger.warn("Node " + _id + " was deleted but is not present in " + recentlyDeletedNodesCollectionName + " so entire cache has to be invalidated since affected node is not known")
-                            locateConfigurationEngine.map(_.invalidateAll)
-                                .logWarn("Failed to notify configuration service of unresolved node deletion")
-                        case many =>
-                            locateConfigurationEngine.map(_.invalidate(many.map(makeNode).toSeq))
-                                .logWarn("Failed to notify configuration service of deleted node(s) " + many)
-                    }
-
-                case _ =>
-                    ()
-            }
-        }
-    }
-
-    final class RecentlyDeletedNodesReaper extends TimerTask {
-        def run() = {
-            logger.debug("Reaping recently deleted nodes")
-            val threshold = new DateTime().hourOfDay.addToCopy(-4)
-            recentlyDeletedNodesCollection.remove(MongoDBObject("ts" -> MongoDBObject("$lt" -> threshold)), WriteConcern.NORMAL)
-        }
-    }
 
     private def query(filter: Filter): DBObject = {
         if (!filter.inclusive)
@@ -321,22 +125,22 @@ abstract class MongoConfigurationStorageImpl(serverAddresses: Seq[ServerAddress]
         result
     }
 
-    private def query(node: Node): DBObject =
+    private[mongostorage] def query(node: Node): DBObject =
         query(NodeFilter(node.context, node.aspect, inclusive=true, ancestors=false, descendants=false, self=true))
-    private def query(nodes: Iterable[Node]): DBObject =
+    private[mongostorage] def query(nodes: Iterable[Node]): DBObject =
         $or(nodes.map { node =>
             query(NodeFilter(node.context, node.aspect, inclusive=true, ancestors=false, descendants=false, self=true))
         }.toSeq)
-    private def query(aspect: AspectName): DBObject =
+    private[mongostorage] def query(aspect: AspectName): DBObject =
         query(AspectFilter(aspect, inclusive=true))
-    private def query(path: Path): DBObject =
+    private[mongostorage] def query(path: Path): DBObject =
         query(ContextFilter(path, inclusive=true, ancestors=false, descendants=false, self=true))
 
-    private def makePath(a: Any): Path =
+    private[mongostorage] def makePath(a: Any): Path =
         Path.fromString(a.asInstanceOf[String])
-    private def makePath(p: Path): Any =
+    private[mongostorage] def makePath(p: Path): Any =
         p.toString
-    private def makeNode(dbo: DBObject): Node =
+    private[mongostorage] final def makeNode(dbo: DBObject): Node =
         Node(makePath(dbo.get("context")), dbo.get("aspect").asInstanceOf[String])
 
     def enumerateNodesUsingFilter(filter: Filter): Result[Seq[Node]] =
@@ -366,6 +170,26 @@ abstract class MongoConfigurationStorageImpl(serverAddresses: Seq[ServerAddress]
             }.toSeq: _*)
             nodes.map(fetched.get).toSeq
         }
+}
+
+class ReadWriteMongoConfigurationStorage(serverAddresses: Seq[ServerAddress], database: String) extends ReadMongoConfigurationStorage(serverAddresses, database) with ConfigurationReadWriteStorage {
+    nodesCollection.ensureIndex(MongoDBObject("context" -> 1, "aspect" -> 1))
+    nodesCollection.ensureIndex(MongoDBObject("aspect" -> 1))
+    recentlyDeletedNodesCollection.ensureIndex(MongoDBObject("ts" -> 1))
+    val recentlyDeletedNodesReaper = new RecentlyDeletedNodesReaper
+    val recentlyDeletedNodesReaperTimer = new Timer("Config recently deleted nodes reaper")
+    recentlyDeletedNodesReaperTimer.scheduleAtFixedRate(recentlyDeletedNodesReaper, 1000L * 60L * 60L, 1000L * 60L * 60L)
+
+    final class RecentlyDeletedNodesReaper extends TimerTask {
+        def run() = {
+            logger.debug("Reaping recently deleted nodes")
+            val threshold = new DateTime().hourOfDay.addToCopy(-4)
+            recentlyDeletedNodesCollection.remove(MongoDBObject("ts" -> MongoDBObject("$lt" -> threshold)), WriteConcern.NORMAL)
+        }
+    }
+
+    def stopReadWriteSupport() =
+        recentlyDeletedNodesReaperTimer.cancel()
 
     def updateNode(node: Node, upserts: Seq[(KeyPath, JValue)], deletes: Seq[KeyPath], auditInfo: NodeContents): Result[NodeContents] =
         tryCatch.result {
@@ -493,4 +317,189 @@ abstract class MongoConfigurationStorageImpl(serverAddresses: Seq[ServerAddress]
                 ))
             }
         }
+}
+
+/*
+{ "ts" : { "t" : 1352690978000, "i" : 1 },
+  "h" : NumberLong(0),
+  "op" : "n",
+  "ns" : "",
+  "o" : { "msg" : "initiating set" } }
+{ "ts" : { "t" : 1352691014000, "i" : 1 },
+  "h" : NumberLong("6532261965744570385"),
+  "op" : "n",
+  "ns" : "",
+  "o" : { "msg" : "Reconfig set", "version" : 2 } }
+{ "ts" : { "t" : 1352691015000, "i" : 1 },
+  "h" : NumberLong("-601414404918963212"),
+  "op" : "n",
+  "ns" : "",
+  "o" : { "msg" : "Reconfig set", "version" : 3 } }
+
+
+PRIMARY> db.foobar.insert({"foo":"bar"})
+PRIMARY> db.foobar.find()
+{ "_id" : ObjectId("50a06dae1121b84215236b8d"), "foo" : "bar" }
+
+{ "ts" : { "t" : 1352691118000, "i" : 1 },
+  "h" : NumberLong("-4652036888196607059"),
+  "op" : "i",
+  "ns" : "test.foobar",
+  "o" : { "_id" : ObjectId("50a06dae1121b84215236b8d"), "foo" : "bar" } }
+
+
+PRIMARY> db.foobar.update({"_id" : ObjectId("50a06dae1121b84215236b8d")}, {"_id" : ObjectId("50a06dae1121b84215236b8d"), "foo": "bar", "biz": "baz"})
+
+{ "ts" : { "t" : 1352691174000, "i" : 1 },
+  "h" : NumberLong("-4930451014729848312"),
+  "op" : "u",
+  "ns" : "test.foobar",
+  "o2" : { "_id" : ObjectId("50a06dae1121b84215236b8d") },
+  "o" : { "_id" : ObjectId("50a06dae1121b84215236b8d"), "foo" : "bar", "biz" : "baz" } }
+
+
+PRIMARY> db.foobar.remove({"foo": "bar"})
+
+{ "ts" : { "t" : 1352691189000, "i" : 1 },
+  "h" : NumberLong("2230588797083296681"),
+  "op" : "d",
+  "ns" : "test.foobar",
+  "b" : true,  // "replJustOnce"
+  "o" : { "_id" : ObjectId("50a06dae1121b84215236b8d") } }
+*/
+
+sealed abstract class OplogEntry {
+    //val ts: OplogTimestamp // need to add coding for BSONTimestamp to get this
+    //val h: Long
+    //val v: Int
+    val ns: String
+}
+
+object OplogEntry {
+    val coding = Coding.forClass[OplogEntry]
+}
+
+object OplogEntryCoding extends ExplicitUnionCoding[OplogEntry] {
+    override val determinantField = "op"
+    alternative[OplogInsert]("i")
+    alternative[OplogUpdate]("u")
+    alternative[OplogDelete]("d")
+    alternative[OplogNoop]("n")
+    alternative[OplogDbCmd]("c")
+}
+
+final case class OplogInsert(ns: String/*, h: Long, v: Int*/, o: DBObject) extends OplogEntry
+final case class OplogUpdate(ns: String/*, h: Long, v: Int*/, o: DBObject, o2: DBObject) extends OplogEntry
+final case class OplogDelete(ns: String/*, h: Long, v: Int*/, o: DBObject) extends OplogEntry
+final case class OplogDbCmd(ns: String/*, h: Long, v: Int*/) extends OplogEntry
+final case class OplogNoop(ns: String/*, h: Long, v: Int*/) extends OplogEntry
+
+class MongoConfigurationStorageWatchProcessor(mongoStorage: ReadMongoConfigurationStorage, locateConfigurationEngine: () => Result[ConfigurationReadEngine]) {
+    protected implicit val logger = LoggerFactory.getLogger(getClass)
+
+    val oplogCollectionName = "oplog.rs"
+
+    val localDatabase = mongoStorage.connection("local")
+    val oplogCollection = localDatabase(oplogCollectionName)
+    oplogCollection.readPreference = ReadPreference.SECONDARY
+
+    val oplogReader = new OplogReader
+    val oplogReaderThread = new Thread(oplogReader, "Config oplog reader")
+
+    oplogReaderThread.start()
+
+    def stop() = {
+        oplogReader.continue = false
+        oplogReaderThread.interrupt()
+    }
+
+    final class OplogReader extends Runnable {
+        val expectedNS = mongoStorage.configurationDatabase.getName + "." + mongoStorage.nodesCollectionName
+        val oplogCoding =
+            OplogEntry.coding.orElse("OplogEntry coding cannot be generated, oplog reading cannot be performed").orThrow
+        var continue = true
+        var lastSeen: Option[BSONTimestamp] =
+            oplogCollection.find().sort(MongoDBObject("$natural" -> -1)).limit(1).toSeq.headOption map { _.get("ts").asInstanceOf[BSONTimestamp] }
+
+        def query: MongoDBObject =
+            lastSeen match {
+                case Some(found) => MongoDBObject("ts" -> MongoDBObject("$gt" -> found))
+                case _           => MongoDBObject()
+            }
+
+        // now invalidate that we've gotten a timestamp
+        locateConfigurationEngine().foreach(_.invalidateAll()) // don't care about the result, on first-time startup this will almost always happen
+
+        logger.info("Oplog reader started: " + query)
+
+        @tailrec
+        def run() = {
+            if (!continue) ()
+            else {
+                try {
+                    val curs = oplogCollection.find(query).sort(MongoDBObject("$natural" -> 1))
+                    curs.option = QUERYOPTION_AWAITDATA
+                    curs.option = QUERYOPTION_TAILABLE
+
+                    logger.debug("Waiting for oplog updates")
+                    try {
+                        while (true) {
+                            curs.foreach { dbo =>
+                                try {
+                                    lastSeen = Some(dbo.get("ts").asInstanceOf[BSONTimestamp])
+                                    processOplogEntry(dbo)
+                                } catch { case e: Exception =>
+                                    logger.warn("Exception while processing oplog entry: " + dbo, e)
+                                }
+                            }
+
+                            try Thread.sleep(100L) catch { case _: InterruptedException => () }
+                        }
+                    } catch { case dead: MongoException.CursorNotFound => () }
+                    logger.debug("Requerying as cursor has timed out")
+                } catch {
+                    case ie: InterruptedException => ()
+                    case e: Exception =>
+                        logger.warn("Exception received while processing oplog:", e)
+                }
+                run()
+            }
+        }
+
+        private def processOplogEntry(dbo: DBObject): Unit = {
+            val entry = oplogCoding.decodeMongoDB(dbo).orElse("Failed to parse oplog entry").orThrow
+            // Really noisy
+            //if (logger.isDebugEnabled)
+            //    logger.debug("Recognized oplog update received: " + entry)
+            entry match {
+                case OplogInsert(`expectedNS`, o) =>
+                    val node = mongoStorage.makeNode(o)
+                    locateConfigurationEngine().map(_.invalidate(node :: Nil))
+                        .logWarn("Failed to notify configuration service of inserted node " + node)
+
+                case OplogUpdate(`expectedNS`, _, o) =>
+                    mongoStorage.nodesCollectionRO.find(o).limit(1).toSeq.headOption.foreach { dbo =>
+                        val node = mongoStorage.makeNode(dbo)
+                        locateConfigurationEngine().map(_.invalidate(node :: Nil))
+                            .logWarn("Failed to notify configuration service of updated node " + node)
+                    }
+
+                case OplogDelete(`expectedNS`, o) =>
+                    val _id = o.get("_id").asInstanceOf[ObjectId]
+                    mongoStorage.recentlyDeletedNodesCollection.findOne(MongoDBObject("_id" -> _id)).toList match {
+                        case Nil =>
+                            logger.warn("Node " + _id + " was deleted but is not present in " + mongoStorage.recentlyDeletedNodesCollectionName +
+                                        " so entire cache has to be invalidated since affected node is not known")
+                            locateConfigurationEngine().map(_.invalidateAll)
+                                .logWarn("Failed to notify configuration service of unresolved node deletion")
+                        case many =>
+                            locateConfigurationEngine().map(_.invalidate(many.map(mongoStorage.makeNode).toSeq))
+                                .logWarn("Failed to notify configuration service of deleted node(s) " + many)
+                    }
+
+                case _ =>
+                    ()
+            }
+        }
+    }
 }
