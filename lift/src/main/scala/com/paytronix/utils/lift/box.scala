@@ -112,6 +112,13 @@ object box
             case _       => logger.errorBox(msg, box); box
         }
 
+        /** For Empty or Failure boxes, log the given error text using errorBox after performing the specified cleanup behaviors */
+        def orLogErrorWithCleanup(logger: Logger, msg: String, cleanup: () => Unit): Box[A] = box match {
+            case Full(_) => box
+            case _       => cleanup()
+                            logger.errorBox(msg, box); box
+        }
+
         // Aliases for orLog* that makes chaining orError and orLog* from SnippetHelpers more natural
         def andLogDebug(logger: Logger, msg: String): Box[A] = orLogDebug(logger, msg)
         def andLogInfo(logger: Logger, msg: String): Box[A] = orLogInfo(logger, msg)
