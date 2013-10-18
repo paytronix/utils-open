@@ -83,7 +83,7 @@
     <dependencies>
         <dependency>
             <groupId>com.chuusai</groupId>
-            <artifactId>shapeless_${scala.compatibility.version}</artifactId>
+            <artifactId>shapeless_2.9.2</artifactId>
         </dependency>
         <dependency>
             <groupId>com.paytronix.utils</groupId>

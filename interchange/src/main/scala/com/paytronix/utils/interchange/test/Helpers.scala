@@ -20,16 +20,16 @@ import net.liftweb.json.JsonAST.{JNothing, JValue, render}
 import net.liftweb.json.Printer.compact
 import org.specs2.SpecificationFeatures
 import org.specs2.execute.{Result => SpecsResult}
-import org.specs2.matcher.Matcher
+import org.specs2.matcher.{Matcher, MatchResult}
 import org.specs2.specification.Around
 import com.paytronix.utils.extendedreflection.Builder
 import com.paytronix.utils.interchange.{Coder, CoderSettings, Coding, ComposableCoder}
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, ResultG, optionOps}
 
-object Helpers extends SpecificationFeatures {
+object Helpers {
     implicit val builder = new Builder(getClass.getClassLoader)
 
-    trait TestValue[T] {
+   trait TestValue[T] {
         val test: T
 
         def coder: Result[ComposableCoder[_]] =
@@ -52,6 +52,12 @@ object Helpers extends SpecificationFeatures {
         case Okay(jv) => "Okay(" + printJSON(jv) + ")"
         case other => other.toString
     }
+}
+
+import Helpers._
+
+trait Helpers {
+    self: SpecificationFeatures =>
 
     def matchEncodedJson(expected: JValue): Matcher[ResultG[_, JValue]] =
         (actualResult: ResultG[_, JValue]) =>
@@ -66,10 +72,10 @@ object Helpers extends SpecificationFeatures {
                     ko(actualResultJSON + " does not match " + expectedJSON)
             }
 
-    def avroRoundTrip[T](inst: ComposableCoder[T], value: T): SpecsResult =
+    def avroRoundTrip[T](inst: ComposableCoder[T], value: T): MatchResult[Any] =
         avroRoundTrip(Coder(getClass.getClassLoader, inst), value)
 
-    def avroRoundTrip[T](inst: Coder[T], value: T): SpecsResult =
+    def avroRoundTrip[T](inst: Coder[T], value: T): MatchResult[Any] =
         avroRoundTripExpect[T](inst, value) {
             beLike {
                 case Okay(null) if value == null => ok
@@ -80,10 +86,10 @@ object Helpers extends SpecificationFeatures {
             }
         }
 
-    def avroRoundTripExpect[T](inst: ComposableCoder[T], value: T)(matcher: Matcher[Result[T]]): SpecsResult =
+    def avroRoundTripExpect[T](inst: ComposableCoder[T], value: T)(matcher: Matcher[Result[T]]): MatchResult[Any] =
         avroRoundTripExpect(Coder(getClass.getClassLoader, inst), value)(matcher)
 
-    def avroRoundTripExpect[T](inst: Coder[T], value: T)(matcher: Matcher[Result[T]]): SpecsResult =
+    def avroRoundTripExpect[T](inst: Coder[T], value: T)(matcher: Matcher[Result[T]]): MatchResult[Any] =
         inst.encodeAvro(value) must beLike {
             case Okay(encoded) =>
                 inst.decodeAvro(inst.avroSchema._1, encoded) must matcher

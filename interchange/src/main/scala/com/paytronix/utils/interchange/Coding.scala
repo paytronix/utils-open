@@ -161,6 +161,7 @@ object Coding {
             (classOf[java.lang.Integer],       registration("java.lang.Integer",           () => IntCoder)),
             (classOf[Int],                     registration("Int",                         () => IntCoder)),
             (classOf[JValue],                  registration("JValue",                      () => JValueCoder)),
+            (classOf[JObject],                 registration("JObject",                     () => JObjectCoder)),
             (classOf[java.lang.Long],          registration("java.lang.Long",              () => LongCoder)),
             (classOf[Long],                    registration("Long",                        () => LongCoder)),
             (classOf[java.lang.Short],         registration("java.lang.Short",             () => ShortCoder)),
@@ -175,7 +176,6 @@ object Coding {
             (classOf[LocalDateTime],           registration("org.joda.time.LocalDateTime", () => LocalDateTimeCoder)),
             (classOf[Duration],                registration("org.joda.time.Duration",      () => DurationCoder)),
 
-            (classOf[JValue],   registration("net.liftweb.json.JsonAST.JValue", () => JValueCoder)),
             (classOf[ObjectId], registration("org.bson.types.ObjectId",         () => ObjectIdCoder)),
             (classOf[DBObject], registration("com.mongodb.DBObject",            () => DBObjectCoder)),
 

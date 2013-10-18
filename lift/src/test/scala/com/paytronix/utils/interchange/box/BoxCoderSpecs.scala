@@ -28,7 +28,7 @@ import com.paytronix.utils.interchange.test.fixtures._
 import com.paytronix.utils.interchange.test.Helpers._
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, ResultG}
 
-class BoxCoderSpecTest extends SpecificationWithJUnit {
+class BoxCoderSpecTest extends SpecificationWithJUnit with test.Helpers {
     val log = LoggerFactory.getLogger(getClass)
 
     val cl = getClass.getClassLoader

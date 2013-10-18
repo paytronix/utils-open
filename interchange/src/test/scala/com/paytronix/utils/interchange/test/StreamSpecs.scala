@@ -29,8 +29,14 @@ import com.paytronix.utils.scala.result.{Okay, ResultG}
 
 import fixtures.{CaseClass, Coders}
 
-object Helper extends SpecificationFeatures {
+object Helper {
     val classLoader = getClass.getClassLoader
+}
+
+import Helper._
+
+trait Helper {
+    self: SpecificationFeatures =>
 
     def check(stream: Stream[ResultG[Any, CaseClass]]): MatchResult[Any] =
         stream.toList must_== List (
@@ -40,9 +46,8 @@ object Helper extends SpecificationFeatures {
         )
 }
 
-import Helper._
 
-class JSONArrayStreamSpecTest extends SpecificationWithJUnit {
+class JSONArrayStreamSpecTest extends SpecificationWithJUnit with Helper {
     val json = """
     [
         { "foo": 1 },
@@ -61,7 +66,7 @@ class JSONArrayStreamSpecTest extends SpecificationWithJUnit {
     }
 }
 
-class AvroStreamStreamSpecTest extends SpecificationWithJUnit {
+class AvroStreamStreamSpecTest extends SpecificationWithJUnit with Helper {
     val bytes =
         Coder(classLoader, Coders.caseClassCoder).encodeAvro(CaseClass(1, null, None)).orThrow ++
         Coder(classLoader, Coders.caseClassCoder).encodeAvro(CaseClass(2, null, None)).orThrow ++
@@ -75,7 +80,7 @@ class AvroStreamStreamSpecTest extends SpecificationWithJUnit {
     }
 }
 
-class AvroArrayStreamSpecTest extends SpecificationWithJUnit {
+class AvroArrayStreamSpecTest extends SpecificationWithJUnit with Helper {
     val bytes = {
         val baos = new ByteArrayOutputStream()
         val encoder = EncoderFactory.get.directBinaryEncoder(baos, null)
