@@ -15,14 +15,14 @@ import org.specs2.matcher.{Matcher, MatchResult}
 
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG}
 
-object InheritanceTestFixtures extends SpecificationFeatures {
+trait InheritanceTestFixtures {
+    self: SpecificationFeatures =>
+
     val beFailed: Matcher[ResultG[_, _]] =
         beLike {
             case FailedG(_, _) => ok
         }
 }
-
-import InheritanceTestFixtures._
 
 class ExcludeActionSpecTest extends SpecificationWithJUnit { def is =
     "ExcludeAction" ^
@@ -34,7 +34,7 @@ class ReplaceActionSpecTest extends SpecificationWithJUnit { def is =
     "works" ! { ReplaceAction.combine(JString("foo"), JString("bar")) must_== Okay(JString("bar")) }
 }
 
-class ArrayAppendActionSpecTest extends SpecificationWithJUnit { def is =
+class ArrayAppendActionSpecTest extends SpecificationWithJUnit with InheritanceTestFixtures { def is =
     "ArrayAppendAction" ^
     "fails on LHS non-array" ! { ArrayAppendAction.combine(JString("foo"), JArray(Nil)) must beFailed } ^
     "fails on RHS non-array" ! { ArrayAppendAction.combine(JArray(Nil), JString("foo")) must beFailed } ^
@@ -44,7 +44,7 @@ class ArrayAppendActionSpecTest extends SpecificationWithJUnit { def is =
     )
 }
 
-class ArrayAppendDistinctActionSpecTest extends SpecificationWithJUnit { def is =
+class ArrayAppendDistinctActionSpecTest extends SpecificationWithJUnit with InheritanceTestFixtures { def is =
     "ArrayAppendDistinctAction" ^
     "fails on LHS non-array" ! { ArrayAppendDistinctAction.combine(JString("foo"), JArray(Nil)) must beFailed } ^
     "fails on RHS non-array" ! { ArrayAppendDistinctAction.combine(JArray(Nil), JString("foo")) must beFailed } ^
@@ -54,7 +54,7 @@ class ArrayAppendDistinctActionSpecTest extends SpecificationWithJUnit { def is 
     )
 }
 
-class ArrayPrependActionSpecTest extends SpecificationWithJUnit { def is =
+class ArrayPrependActionSpecTest extends SpecificationWithJUnit with InheritanceTestFixtures { def is =
     "ArrayPrependAction" ^
     "fails on LHS non-array" ! { ArrayPrependAction.combine(JString("foo"), JArray(Nil)) must beFailed } ^
     "fails on RHS non-array" ! { ArrayPrependAction.combine(JArray(Nil), JString("foo")) must beFailed } ^
@@ -64,7 +64,7 @@ class ArrayPrependActionSpecTest extends SpecificationWithJUnit { def is =
     )
 }
 
-class ArrayPrependDistinctActionSpecTest extends SpecificationWithJUnit { def is =
+class ArrayPrependDistinctActionSpecTest extends SpecificationWithJUnit with InheritanceTestFixtures { def is =
     "ArrayPrependDistinctAction" ^
     "fails on LHS non-array" ! { ArrayPrependDistinctAction.combine(JString("foo"), JArray(Nil)) must beFailed } ^
     "fails on RHS non-array" ! { ArrayPrependDistinctAction.combine(JArray(Nil), JString("foo")) must beFailed } ^
@@ -74,7 +74,7 @@ class ArrayPrependDistinctActionSpecTest extends SpecificationWithJUnit { def is
     )
 }
 
-class ObjectMergeActionSpecTest extends SpecificationWithJUnit { def is =
+class ObjectMergeActionSpecTest extends SpecificationWithJUnit with InheritanceTestFixtures { def is =
     "ObjectMergeAction" ^
     "fails on LHS non-object" ! { ObjectMergeAction.combine(JString("foo"), JObject(Nil)) must beFailed } ^
     "fails on RHS non-object" ! { ObjectMergeAction.combine(JObject(Nil), JString("foo")) must beFailed } ^
@@ -88,9 +88,7 @@ class ObjectMergeActionSpecTest extends SpecificationWithJUnit { def is =
     )
 }
 
-class InheritanceRulesDSLSpecTest extends SpecificationWithJUnit with InheritanceRulesDSL {
-    import InheritanceRule.ordering
-
+object InheritanceRulesDSLFixtures extends InheritanceRulesDSL {
     val a: KeyPath = "foo" / "bar" / "baz"
     val b          = exclude
     val c: KeyPath = "boo" / "bop"
@@ -100,19 +98,29 @@ class InheritanceRulesDSLSpecTest extends SpecificationWithJUnit with Inheritanc
     val g: KeyPath = "woo"
     val h          = arrayPrepend
 
+    val rule = InheritanceRule.apply _
+
+    val stringActionRule                    = "foo/bar / baz" ==> replace
+    val stringActionRules: InheritanceRules = "foo/bar / baz" ==> replace
+    val keypathActionRule                   = a ==> replace
+}
+
+class InheritanceRulesDSLSpecTest extends SpecificationWithJUnit {
+    import InheritanceRule.ordering
+    import InheritanceRulesDSLFixtures._
+
     def haveRules(expected: InheritanceRule*): Matcher[InheritanceRules] =
         beLike { case InheritanceRules(actual) =>
             if (actual == (TreeSet.empty ++ expected)) ok
             else ko("Expected:\n" + expected.mkString("  ", "\n  ", "\n") + "\nbut got:\n" + actual.mkString("  ", "\n  ", "\n"))
         }
 
-    val rule = InheritanceRule.apply _
 
     def is =
         "InheritanceRulesDSL" ^
-        "string ==> action" ! { ("foo/bar / baz" ==> replace) must_== rule(a, ReplaceAction) } ^
-        "(string ==> action): InheritanceRules" ! { (("foo/bar / baz" ==> replace): InheritanceRules) must haveRules(rule(a, ReplaceAction)) } ^
-        "keypath ==> action" ! { (a ==> replace) must_== rule(a, ReplaceAction) } ^
+        "string ==> action" ! { stringActionRule must_== rule(a, ReplaceAction) } ^
+        "(string ==> action): InheritanceRules" ! { stringActionRules must haveRules(rule(a, ReplaceAction)) } ^
+        "keypath ==> action" ! { keypathActionRule must_== rule(a, ReplaceAction) } ^
         "a ==> b & c ==> d" ! { (a ==> b & c ==> d) must haveRules(rule(a, b), rule(c, d)) } ^
         "(a ==> b & c ==> d) & e ==> f" ! { ((a ==> b & c ==> d) & e ==> f) must haveRules(rule(a, b), rule(c, d), rule(e, f)) } ^
         "a ==> b & (c ==> d & e ==> f)" ! { (a ==> b & (c ==> d & e ==> f)) must haveRules(rule(a, b), rule(c, d), rule(e, f)) } ^

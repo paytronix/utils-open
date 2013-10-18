@@ -11,7 +11,9 @@ import org.specs2.matcher.{DataTables, MatchResult}
 import context.{Path, id, root}
 import context.Segment.stringOps
 
-object FilterTestFixtures extends SpecificationFeatures {
+trait FilterTestFixtures {
+    self: SpecificationFeatures =>
+
     def nodeTest(filter: Filter): (Node, Boolean) => MatchResult[Any] =
         (node, expectation) => filter(node) must_== expectation
 
@@ -19,9 +21,7 @@ object FilterTestFixtures extends SpecificationFeatures {
         (node, expectation) => filter(node) must_== expectation
 }
 
-import FilterTestFixtures._
-
-class ContextFilterSpecTest extends SpecificationWithJUnit with DataTables { def is =
+class ContextFilterSpecTest extends SpecificationWithJUnit with FilterTestFixtures with DataTables { def is =
     "ContextFilter" ^
     "default" ! {
         val filter = Filter.filter(root / id("foo") / "bar" ~ "baz")
@@ -163,7 +163,7 @@ class ContextFilterSpecTest extends SpecificationWithJUnit with DataTables { def
     }
 }
 
-class NodeFilterSpecTest extends SpecificationWithJUnit with DataTables { def is =
+class NodeFilterSpecTest extends SpecificationWithJUnit with FilterTestFixtures with DataTables { def is =
     "NodeFilter" ^
     "default" ! {
         val filter = Filter.filter(root / id("foo") / "bar" ~ "baz").aspect("zippy")
@@ -282,7 +282,7 @@ class NodeFilterSpecTest extends SpecificationWithJUnit with DataTables { def is
     }
 }
 
-class AspectFilterSpecTest extends SpecificationWithJUnit with DataTables { def is =
+class AspectFilterSpecTest extends SpecificationWithJUnit with FilterTestFixtures with DataTables { def is =
     "AspectFilter" ^
     "default" ! {
         val filter = Filter.filter("zippy")
@@ -332,7 +332,7 @@ class AspectFilterSpecTest extends SpecificationWithJUnit with DataTables { def 
     }
 }
 
-class UnfilteredSpecTest extends SpecificationWithJUnit with DataTables { def is =
+class UnfilteredSpecTest extends SpecificationWithJUnit with FilterTestFixtures with DataTables { def is =
     "Unfiltered" ^
     "default" ! {
         val filter = Unfiltered()

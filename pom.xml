@@ -39,8 +39,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <scala.version>2.9.2</scala.version>
-        <scala.compatibility.version>2.9.2</scala.compatibility.version>
+        <scala.version>2.9.3</scala.version>
+        <scala.compatibility.version>2.9.3</scala.compatibility.version>
         <lift.scala.compatibility.version>2.9.1</lift.scala.compatibility.version>
         <lift.version>2.4</lift.version>
     </properties>
@@ -97,8 +97,8 @@
             </dependency>
             <dependency>
                 <groupId>org.rogach</groupId>
-                <artifactId>scallop_2.9.2</artifactId>
-                <version>0.6.5~4~SNAPSHOT</version>
+                <artifactId>scallop_${scala.compatibility.version}</artifactId>
+                <version>0.9.4</version>
             </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>
@@ -117,13 +117,13 @@
             </dependency>
             <dependency>
                 <groupId>org.squeryl</groupId>
-                <artifactId>squeryl_${scala.compatibility.version}</artifactId>
-                <version>0.9.5</version>
+                <artifactId>squeryl_2.9.2</artifactId>
+                <version>0.9.5-6</version>
             </dependency>
             <dependency>
                 <groupId>org.specs2</groupId>
                 <artifactId>specs2_${scala.compatibility.version}</artifactId>
-                <version>1.9</version>
+                <version>1.12.4.1</version>
             </dependency>
 
             <dependency>
@@ -264,7 +264,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>2.7</version>
+                    <version>2.12</version>
                     <configuration>
                         <argLine>-Xmx512m</argLine>
                     </configuration>

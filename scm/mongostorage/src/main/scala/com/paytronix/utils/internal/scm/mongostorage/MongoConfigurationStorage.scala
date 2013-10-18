@@ -63,7 +63,7 @@ class ReadMongoConfigurationStorage(serverAddresses: Seq[ServerAddress], databas
     val configurationDatabase = connection(database)
 
     val nodesCollectionRO = configurationDatabase(nodesCollectionName)
-    nodesCollectionRO.readPreference = ReadPreference.SECONDARY
+    nodesCollectionRO.readPreference = ReadPreference.secondaryPreferred
 
     val nodesCollection = configurationDatabase(nodesCollectionName)
     nodesCollection.writeConcern = WriteConcern.REPLICAS_SAFE
