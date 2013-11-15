@@ -17,6 +17,7 @@
 package com.paytronix.utils.interchange
 
 import java.nio.ByteBuffer
+import java.nio.charset.Charset;
 import java.util.regex.Pattern
 import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaSetConverter, bufferAsJavaListConverter, mapAsScalaMapConverter}
 import scala.collection.mutable.ArrayBuffer
@@ -170,7 +171,14 @@ object MongoUtils {
                 if (i >= BigInt(java.lang.Integer.MIN_VALUE.toString) && i <= BigInt(java.lang.Integer.MAX_VALUE.toString)) i.longValue.asInstanceOf[AnyRef]
                 else if (i >= BigInt(java.lang.Integer.MIN_VALUE.toString) && i <= BigInt(java.lang.Integer.MAX_VALUE.toString)) i.intValue.asInstanceOf[AnyRef]
                 else i.toString
-            case JString(s)     => s
+            case JString(s)     => 
+                def hasNullBytes(s: String) = s.indexOf('\u0000') >= 0
+                
+                if(hasNullBytes(s)) {
+                    new Binary(s.getBytes(Charset.forName("UTF-8")))
+                } else {
+                    s
+                }
             case JNothing|JNull => null
         }
 }
