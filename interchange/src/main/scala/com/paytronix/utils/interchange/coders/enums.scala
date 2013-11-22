@@ -109,8 +109,8 @@ case class ScalaEnumCoder[T <: Enumeration](enum: T) extends StringSafeCoder[T#V
     def encodeString(classLoader: ClassLoader, in: T#Value) =
         Okay(in.toString)
 
-    private lazy val enumsByOrdinal: Map[Int, T#Value] = Map(enum.values.zipWithIndex.map(_.swap).toSeq: _*)
-    private lazy val ordinalsByEnum: Map[T#Value, Int] = Map(enum.values.zipWithIndex.toSeq            : _*)
+    private lazy val enumsByOrdinal: Map[Int, T#Value] = Map(enum.values.toSeq.zipWithIndex.map(_.swap): _*)
+    private lazy val ordinalsByEnum: Map[T#Value, Int] = Map(enum.values.toSeq.zipWithIndex            : _*)
 
     lazy val avroSchema = {
         import AvroUtils.nameAndNamespaceFromClass
