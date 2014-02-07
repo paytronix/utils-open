@@ -53,6 +53,9 @@ trait CodedMongoObject[T] {
 }
 
 object MongoUtils {
+    // I've chosen to use this field name because spaces are not allowed in Java field names, and so it should never conflict with an actual field name on an object being encoded/decoded
+    private val StringWithNullFieldName = "String With Null"
+
     // FIXME very exceptionful
     def toJValue(a: Any): JValue =
         a match {
@@ -70,11 +73,17 @@ object MongoUtils {
             case l: Long                  => JInt(BigInt(l))
             case s: String                => JString(s)
 
+            case m: java.util.Map[_, _] if m.containsKey(StringWithNullFieldName) =>
+                JString(new String(m.get(StringWithNullFieldName).asInstanceOf[Array[Byte]], Charset.forName("UTF-8")))
+
             case m: java.util.Map[_, _] =>
                 JObject(m.asScala.map {
                     case (k: String, v) => JField(k, toJValue(v))
                     case kvp => sys.error("expected map with string keys, but got " + kvp)
                 }.toList)
+
+            case bso: BSONObject if bso.containsField(StringWithNullFieldName) =>
+                JString(new String(bso.get(StringWithNullFieldName).asInstanceOf[Array[Byte]], Charset.forName("UTF-8")))
 
             case bso: BSONObject =>
                 JObject(bso.keySet.asScala.map {
@@ -171,13 +180,10 @@ object MongoUtils {
                 if (i >= BigInt(java.lang.Integer.MIN_VALUE.toString) && i <= BigInt(java.lang.Integer.MAX_VALUE.toString)) i.longValue.asInstanceOf[AnyRef]
                 else if (i >= BigInt(java.lang.Integer.MIN_VALUE.toString) && i <= BigInt(java.lang.Integer.MAX_VALUE.toString)) i.intValue.asInstanceOf[AnyRef]
                 else i.toString
-            case JString(s)     => 
-                def hasNullBytes(s: String) = s.indexOf('\u0000') >= 0
-                
-                if(hasNullBytes(s)) {
-                    new Binary(s.getBytes(Charset.forName("UTF-8")))
-                } else {
-                    s
+            case JString(s)     =>
+                s.indexOf('\u0000') match {
+                    case -1 => s
+                    case _  => new BasicDBObject(StringWithNullFieldName, new Binary(s.getBytes(Charset.forName("UTF-8"))))
                 }
             case JNothing|JNull => null
         }
