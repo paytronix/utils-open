@@ -314,8 +314,8 @@ trait CachingConfigurationEngineImpl extends ConfigurationReadEngineImpl with Ca
     protected def cookedCacheMaxSize: Int
     protected def cookedCacheEvictFraction: Double
 
-    val rawCache:    LFUCache[Node, NodeContents] = new LFUCache(rawCacheMaxSize, rawCacheEvictFraction)
-    val cookedCache: LFUCache[Node, NodeContents] = new LFUCache(cookedCacheMaxSize, cookedCacheEvictFraction)
+    lazy val rawCache:    LFUCache[Node, NodeContents] = new LFUCache(rawCacheMaxSize, rawCacheEvictFraction)
+    lazy val cookedCache: LFUCache[Node, NodeContents] = new LFUCache(cookedCacheMaxSize, cookedCacheEvictFraction)
 
     override protected def invalidateAspect(aspect: AspectName): Unit = {
         rawCache.remove(rawCache.byKey.entryMap.keys.filter(_.aspect == aspect))
