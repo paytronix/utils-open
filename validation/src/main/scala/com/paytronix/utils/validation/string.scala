@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,20 +18,20 @@ package com.paytronix.utils.validation
 
 import scala.util.matching.Regex
 
-import base.{ValidationError, ValidationFunction, missingValueError}
+import base.{Validated, ValidationError, failure, missingValueError, predicateE, success}
 
 object string {
     val ValidDomainChars = "a-zA-Z0-9"
     // This is somewhat complicated because we're allowed to have dashes, but not on either end
     val ValidDomainLabel = "[" + ValidDomainChars + "]+(?:[-]+[" + ValidDomainChars + "]+)*"
-    val ValidDomainPart = ValidDomainLabel + "(?:[.]" + ValidDomainLabel + ")+"
+    val ValidDomainPart  = ValidDomainLabel + "(?:[.]" + ValidDomainLabel + ")+"
     // We do not allow quoted-string local part values!
-    val ValidLocalChars = ValidDomainChars + "!#$%&'*+\\-/=?^_`{|}~"
-    val ValidLocalPart  = "[" + ValidLocalChars + "]+(?:[.][" + ValidLocalChars + "]+)*"
-    val ValidEmail = (ValidLocalPart + "@" + ValidDomainPart).r
+    val ValidLocalChars  = ValidDomainChars + "!#$%&'*+\\-/=?^_`{|}~"
+    val ValidLocalPart   = "[" + ValidLocalChars + "]+(?:[.][" + ValidLocalChars + "]+)*"
+    val ValidEmail       = (ValidLocalPart + "@" + ValidDomainPart).r
 
-    def tooShortError(i: Int) = ValidationError("too_short", "must have at least %d character(s)", i)
-    def tooLongError(i: Int)  = ValidationError("too_long", "must have no more than %d character(s)", i)
+    def tooShortError(i: Int) = ValidationError("too_short", s"must have at least $i character(s)")
+    def tooLongError(i: Int)  = ValidationError("too_long", s"must have no more than $i character(s)")
     val patternMatchError     = ValidationError("invalid_format", "not formatted correctly")
     val numericError          = ValidationError("invalid_numeric", "must not be entirely numeric")
     val nonNumericError       = ValidationError("invalid_non_numeric", "must be numeric")
@@ -39,60 +39,105 @@ object string {
     val invalidEmailError     = ValidationError("invalid_email", "invalid email address")
 
     /** Assert that some string is not empty */
-    def nonEmpty(error: ValidationError = missingValueError): ValidationFunction[String, String] =
-        in => if (!in.isEmpty) Right(in)
-              else Left(error :: Nil)
+    val nonEmpty: String => Validated[String] =
+        nonEmptyE(missingValueError)
+
+    /** Assert that some string is not empty */
+    def nonEmptyE(error: ValidationError): String => Validated[String] =
+        predicateE(error)(!_.isEmpty)
 
     /** Trim the string and then assert it is nonempty */
-    def nonBlank(error: ValidationError = missingValueError): ValidationFunction[String, String] =
+    val nonBlank: String => Validated[String] =
+        nonBlankE(missingValueError)
+
+    /** Trim the string and then assert it is nonempty */
+    def nonBlankE(error: ValidationError): String => Validated[String] =
         in => in.trim match {
-            case "" => Left(error :: Nil)
-            case s => Right(s)
+            case "" => failure(error)
+            case s  => success(s)
         }
 
     /** Trim the string and make Some(string) out of it if nonblank, None otherwise */
-    val optionalString: ValidationFunction[String, Option[String]] =
-        in => Right(in.trim match {
+    val optionalString: String => Validated[Option[String]] =
+        in => success(in.trim match {
             case "" => None
             case s => Some(s)
         })
 
     /** Assert that some string is at least some size */
-    def noShorterThan(i: Int, error: ValidationError = null): ValidationFunction[String, String] =
-        in => if (in.size >= i) Right(in)
-              else Left((if (error != null) error else tooShortError(i)) :: Nil)
+    val noShorterThan: Int => String => Validated[String] =
+        noShorterThanE(tooShortError)
+
+    /** Assert that some string is at least some size */
+    def noShorterThanE(error: Int => ValidationError)(limit: Int): String => Validated[String] =
+        predicateE(error(limit))(_.size >= limit)
 
     /** Assert that some string is no longer than some size */
-    def noLongerThan(i: Int, error: ValidationError = null): ValidationFunction[String, String] =
-        in => if (in.size <= i) Right(in)
-              else Left((if (error != null) error else tooLongError(i)) :: Nil)
+    val noLongerThan: Int => String => Validated[String] =
+        noLongerThanE(tooLongError)
+
+    /** Assert that some string is no longer than some size */
+    def noLongerThanE(error: Int => ValidationError)(limit: Int): String => Validated[String] =
+        predicateE(error(limit))(_.size <= limit)
 
     /** Assert that a string matches some pattern Regex */
-    def matches(pattern: Regex, message: ValidationError = patternMatchError): ValidationFunction[String, String] =
-        in => if (pattern.unapplySeq(in).isDefined) Right(in)
-              else Left(message :: Nil)
+    val matches: Regex => String => Validated[String] =
+        matchesE(patternMatchError)
+
+    /** Assert that a string matches some pattern Regex */
+    def matchesE(error: ValidationError)(pattern: Regex): String => Validated[String] =
+        predicateE(error)(s => pattern.unapplySeq(s).isDefined)
 
     /** Assert that a string does not match some pattern Regex */
-    def doesNotMatch(pattern: Regex, message: ValidationError = patternMatchError): ValidationFunction[String, String] =
-        in => if (!pattern.unapplySeq(in).isDefined) Right(in)
-              else Left(message :: Nil)
+    val doesNotMatch: Regex => String => Validated[String] =
+        doesNotMatchE(patternMatchError)
+
+    /** Assert that a string does not match some pattern Regex */
+    def doesNotMatchE(error: ValidationError)(pattern: Regex): String => Validated[String] =
+        predicateE(error)(s => !pattern.unapplySeq(s).isDefined)
 
     /** Assert that the string is comprised only of digits */
-    def numeric(error: ValidationError = nonNumericError) = matches("\\d+".r, error)
+    val numeric: String => Validated[String] =
+        numericE(nonNumericError)
+
+    /** Assert that the string is comprised only of digits */
+    def numericE(error: ValidationError) =
+        matchesE(error)("\\d+".r)
 
     /** Assert that the string is comprised only of digits with an optional leading sign */
-    def numericWithSign(error: ValidationError = nonIntegralError) = matches("[+-]?\\d+".r, error)
+    val numericWithSign: String => Validated[String] =
+        numericWithSignE(nonNumericError)
+
+    /** Assert that the string is comprised only of digits with an optional leading sign */
+    def numericWithSignE(error: ValidationError): String => Validated[String] =
+        matchesE(error)("[+-]?\\d+".r)
 
     /** Assert that the string is comprised only of digits with an optional leading sign and optional fractional part after a decimal */
-    def numericWithSignAndDecimal(error: ValidationError = nonNumericError) = matches("[+-]?\\d+(?:\\.\\d+)?".r, error)
+    val numericWithSignAndDecimal: String => Validated[String] =
+        numericWithSignAndDecimalE(nonNumericError)
+
+    /** Assert that the string is comprised only of digits with an optional leading sign and optional fractional part after a decimal */
+    def numericWithSignAndDecimalE(error: ValidationError): String => Validated[String] =
+        matchesE(error)("[+-]?\\d+(?:\\.\\d+)?".r)
 
     /** Assert that the string is not comprised only of digits */
-    def nonNumeric(error: ValidationError = numericError) = doesNotMatch("\\d+".r, error)
+    val nonNumeric: String => Validated[String] =
+        nonNumericE(numericError)
+
+    /** Assert that the string is not comprised only of digits */
+    def nonNumericE(error: ValidationError): String => Validated[String] =
+        doesNotMatchE(error)("\\d+".r)
 
     /** Assert that the string conforms to the valid email address format */
-    def validEmailAddress(message: ValidationError = invalidEmailError): ValidationFunction[String, String] = string.matches(ValidEmail, invalidEmailError)
+    val validEmailAddress: String => Validated[String] =
+        validEmailAddressE(invalidEmailError)
+
+    /** Assert that the string conforms to the valid email address format */
+    def validEmailAddressE(message: ValidationError): String => Validated[String] =
+        matchesE(invalidEmailError)(ValidEmail)
 
     /** Return a boolean indicating whether the string conforms to the valid email address format */
-    def isValidEmailAddress(email: String): Boolean = validEmailAddress()(email).isRight
+    def isValidEmailAddress(email: String): Boolean =
+        validEmailAddress(email).isSuccess
 }
 

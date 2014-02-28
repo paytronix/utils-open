@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package com.paytronix.utils.validation
 
 import scala.util.control.Exception.catching
 
-import base.{ValidationError, ValidationFunction}
+import base.{Validated, ValidationError, failure, success}
 
 object boolean {
     val invalidBooleanError = ValidationError("invalid_boolean", "invalid boolean (expected true/false, yes/no, on/off, or a number)")
@@ -27,16 +27,18 @@ object boolean {
      * Convert a string to a boolean, appropriate for parsing HTML form input.
      * Any nonempty string that is not "false", "no" or "off" is treated as true
      */
-    def boolean(error: ValidationError = null): ValidationFunction[String, Boolean] =
-        _.toLowerCase match {
-            case ""|"false"|"no"|"off" => Right(false)
-            case "true"|"yes"|"on" => Right(true)
+    lazy val boolean = booleanE(invalidBooleanError)
+
+    /**
+     * Convert a string to a boolean, appropriate for parsing HTML form input.
+     * Any nonempty string that is not "false", "no" or "off" is treated as true
+     */
+    def booleanE(error: ValidationError): String => Validated[Boolean] =
+        _.toLowerCase.trim match {
+            case ""|"false"|"no"|"off" => success(false)
+            case "true"|"yes"|"on"     => success(true)
             case s =>
-                catching(classOf[NumberFormatException]).opt {
-                    Integer.parseInt(s)
-                } map {
-                    n => Right(n != 0)
-                } getOrElse Left((if (error != null) error else invalidBooleanError) :: Nil)
+                try success(Integer.parseInt(s) != 0) catch { case _: NumberFormatException => failure(error) }
         }
 }
 

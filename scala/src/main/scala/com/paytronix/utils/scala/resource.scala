@@ -1,5 +1,5 @@
 //
-// Copyright 2009-2012 Paytronix Systems, Inc.
+// Copyright 2009-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,42 +20,48 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import result.{Okay, Result}
 
-/**
- * Helper functions for resource management
- */
-object resource
-{
-    private val logger = LoggerFactory.getLogger(getClass)
+/** Helper functions for resource management */
+package object resource {
+    /** Typeclass of objects that are closeable, e.g. SQL Connections */
+    trait Closeable[-A] { def close(a: A): Unit }
 
-    /** Type of objects that are closeable, e.g. SQL Connections */
-    type Closeable = { def close(): Unit }
+    object Closeable {
+        implicit val InputStreamCloseable = new Closeable[java.io.InputStream] {
+            def close(conn: java.io.InputStream) = conn.close()
+        }
+        implicit val ReaderCloseable = new Closeable[java.io.Reader] {
+            def close(conn: java.io.Reader) = conn.close()
+        }
+        implicit val OutputStreamCloseable = new Closeable[java.io.OutputStream] {
+            def close(conn: java.io.OutputStream) = conn.close()
+        }
+        implicit val WriterCloseable = new Closeable[java.io.Writer] {
+            def close(conn: java.io.Writer) = conn.close()
+        }
+        implicit val SQLConnectionCloseable = new Closeable[java.sql.Connection] {
+            def close(conn: java.sql.Connection) = conn.close()
+        }
+    }
+
+    /** Close some closeable resource, possibly throwing any kind of hideous exception */
+    def close[A: Closeable](a: A): Unit = implicitly[Closeable[A]].close(a)
 
     /** Wrap a Closeable with a for-comprehension compatible object which closes the resource upon exit from the enclosed expressions */
-    def openedResource[A <: Closeable](closeable: A): OpenedResource[A] =
+    def openedResource[A: Closeable](closeable: A): OpenedResource[A] =
         OpenedResource(closeable)
 
-    final case class OpenedResource[A <: Closeable](closeable: A) {
+    final case class OpenedResource[A: Closeable](closeable: A) {
         def map[B](f: A => B): Result[B] =
-            try {
-                Okay(f(closeable))
-            } finally {
-                try {
-                    closeable.close
-                } catch {
-                    case e: Exception =>
-                        logger.warn("Failed to close acquired resource [" + String.valueOf(closeable) + "] due to exception (ignoring):", e)
+            try Okay(f(closeable)) finally {
+                try close(closeable) catch { case e: Exception =>
+                    LoggerFactory.getLogger(getClass).warn("Failed to close acquired resource [" + String.valueOf(closeable) + "] due to exception (ignoring):", e)
                 }
             }
 
         def flatMap[B](f: A => B): B =
-            try {
-                f(closeable)
-            } finally {
-                try {
-                    closeable.close
-                } catch {
-                    case e: Exception =>
-                        logger.warn("Failed to close acquired resource [" + String.valueOf(closeable) + "] due to exception (ignoring):", e)
+            try f(closeable) finally {
+                try close(closeable) catch { case e: Exception =>
+                    LoggerFactory.getLogger(getClass).warn("Failed to close acquired resource [" + String.valueOf(closeable) + "] due to exception (ignoring):", e)
                 }
             }
     }
@@ -64,9 +70,8 @@ object resource
      * Acquire a resource, execute a block against the acquired resource, and then release it (via close) after the block exits, even if an exception is thrown.
      *
      * Example usage:
-     *     withResource(dataSource.getConnection) {
-     *         (conn) =>
-     *             ... use conn ...
+     *     withResource(dataSource.getConnection) { conn =>
+     *         ... use conn ...
      *     }
      *
      * Is equivalent to:
@@ -77,149 +82,14 @@ object resource
      *         conn.close
      *     }
      */
-    def withResource[T1 <: Closeable, U]
-            (acquire1: => T1)
-            (body: (T1) => U): U =
-    {
+    def withResource[A: Closeable, U](acquire1: => A)(body: A => U): U = {
         val resource1 = acquire1
-        try {
-            body(resource1)
-        } finally {
-            try {
-                resource1.close
-            } catch {
-                case e: Exception => logger.warn("Failed to close acquired resource [" + String.valueOf(resource1) + "] due to exception (ignoring):", e)
+        try body(resource1) finally {
+            try close(resource1) catch { case e: Exception =>
+                LoggerFactory.getLogger(getClass).warn("Failed to close acquired resource [" + String.valueOf(resource1) + "] due to exception (ignoring):", e)
             }
         }
     }
-
-    /**
-     * Compose withResource for acquiring a series (or chain) of resources in order, releasing any that have been acquired even if acquiring one fails.
-     *
-     * For example:
-     *     withSeriesOfResources(dataSource.getConnection,
-     *                           (c: Connection) => c.createStatement) {
-     *         (conn, stmt) =>
-     *             stmt.executeUpdate("UPDATE ...")
-     *     }
-     *
-     * Is equivalent to:
-     *     withResource(dataSource.getConnection) {
-     *         (conn) =>
-     *         withResource(conn.createStatement) {
-     *             (stmt) =>
-     *                 stmt.executeUpdate("UPDATE ...")
-     *         }
-     *     }
-     * but more brief.
-     */
-    def withSeriesOfResources[T1 <: Closeable, T2 <: Closeable, U]
-            (acquire1: => T1, acquire2: (T1) => T2)
-            (body: (T1, T2) => U): U =
-        withResource(acquire1)({ (resource1) =>
-            withResource(acquire2(resource1))({ (resource2) =>
-                body(resource1, resource2)
-            })
-        })
-
-    /**
-     * Compose withResource for acquiring a series (or chain) of resources in order, releasing any that have been acquired even if acquiring one fails.
-     *
-     * For example:
-     *     withSeriesOfResources(dataSource.getConnection,
-     *                           (c: Connection) => c.createStatement,
-     *                           (s: Statement) => s.executeQuery("SELECT ...")) {
-     *         (conn, stmt, resultSet) =>
-     *             while (resultSet.next) { ... }
-     *     }
-     *
-     * Is equivalent to:
-     *     withResource(dataSource.getConnection) {
-     *         (conn) =>
-     *         withResource(conn.createStatement) {
-     *             (stmt) =>
-     *             withResource(stmt.executeQuery("SELECT ...")) {
-     *                 (resultSet) =>
-     *                     while (resultSet.next) { ... }
-     *             }
-     *         }
-     *     }
-     * but more brief.
-     */
-    def withSeriesOfResources[T1 <: Closeable, T2 <: Closeable, T3 <: Closeable, U]
-            (acquire1: => T1, acquire2: (T1) => T2, acquire3: (T2) => T3)
-            (body: (T1, T2, T3) => U): U =
-        withResource(acquire1)({ (resource1) =>
-            withResource(acquire2(resource1))({ (resource2) =>
-                withResource(acquire3(resource2))({ (resource3) =>
-                    body(resource1, resource2, resource3)
-                })
-            })
-        })
-
-    /**
-     * Compose withResource for acquiring two separate resources, which do not depend on each other
-     *
-     * For example:
-     *     withResources(transactionalDataSource.getConnection, reportingDataSource.getConnection) {
-     *         (transactionalConn, reportingConn) =>
-     *             ... use conns ...
-     *     }
-     *
-     * Is equivalent to:
-     *     withResource(transactionalDataSource.getConnection) {
-     *         (transactionalConn) =>
-     *         withResource(reportingDataSource.getConnection) {
-     *             (reportingConn) =>
-     *                 ... use conns ...
-     *         }
-     *     }
-     * but more brief.
-     */
-    def withResources[T1 <: Closeable, T2 <: Closeable, U]
-            (acquire1: => T1, acquire2: => T2)
-            (body: (T1, T2) => U): U =
-        withResource(acquire1)({ (resource1) =>
-            withResource(acquire2)({ (resource2) =>
-                body(resource1, resource2)
-            })
-        })
-
-    /**
-     * Compose withResource for acquiring two separate resources, which do not depend on each other
-     *
-     * For example:
-     *     withResources(directoryDataSource.getConnection,
-     *                   transactionalDataSource.getConnection,
-     *                   reportingDataSource.getConnection) {
-     *         (directoryConn, transactionalConn, reportingConn) =>
-     *             ... use conns ...
-     *     }
-     *
-     * Is equivalent to:
-     *     withResource(directoryDataSource.getConnection) {
-     *         (directoryConn) =>
-     *             withResource(transactionalDataSource.getConnection) {
-     *                 (transactionalConn) =>
-     *                 withResource(reportingDataSource.getConnection) {
-     *                     (reportingConn) =>
-     *                         ... use conns ...
-     *                 }
-     *             }
-     *         }
-     *     }
-     * but more brief.
-     */
-    def withResources[T1 <: Closeable, T2 <: Closeable, T3 <: Closeable, U]
-            (acquire1: => T1, acquire2: => T2, acquire3: => T3)
-            (body: (T1, T2, T3) => U): U =
-        withResource(acquire1)({ (resource1) =>
-            withResource(acquire2)({ (resource2) =>
-                withResource(acquire3)({ (resource3) =>
-                    body(resource1, resource2, resource3)
-                })
-            })
-        })
 
 }
 

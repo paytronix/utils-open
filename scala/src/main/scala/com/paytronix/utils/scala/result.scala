@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,30 +16,19 @@
 
 package com.paytronix.utils.scala
 
+import language.{higherKinds, implicitConversions}
+
 import _root_.scala.annotation.implicitNotFound
 import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
+import _root_.scala.reflect.{ClassTag, classTag}
 
-import scalaz.{Applicative, Monad, Traverse}
+import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse}
 
 // FIXME? gotta be a better way
 import scala.annotation.unchecked.uncheckedVariance
 
-trait resultLowPriorityImplicits {
-    self: result.type =>
-    // need low priority implicits so that Right("blah").toResult works.
-    // if the implicits are both defined in result, then it's not known to the compiler which
-    // of eitherOps or eitherOpsG applies, since Right("blah"): Either[Nothing, String], and
-    // both Nothing <: Throwable (eitherOps) and Nothing <: (Throwable, E) (eitherOpsG)
-    // so, make the default the more likely Result[A] case instead of ResultG[E, A]
-
-    /** Enrich Either[(Throwable, E), A] with a .toResult method */
-    implicit def eitherOpsG[E, A](in: Either[(Throwable, E), A]): EitherOps[E, A] =
-        new EitherOps(in)
-}
-
-object result extends resultLowPriorityImplicits
-{
+object result {
     /** Usual type of ResultG used, where no additional error parameter is given */
     type Result[+A] = ResultG[Unit, A]
 
@@ -56,6 +45,9 @@ object result extends resultLowPriorityImplicits
     }
 
     object FailedParameterDefault {
+        /** Construct a FailedParameterDefault */
+        def value[E](v: E): FailedParameterDefault[E] = new FailedParameterDefault[E] { val default = v }
+
         /** Implicitly provide a Unit failed parameter */
         implicit val unitFailedParameterDefault: FailedParameterDefault[Unit] = new FailedParameterDefault[Unit] {
             def default = ()
@@ -85,10 +77,9 @@ object result extends resultLowPriorityImplicits
     /**
      * Like an Either that always carries a Throwable, or a Box without Empty that carries an error of type E or success of type A.
      * G suffix means "Generic".
-     * Operates like an Option, Box, or right-biased Either for the most part
+     * Operates like an Option, Box, or right-biased Either (\/) for the most part
      */
-    sealed abstract class ResultG[+E, +A] extends Product with Serializable
-    {
+    sealed abstract class ResultG[+E, +A] extends Product with Serializable {
         /**
          * Fix the failure type of a `ResultG`, since `Okay(value)` will be typed `Okay[A] <: ResultG[Nothing, A]` and you might
          * want some particular type instead of `Nothing`
@@ -150,17 +141,20 @@ object result extends resultLowPriorityImplicits
         /** Converse of filterG */
         def filterNotG[F >: E](otherwise: FailedG[F])(p: A => Boolean): ResultG[F, A]
 
-        /** If Okay, applies function to value and yields its result */
+        /** If Okay, applies function to value and yields its result. Equivalent to `>>=` */
         def flatMap[F >: E, B](f: A => ResultG[F, B]): ResultG[F, B]
 
+        /** If Okay, applies function to value and yields its result. Equivalent to `flatMap` */
+        def >>= [F >: E, B](f: A => ResultG[F, B]): ResultG[F, B]
+
         /** If Okay, applies function to value and yields Unit */
-        def foreach(f: A => Any): Unit
+        def foreach(f: A => Unit): Unit
 
         /** If Okay, yields the value, otherwise the given default */
         def getOrElse[B >: A](default: => B): B
 
         /** Yields true iff Okay */
-        def isDefined: Boolean
+        def isOkay: Boolean
 
         /** Yields this cast as an Okay if it is one, throws exception otherwise. Intended for use by Java. */
         def asOkay: Okay[A] =
@@ -168,6 +162,9 @@ object result extends resultLowPriorityImplicits
                 case o@Okay(_) => o
                 case _ => this.orThrow; null
             }
+
+        /** Yields true iff failed */
+        def isFailed: Boolean
 
         /** Yields this cast as a Failed if it is one, throws exception otherwise. Intended for use by Java. */
         def asFailed: FailedG[E] =
@@ -181,6 +178,9 @@ object result extends resultLowPriorityImplicits
 
         /** If Okay, applies function to value and yields Okay with its result */
         def map[B](f: A => B): ResultG[E, B]
+
+        /** If `FailedG`, applies function to the parameter in the `FailedG` */
+        def mapFailure[F](f: E => F): ResultG[F, A]
 
         /** Replace any `Okay` value with `()` (`Unit`). Equivalent to `result.map(_ => ())` */
         def unit: ResultG[E, Unit] = map(_ => ())
@@ -216,11 +216,17 @@ object result extends resultLowPriorityImplicits
         /** Yields a single element list with the Okay value, or Nil if Failed */
         def toList: List[A]
 
-        /** Yields Some if Okay, None otherwise */
+        /** Yields `Some` if `Okay`, `None` otherwise */
         def toOption: Option[A]
 
-        /** Yields Right if Okay, Left otherwise */
+        /** Yields `Right` if `Okay`, `Left` otherwise */
         def toEither: Either[(Throwable, E), A]
+
+        /** Yields `\/-` if `Okay`, `-\/` otherwise */
+        def toDisjunction: (Throwable, E) \/ A
+
+        /** Yields `Success` if `Okay`, `Failure` otherwise */
+        def toTry: scala.util.Try[A]
 
         /** Lazy filtering for Scala 2.8 for comprehensions */
         def withFilter[F >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[F]): WithFilter[F] = new WithFilter(p)
@@ -228,22 +234,28 @@ object result extends resultLowPriorityImplicits
         final class WithFilter[F >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[F]) {
             def map[B](f: A => B): ResultG[F, B] = ResultG.this.filter[F](p)(fpd).map(f)
             def flatMap[G >: F, B](f: A => ResultG[G, B]): ResultG[G, B] = ResultG.this.filter[F](p)(fpd).flatMap(f)
-            def foreach[U](f: A => U): Unit = ResultG.this.filter[F](p)(fpd).foreach(f)
+            def foreach[U](f: A => Unit): Unit = ResultG.this.filter[F](p)(fpd).foreach(f)
             def withFilter(q: A => Boolean): WithFilter[F] = new WithFilter(x => p(x) && q(x))
         }
 
         /** If Okay, replace the value with the given alternative. Equivalent to flatMap(_ => alternative) */
-        def then[F >: E, B](alternative: => ResultG[F, B]): ResultG[F, B]
+        def >> [F >: E, B](consequent: => ResultG[F, B]): ResultG[F, B]
 
-        /** Yield true iff Okay and the value conforms to the given type */
-        def isA[B](implicit m: Manifest[B]): Boolean
+        /**
+         * Yield true iff Okay and the value's head type conforms to the given type.
+         * <string>Warning:</strong> not type safe, as Okay(F(a)).isA[F[B]] only checks the type F and not B
+         */
+        def isA[B: ClassTag]: Boolean
 
-        /** Succeed with the value cast to the given type if it can be, otherwise fail with "expected a <given type>" */
-        def asA[B](implicit m: Manifest[B], fpd: FailedParameterDefault[E /* haaaack */ @uncheckedVariance]): ResultG[E, B] =
+        /**
+         * Succeed with the value cast to the given type if it can be, otherwise fail with "expected a <given type>"
+         * <string>Warning:</strong> not type safe, as Okay(F(a)).asA[F[B]] only checks the type F and not B
+         */
+        def asA[B](implicit tag: ClassTag[B], fpd: FailedParameterDefault[E /* haaaack */ @uncheckedVariance]): ResultG[E, B] =
             flatMap { v =>
                 tryCatching[ClassCastException].value {
-                    m.erasure.cast(v).asInstanceOf[B]
-                } | FailedG("expected a " + m + " but got a " + (v.asInstanceOf[AnyRef] match {
+                    classTag[B].runtimeClass.cast(v).asInstanceOf[B]
+                } | FailedG("expected a " + tag + " but got a " + (v.asInstanceOf[AnyRef] match {
                     case null => "null"
                     case other => other.getClass.getName
                 }), fpd.default)
@@ -260,7 +272,7 @@ object result extends resultLowPriorityImplicits
             { f(this); this }
 
         /** Apply a function to a successful value  for its side effects yielding this ResultG unchanged */
-        def sideEffect(f: A => Any): ResultG[E, A]
+        def sideEffect(f: A => Unit): ResultG[E, A]
 
         /** If Okay with a Okay then yield Okay with the inner value. Equivalent to flatMap(x => x) */
         def flatten[F >: E, B](implicit ev: A => ResultG[F, B]): ResultG[F, B]
@@ -312,14 +324,8 @@ object result extends resultLowPriorityImplicits
         }
 
         /** Allow unifying a `ResultG` where the failure parameter is compatible with the success type */
-        implicit def unify[A](in: ResultG[A, A]): Unifier[A] = Unifier(in)
-
-        object Unifier {
-            implicit def toResult[A](in: Unifier[A]): A = in.unify
-        }
-
-        final case class Unifier[+A](result: ResultG[A, A]) {
-            lazy val unify: A =
+        implicit class Unifier[+A](val result: ResultG[A, A]) extends AnyVal {
+            def unify: A =
                 result match {
                     case Okay(a) => a
                     case FailedG(_, a) => a
@@ -327,13 +333,13 @@ object result extends resultLowPriorityImplicits
         }
     }
 
-    /** Another way of writing `Failed("reason") unless predicate`; yield `Okay(())` if `p` is `true`, `r` otherwise */
+    /** Another way of writing `Failed("reason") unless predicate`; yield `Okay.unit` if `p` is `true`, `r` otherwise */
     def unless[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
-        if (p) Okay(()) else r
+        if (p) Okay.unit else r
 
-    /** Converse of `unless`; yield `Okay(())` if `p` is `false`, `r` otherwise */
+    /** Converse of `unless`; yield `Okay.unit` if `p` is `false`, `r` otherwise */
     def when[E](p: Boolean)(r: ResultG[E, Unit]): ResultG[E, Unit] =
-        if (p) r else Okay(())
+        if (p) r else Okay.unit
 
     trait FailedParameterImplicits {
         /** Allow a string to be used with ResultG's `|` operator to wrap a failure with a new explanatory message. For example: `rslt | "explanation"` */
@@ -360,9 +366,13 @@ object result extends resultLowPriorityImplicits
     def parameter[E](parameter: E): FailedG[Any] => FailedG[E] =
         failed => FailedG(failed.throwable, parameter)
 
+    object Okay {
+        /** A single instance of `Okay(())` to save allocating useless `Okay`s */
+        lazy val unit = Okay(())
+    }
+
     /** Result of a successful computation */
-    final case class Okay[+A](result: A) extends ResultG[Nothing, A]
-    {
+    final case class Okay[+A](result: A) extends ResultG[Nothing, A] {
         def collectG[F, B](otherwise: ResultG[F, B])(pf: PartialFunction[A, B]): ResultG[F, B] =
             if (pf.isDefinedAt(result)) Okay(pf(result)) else otherwise
 
@@ -397,20 +407,29 @@ object result extends resultLowPriorityImplicits
         def flatMap[E, B](f: A => ResultG[E, B]): ResultG[E, B] =
             f(result)
 
-        def foreach(f: A => Any): Unit =
+        def >>= [E, B](f: A => ResultG[E, B]): ResultG[E, B] =
+            f(result)
+
+        def foreach(f: A => Unit): Unit =
             { f(result); () }
 
         def getOrElse[B >: A](default: => B): B =
             result
 
-        def isDefined: Boolean =
+        def isOkay: Boolean =
             true
+
+        def isFailed: Boolean =
+            false
 
         def iterator: Iterator[A] =
             Iterator.single(result)
 
         def map[B](f: A => B): Okay[B] =
             Okay(f(result))
+
+        def mapFailure[F](f: Nothing => F): Okay[A] =
+            this
 
         def | [F, B >: A] (f: FailedG[Nothing] => ResultG[F, B]): ResultG[F, B] =
             this
@@ -430,29 +449,33 @@ object result extends resultLowPriorityImplicits
         def toOption: Option[A] =
             Some(result)
 
-        def toEither: Right[Nothing, A] =
+        def toEither: Either[Nothing, A] =
             Right(result)
 
-        def then[E, B](alternative: => ResultG[E, B]): ResultG[E, B] =
+        def toDisjunction: (Throwable, Nothing) \/ A =
+            \/-(result)
+
+        def toTry: scala.util.Try[A] =
+            scala.util.Success(result)
+
+        def >> [E, B](alternative: => ResultG[E, B]): ResultG[E, B] =
             alternative
 
-        def isA[B](implicit m: Manifest[B]): Boolean =
-            m.erasure.isInstance(result)
+        def isA[B: ClassTag]: Boolean =
+            classTag[B].runtimeClass.isInstance(result)
 
-        def sideEffect(f: A => Any): Okay[A] =
+        def sideEffect(f: A => Unit): Okay[A] =
             { f(result); this }
 
         def flatten[E, B](implicit ev: A => ResultG[E, B]): ResultG[E, B] =
             ev(result)
 
         override def toString =
-            if (result == ()) "Okay"
-            else "Okay(" + (try { String.valueOf(result) } catch { case _: Exception => "<failed .toString>" }) + ")"
+            "Okay(" + (try { String.valueOf(result) } catch { case _: Exception => "<failed .toString>" }) + ")"
     }
 
     /** Result of a failed computation */
-    final case class FailedG[+E](throwable: Throwable, parameter: E) extends ResultG[E, Nothing]
-    {
+    final case class FailedG[+E](throwable: Throwable, parameter: E) extends ResultG[E, Nothing] {
         lazy val message: String =
             if (throwable.getMessage != null) throwable.getMessage
             else                              throwable.toString
@@ -478,20 +501,29 @@ object result extends resultLowPriorityImplicits
         def flatMap[F >: E, B](f: Nothing => ResultG[F, B]): FailedG[F] =
             this
 
-        def foreach(f: Nothing => Any): Unit =
+        def >>= [F >: E, B](f: Nothing => ResultG[F, B]): FailedG[F] =
+            this
+
+        def foreach(f: Nothing => Unit): Unit =
             ()
 
         def getOrElse[B](default: => B): B =
             default
 
-        def isDefined: Boolean =
+        def isOkay: Boolean =
             false
+
+        def isFailed: Boolean =
+            true
 
         def iterator: Iterator[Nothing] =
             Iterator.empty
 
         def map[B](f: Nothing => B): FailedG[E] =
             this
+
+        def mapFailure[F](f: E => F): FailedG[F] =
+            FailedG(throwable, f(parameter))
 
         def | [F, B] (f: FailedG[E] => ResultG[F, B]): ResultG[F, B] =
             f(this)
@@ -505,16 +537,22 @@ object result extends resultLowPriorityImplicits
         def toOption: Option[Nothing] =
             None
 
-        def toEither: Left[(Throwable, E), Nothing] =
+        def toEither: Either[(Throwable, E), Nothing] =
             Left((throwable, parameter))
+
+        def toDisjunction: (Throwable, E) \/ Nothing =
+            -\/((throwable, parameter))
+
+        def toTry: scala.util.Try[Nothing] =
+            scala.util.Failure(throwable)
 
         def orThrow: Nothing =
             throw throwable
 
-        def then[F >: E, B](alternative: => ResultG[F, B]): FailedG[F] =
+        def >> [F >: E, B](alternative: => ResultG[F, B]): FailedG[F] =
             this
 
-        def isA[B](implicit m: Manifest[B]): Boolean =
+        def isA[B: ClassTag]: Boolean =
             false
 
         def asAG[F >: E, B](clazz: Class[B], parameter: F): ResultG[F, B] =
@@ -523,15 +561,15 @@ object result extends resultLowPriorityImplicits
         def asAG[F >: E, B](clazz: Class[B], otherwise: ResultG[F, B]): ResultG[F, B] =
             this
 
-        def sideEffect(f: Nothing => Any): FailedG[E] =
+        def sideEffect(f: Nothing => Unit): FailedG[E] =
             this
 
         def flatten[F >: E, B](implicit ev: Nothing => ResultG[F, B]): FailedG[F] =
             this
 
-        /** If the given boolean is `true`, yield `Okay(())`, else this `FailedG` */
+        /** If the given boolean is `true`, yield `Okay.unit`, else this `FailedG` */
         def unless(b: Boolean): ResultG[E, Unit] =
-            if (b) Okay(()) else this
+            if (b) Okay.unit else this
 
         // need to override case class equality because throwables don't compare well
         override def equals(other: Any): Boolean = {
@@ -555,8 +593,7 @@ object result extends resultLowPriorityImplicits
                 if (t.getCause != null) " caused by " + t.getCause + causedBy(t.getCause)
                 else ""
 
-            if (parameter == ()) "Failed(" + throwable + causedBy(throwable) + ")"
-            else                 "FailedG(" + throwable + causedBy(throwable) + ", " + parameter + ")"
+            "FailedG(" + throwable + causedBy(throwable) + ", " + parameter + ")"
         }
     }
 
@@ -565,8 +602,7 @@ object result extends resultLowPriorityImplicits
         override def toString: String = message
     }
 
-    object FailedG
-    {
+    object FailedG {
         /** Construct a FailedG using a message rather than an exception */
         def apply[E](message: String, parameter: E): FailedG[E] =
             FailedG(new FailedException(message), parameter)
@@ -580,8 +616,7 @@ object result extends resultLowPriorityImplicits
             FailedG(new FailedException(message, cause.throwable), parameter)
     }
 
-    object Failed
-    {
+    object Failed {
         /** Construct a FailedG using the given message and no argument (unit) */
         def apply(message: String): Failed = FailedG(message, ())
 
@@ -611,11 +646,8 @@ object result extends resultLowPriorityImplicits
         }
     }
 
-    /** Enrich Options with ResultG related methods */
-    implicit def optionOps[A](in: Option[A]): OptionOps[A] = new OptionOps(in)
-
     /** Enrichment of Option that provides ResultG related methods */
-    class OptionOps[A](in: Option[A]) {
+    implicit class optionOps[A](val in: Option[A]) extends AnyVal {
         /** Convert Some to Okay, and None to Failed("option was none") */
         def toResult: Result[A] =
             in match {
@@ -628,14 +660,19 @@ object result extends resultLowPriorityImplicits
             in.map(a => f(a).map(Some.apply)).getOrElse(Okay(None))
     }
 
-
-    /** Enrich Either[Throwable, A] with a .toResult method */
-    implicit def eitherOps[A](in: Either[Throwable, A]): EitherOps[Unit, A] =
-        new EitherOps(in.left.map(t => (t, ())))
-
     /** Enrichment of Either with a .toResult method */
-    class EitherOps[E, A](in: Either[(Throwable, E), A]) {
+    implicit class eitherOps[A](val in: Either[Throwable, A]) extends AnyVal {
         /** Convert Left to Failed and Right to Okay */
+        def toResult: Result[A] =
+            in match {
+                case Left(t)  => Failed(t)
+                case Right(a) => Okay(a)
+            }
+    }
+
+    /** Enrich `Either[(Throwable, E), A]` with a `.toResult` method */
+    implicit class eitherOpsG[E, A](val in: Either[(Throwable, E), A]) extends AnyVal {
+        /** Convert `Left` to `FailedG` and `Right` to `Okay` */
         def toResult: ResultG[E, A] =
             in match {
                 case Left((t, e)) => FailedG(t, e)
@@ -643,8 +680,38 @@ object result extends resultLowPriorityImplicits
             }
     }
 
+    /** Enrichment of Either with a .toResult method */
+    implicit class disjunctionOps[A](val in: Throwable \/ A) extends AnyVal {
+        /** Convert Left to Failed and Right to Okay */
+        def toResult: Result[A] =
+            in match {
+                case -\/(t)  => Failed(t)
+                case \/-(a) => Okay(a)
+            }
+    }
+
+    /** Enrich `(Throwable, E) \/ A` with a `.toResult` method */
+    implicit class disjunctionOpsG[E, A](val in: (Throwable, E) \/ A) extends AnyVal {
+        /** Convert `-\/` to `FailedG` and `\/-` to `Okay` */
+        def toResult: ResultG[E, A] =
+            in match {
+                case -\/((t, e)) => FailedG(t, e)
+                case \/-(a)      => Okay(a)
+            }
+    }
+
+    /** Enrichment of Try that provides ResultG related methods */
+    implicit class tryOps[A](val in: scala.util.Try[A]) extends AnyVal {
+        /** Convert `Success` to `Okay`, and `Failure` to `Failed` */
+        def toResult: Result[A] =
+            in match {
+                case scala.util.Success(a) => Okay(a)
+                case scala.util.Failure(t) => Failed(t)
+            }
+    }
+
     /** Cast value to given type and yield `Okay(castValue)` or `Failed` if value is not of the given (runtime) type */
-    def cast[A](in: Any)(implicit m: Manifest[A]): Result[A] =
+    def cast[A: ClassTag](in: Any): Result[A] =
         Okay(in).withFailedType[Unit].asA[A]
 
     /** Cast value to given type and yield `Okay(castValue)` or `Failed` if value is not of the given (runtime) type */
@@ -688,8 +755,8 @@ object result extends resultLowPriorityImplicits
      * }}}
      * Example: tryCatching[FooException].value { do some things }
      */
-    def tryCatching[T <: Throwable](implicit m: Manifest[T]): TryCatch[Unit, Nothing] =
-        TryCatch { case t if m.erasure.isInstance(t) => Failed(t) }
+    def tryCatching[T <: Throwable : ClassTag]: TryCatch[Unit, Nothing] =
+        TryCatch { case t if classTag[T].runtimeClass.isInstance(t) => Failed(t) }
 
     /**
      * Catch only throwables of the given classes in a block, yielding Okay if no exception caught, Failed if one of those exception types caught.
@@ -700,7 +767,7 @@ object result extends resultLowPriorityImplicits
         TryCatch { case t if throwables.exists(_.isInstance(t)) => Failed(t) }
 
     /** Generic catcher which turns exceptions into ResultGs via a partial function */
-    final case class TryCatch[+E, +A](catchPF: PartialFunction[Throwable, ResultG[E, A]]) {
+    final case class TryCatch[+E, +A](catchPF: PartialFunction[Throwable, ResultG[E, A]]) extends AnyVal {
         def value[B >: A](f: => B): ResultG[E, B] =
             try Okay(f) catch catchPF
         def valueG[F, B >: A](ff: FailedG[E] => ResultG[F, B])(f: => B): ResultG[F, B] =
@@ -717,14 +784,14 @@ object result extends resultLowPriorityImplicits
      * Return the first application of the given function to each item from the given {@link Iterable} that is a {@link Okay} {@link ResultG}, or the last
      * application if none result in {@link Okay}
      */
-    def firstOrLast[A, B](xs: Iterable[A])(f: (A) => Result[B]): Result[B] =
+    def firstOrLast[A, B](xs: Iterable[A])(f: A => Result[B]): Result[B] =
         firstOrLastG(Failed("no result to yield"), xs)(f)
 
     /**
      * Return the first application of the given function to each item from the given {@link Iterable} that is a {@link Okay} {@link ResultG}, or the last
      * application if none result in {@link Okay}
      */
-    def firstOrLastG[A, B, E](default: ResultG[E, B], xs: Iterable[A])(f: (A) => ResultG[E, B]): ResultG[E, B] = {
+    def firstOrLastG[A, B, E](default: ResultG[E, B], xs: Iterable[A])(f: A => ResultG[E, B]): ResultG[E, B] = {
         var last: ResultG[E, B] = default
         for (x <- xs) {
             f(x) match {
@@ -735,21 +802,39 @@ object result extends resultLowPriorityImplicits
         last
     }
 
-    /** Implicitly convert an `Iterator` to a `IterableResultOps` with various extended behaviors  */
-    implicit def iteratorResultOps[A](iterator: Iterator[A]): IteratorResultOps[A] = IteratorResultOps(iterator)
+    /**
+     * Return the first application of the given function to each item from the given {@link Foldable} that is a {@link Okay} {@link ResultG}, or the last
+     * application if none result in {@link Okay}
+     */
+    def firstOrLast[XS[_]: Foldable, A, B](xs: XS[A])(f: A => Result[B]): Result[B] =
+        firstOrLastG(Failed("no result to yield"), xs)(f)
 
-    /** Implicitly convert an `Iterable` to a `IterableResultOps` with various extended behaviors  */
-    implicit def iterableResultOps[A](iterable: Iterable[A]): IterableResultOps[A] = IterableResultOps(iterable)
+    /**
+     * Return the first application of the given function to each item from the given {@link Foldable} that is a {@link Okay} {@link ResultG}, or the last
+     * application if none result in {@link Okay}
+     */
+    def firstOrLastG[XS[_]: Foldable, A, B, E](default: ResultG[E, B], xs: XS[A])(f: A => ResultG[E, B]): ResultG[E, B] =
+        Foldable[XS].foldLeft[A, ResultG[E, B] \/ Okay[B]](xs, -\/(default)) { (accum, a) =>
+            accum match {
+                case -\/(last) =>
+                    f(a) match {
+                        case success @ Okay(_) => \/-(success)
+                        case failed            => -\/(failed)
+                    }
+
+                case success @ \/-(_) => success
+            }
+        }.fold(identity, identity)
 
     /** Extension of Iterable that can perform various Result-oriented transforms or operations */
-    final case class IterableResultOps[A](iterable: Iterable[A]) {
+    implicit class iterableResultOps[A](val iterable: Iterable[A]) extends AnyVal {
         /** Sequence each computation in the iterable, yielding Okay iff all computations yield Okay */
         def sequenceResult[E]()(implicit ev: A <:< (() => ResultG[E, Unit])): ResultG[E, Unit] =
             iterable.iterator.sequenceResult[E]()
 
         /**
          * Sequence a chain of possibly-failing computations with side effects by applying f to each element of seq in turn. If any application of
-         * f results in Failed, then the chain is stopped there and that result returned. Otherwise Okay(()) is returned.
+         * f results in Failed, then the chain is stopped there and that result returned. Otherwise Okay.unit is returned.
          */
         def foreachResult[E](f: A => ResultG[E, Unit]): ResultG[E, Unit] =
             iterable.iterator.foreachResult[E](f)
@@ -782,14 +867,14 @@ object result extends resultLowPriorityImplicits
     }
 
     /** Extension of Iterator that can perform various Result-oriented transforms or operations */
-    final case class IteratorResultOps[A](iterator: Iterator[A]) {
+    implicit class iteratorResultOps[A](val iterator: Iterator[A]) extends AnyVal {
         /** Sequence each computation in the iterator, yielding Okay iff all computations yield Okay */
         def sequenceResult[E]()(implicit ev: A <:< (() => ResultG[E, Unit])): ResultG[E, Unit] =
             foreachResult(a => ev(a)())
 
         /**
          * Sequence a chain of possibly-failing computations with side effects by applying f to each element of seq in turn. If any application of
-         * f results in Failed, then the chain is stopped there and that result returned. Otherwise Okay(()) is returned.
+         * f results in Failed, then the chain is stopped there and that result returned. Otherwise Okay.unit is returned.
          */
         def foreachResult[E](f: A => ResultG[E, Unit]): ResultG[E, Unit] =
             foldLeftResult[E, Unit](())((_, a) => f(a))
@@ -800,7 +885,9 @@ object result extends resultLowPriorityImplicits
          */
         def mapResult[E, B, That](f: A => ResultG[E, B])(implicit cb: CanBuild[B, That]): ResultG[E, That] = {
             val builder = cb()
-            foreachResult(a => f(a).map(builder += _)).map(_ => builder.result())
+            foreachResult { a =>
+                f(a) >>= { b => builder += b; Okay.unit }
+            }.map(_ => builder.result())
         }
 
         /**

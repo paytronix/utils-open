@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,9 @@ import concurrent.atomicUpdate
 
 object LFUCacheTestFixtures {
     def newLFU = new LFUCache[TestKey, TestValue](20, 0.25)
-    def newIndexedLFU = new LFUCache[TestKey, TestValue](20, 0.25) {
+    def newIndexedLFU = new IndexedLFU
+
+    class IndexedLFU extends LFUCache[TestKey, TestValue](20, 0.25) {
         object byB extends Index(_.value.b)
     }
 
@@ -40,9 +42,7 @@ object LFUCacheTestFixtures {
     val tvalue = TestValue("bar", "baz")
 }
 
-trait LFUCacheHelpers {
-    self: SpecificationFeatures =>
-
+trait LFUCacheHelpers { self: SpecificationFeatures =>
     def writerTests(s: String)(f: (LFUCache[_, _] => Unit, LFUCache[_, _] => Unit) => MatchResult[Any]) =
         (s + " (neutral)") ! f(_ => (), _ => ()).toResult ^
         (s + " (pre-flush)") ! f(_.killWriter(), _ => ()).toResult ^
@@ -53,7 +53,7 @@ import LFUCacheTestFixtures._
 
 class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers { def is =
     "LFU Cache basics" ^
-    "starts empty" ! { newLFU.byKey.valueMap must_== Map.empty } ^
+    "starts empty" ! { newLFU.byKey.valueMap ==== Map.empty } ^
     writerTests("store(single)") { (pre, post) =>
         val lfu = newLFU
 
@@ -61,7 +61,7 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
         lfu.store(tkey, tvalue)
         post(lfu)
 
-        lfu.byKey.get(tkey) must_== Some(tvalue)
+        lfu.byKey.get(tkey) ==== Some(tvalue)
     } ^
     writerTests("store(iterable)") { (pre, post) =>
         val lfu = newLFU
@@ -72,18 +72,18 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
         lfu.store(List(tkey -> tvalue, tkey2 -> tvalue2))
         post(lfu)
 
-        { lfu.byKey.get(tkey) must_== Some(tvalue) } and { lfu.byKey.get(tkey2) must_== Some(tvalue2) }
+        { lfu.byKey.get(tkey) ==== Some(tvalue) } and { lfu.byKey.get(tkey2) ==== Some(tvalue2) }
     } ^
     writerTests("remove(single)") { (pre, post) =>
         val lfu = newLFU
         lfu.store(tkey, tvalue)
 
-        { lfu.byKey.get(tkey) must_== Some(tvalue) } and
+        { lfu.byKey.get(tkey) ==== Some(tvalue) } and
         {
             pre(lfu)
             lfu.remove(tkey)
             post(lfu)
-            lfu.byKey.get(tkey) must_== None
+            lfu.byKey.get(tkey) ==== None
         }
     } ^
     writerTests("remove(iterable)") { (pre, post) =>
@@ -94,16 +94,16 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
         lfu.store(tkey, tvalue)
         lfu.store(tkey2, tvalue2)
 
-        { lfu.byKey.get(tkey) must_== Some(tvalue) } and
-        { lfu.byKey.get(tkey2) must_== Some(tvalue2) } and
+        { lfu.byKey.get(tkey) ==== Some(tvalue) } and
+        { lfu.byKey.get(tkey2) ==== Some(tvalue2) } and
         {
             pre(lfu)
             lfu.remove(List(tkey, tkey2))
             post(lfu)
             ok
         } and
-        { lfu.byKey.get(tkey) must_== None } and
-        { lfu.byKey.get(tkey2) must_== None }
+        { lfu.byKey.get(tkey) ==== None } and
+        { lfu.byKey.get(tkey2) ==== None }
     } ^
     writerTests("store then remove") { (pre, post) =>
         val lfu = newLFU
@@ -113,7 +113,7 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
         lfu.remove(tkey)
         post(lfu)
 
-        lfu.byKey.get(tkey) must_== None
+        lfu.byKey.get(tkey) ==== None
     } ^
     writerTests("remove then store") { (pre, post) =>
         val lfu = newLFU
@@ -123,7 +123,7 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
         lfu.store(tkey, tvalue)
         post(lfu)
 
-        lfu.byKey.get(tkey) must_== Some(tvalue)
+        lfu.byKey.get(tkey) ==== Some(tvalue)
     } ^
     writerTests("two separate stores") { (pre, post) =>
         val lfu = newLFU
@@ -135,7 +135,7 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
         lfu.store(tkey2, tvalue2)
         post(lfu)
 
-        { lfu.byKey.get(tkey) must_== Some(tvalue) } and { lfu.byKey.get(tkey2) must_== Some(tvalue2) }
+        { lfu.byKey.get(tkey) ==== Some(tvalue) } and { lfu.byKey.get(tkey2) ==== Some(tvalue2) }
     } ^
     writerTests("two replacing stores") { (pre, post) =>
         val lfu = newLFU
@@ -143,8 +143,8 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
 
         pre(lfu)
         val res =
-            { lfu.store(tkey, tvalue ); lfu.byKey.get(tkey) must_== Some(tvalue ) } and
-            { lfu.store(tkey, tvalue2); lfu.byKey.get(tkey) must_== Some(tvalue2) }
+            { lfu.store(tkey, tvalue ); lfu.byKey.get(tkey) ==== Some(tvalue ) } and
+            { lfu.store(tkey, tvalue2); lfu.byKey.get(tkey) ==== Some(tvalue2) }
         post(lfu)
         res
     } ^
@@ -154,9 +154,9 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
 
         pre(lfu)
         val res =
-            { lfu.store(tkey, tvalue);  lfu.byKey.get(tkey) must_== Some(tvalue)  } and
-            { lfu.remove(tkey);         lfu.byKey.get(tkey) must_== None          } and
-            { lfu.store(tkey, tvalue2); lfu.byKey.get(tkey) must_== Some(tvalue2) }
+            { lfu.store(tkey, tvalue);  lfu.byKey.get(tkey) ==== Some(tvalue)  } and
+            { lfu.remove(tkey);         lfu.byKey.get(tkey) ==== None          } and
+            { lfu.store(tkey, tvalue2); lfu.byKey.get(tkey) ==== Some(tvalue2) }
         post(lfu)
         res
     } ^
@@ -172,7 +172,7 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
 
         val m = lfu.byKey.entryMap
 
-        { m.get(tkey).map(_.value) must_== Some(tvalue) } and { m.get(tkey2).map(_.value) must_== Some(tvalue2) } and { m.size must_== 2 }
+        { m.get(tkey).map(_.value) ==== Some(tvalue) } and { m.get(tkey2).map(_.value) ==== Some(tvalue2) } and { m.size ==== 2 }
     } ^
     writerTests("valueMap") { (pre, post) =>
         val lfu = newLFU
@@ -186,13 +186,13 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers 
 
         val m = lfu.byKey.valueMap
 
-        { m.get(tkey) must_== Some(tvalue) } and { m.get(tkey2) must_== Some(tvalue2) } and { m.size must_== 2 }
+        { m.get(tkey) ==== Some(tvalue) } and { m.get(tkey2) ==== Some(tvalue2) } and { m.size ==== 2 }
     }
 }
 
 class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCacheHelpers { def is =
     "LFU Cache alternate indexes" ^
-    "starts empty" ! { newIndexedLFU.byB.valueMap must_== Map.empty } ^
+    "starts empty" ! { newIndexedLFU.byB.valueMap ==== Map.empty } ^
     writerTests("store(single)") { (pre, post) =>
         val lfu = newIndexedLFU
 
@@ -200,7 +200,7 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
         lfu.store(tkey, tvalue)
         post(lfu)
 
-        lfu.byB.get(tvalue.b) must_== Some(tvalue)
+        lfu.byB.get(tvalue.b) ==== Some(tvalue)
     } ^
     writerTests("store(iterable)") { (pre, post) =>
         val lfu = newIndexedLFU
@@ -211,18 +211,18 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
         lfu.store(List(tkey -> tvalue, tkey2 -> tvalue2))
         post(lfu)
 
-        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and { lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+        { lfu.byB.get(tvalue.b) ==== Some(tvalue) } and { lfu.byB.get(tvalue2.b) ==== Some(tvalue2) }
     } ^
     writerTests("remove(single)") { (pre, post) =>
         val lfu = newIndexedLFU
         lfu.store(tkey, tvalue)
 
-        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and
+        { lfu.byB.get(tvalue.b) ==== Some(tvalue) } and
         {
             pre(lfu)
             lfu.remove(tkey)
             post(lfu)
-            lfu.byB.get(tvalue.b) must_== None
+            lfu.byB.get(tvalue.b) ==== None
         }
     } ^
     writerTests("remove(iterable)") { (pre, post) =>
@@ -233,16 +233,16 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
         lfu.store(tkey, tvalue)
         lfu.store(tkey2, tvalue2)
 
-        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and
-        { lfu.byB.get(tvalue2.b) must_== Some(tvalue2) } and
+        { lfu.byB.get(tvalue.b) ==== Some(tvalue) } and
+        { lfu.byB.get(tvalue2.b) ==== Some(tvalue2) } and
         {
             pre(lfu)
             lfu.remove(List(tkey, tkey2))
             post(lfu)
             ok
         } and
-        { lfu.byB.get(tvalue.b) must_== None } and
-        { lfu.byB.get(tvalue2.b) must_== None }
+        { lfu.byB.get(tvalue.b) ==== None } and
+        { lfu.byB.get(tvalue2.b) ==== None }
     } ^
     writerTests("store then remove") { (pre, post) =>
         val lfu = newIndexedLFU
@@ -252,7 +252,7 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
         lfu.remove(tkey)
         post(lfu)
 
-        lfu.byB.get(tvalue.b) must_== None
+        lfu.byB.get(tvalue.b) ==== None
     } ^
     writerTests("remove then store") { (pre, post) =>
         val lfu = newIndexedLFU
@@ -262,7 +262,7 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
         lfu.store(tkey, tvalue)
         post(lfu)
 
-        lfu.byB.get(tvalue.b) must_== Some(tvalue)
+        lfu.byB.get(tvalue.b) ==== Some(tvalue)
     } ^
     writerTests("two separate stores") { (pre, post) =>
         val lfu = newIndexedLFU
@@ -274,7 +274,7 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
         lfu.store(tkey2, tvalue2)
         post(lfu)
 
-        { lfu.byB.get(tvalue.b) must_== Some(tvalue) } and { lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+        { lfu.byB.get(tvalue.b) ==== Some(tvalue) } and { lfu.byB.get(tvalue2.b) ==== Some(tvalue2) }
     } ^
     writerTests("two replacing stores") { (pre, post) =>
         val lfu = newIndexedLFU
@@ -282,10 +282,10 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
 
         pre(lfu)
         val res =
-            { lfu.store(tkey, tvalue ); lfu.byB.get(tvalue.b)  must_== Some(tvalue ) } and
-            {                           lfu.byB.get(tvalue2.b) must_== None          } and
-            { lfu.store(tkey, tvalue2); lfu.byB.get(tvalue.b)  must_== None          } and
-            {                           lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+            { lfu.store(tkey, tvalue ); lfu.byB.get(tvalue.b)  ==== Some(tvalue ) } and
+            {                           lfu.byB.get(tvalue2.b) ==== None          } and
+            { lfu.store(tkey, tvalue2); lfu.byB.get(tvalue.b)  ==== None          } and
+            {                           lfu.byB.get(tvalue2.b) ==== Some(tvalue2) }
         post(lfu)
         res
     } ^
@@ -295,9 +295,9 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
 
         pre(lfu)
         val res =
-            { lfu.store(tkey, tvalue);  lfu.byB.get(tvalue.b)  must_== Some(tvalue)  } and
-            { lfu.remove(tkey);         lfu.byB.get(tvalue.b)  must_== None          } and
-            { lfu.store(tkey, tvalue2); lfu.byB.get(tvalue2.b) must_== Some(tvalue2) }
+            { lfu.store(tkey, tvalue);  lfu.byB.get(tvalue.b)  ==== Some(tvalue)  } and
+            { lfu.remove(tkey);         lfu.byB.get(tvalue.b)  ==== None          } and
+            { lfu.store(tkey, tvalue2); lfu.byB.get(tvalue2.b) ==== Some(tvalue2) }
         post(lfu)
         res
     } ^
@@ -313,7 +313,7 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
 
         val m = lfu.byB.entryMap
 
-        { m.get(tvalue.b).map(_.value) must_== Some(tvalue) } and { m.get(tvalue2.b).map(_.value) must_== Some(tvalue2) } and { m.size must_== 2 }
+        { m.get(tvalue.b).map(_.value) ==== Some(tvalue) } and { m.get(tvalue2.b).map(_.value) ==== Some(tvalue2) } and { m.size ==== 2 }
     } ^
     writerTests("valueMap") { (pre, post) =>
         val lfu = newIndexedLFU
@@ -327,15 +327,16 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCach
 
         val m = lfu.byB.valueMap
 
-        { m.get(tvalue.b) must_== Some(tvalue) } and { m.get(tvalue2.b) must_== Some(tvalue2) } and { m.size must_== 2 }
+        { m.get(tvalue.b) ==== Some(tvalue) } and { m.get(tvalue2.b) ==== Some(tvalue2) } and { m.size ==== 2 }
     }
 }
 
-class LFUCacheLoadSpecTest extends SpecificationWithJUnit with LFUCacheHelpers {
+// 2014-05-12 RMM: I think this test is a bit broken - it completes but when running in the (4,1) configuration it
+// completes a low number of reads but it completes a reasonably balanced number in the (5,5) configuration
+class LFUCacheLoadSpecTestDisabled extends SpecificationWithJUnit with LFUCacheHelpers {
     def loadTest(readers: Int, writers: Int) = {
         val runtime = 10 /* s */
         val keys = 50
-        val leeway = 10 /* ms */
 
         val lfu = new LFUCache[Int, Long](keys*2 /* ensure we have plenty of keyspace */, 1.0)
         var seed = System.currentTimeMillis
@@ -421,11 +422,12 @@ class LFUCacheLoadSpecTest extends SpecificationWithJUnit with LFUCacheHelpers {
             " after " + reads + " reads (~" + (reads / 10.0) + " per sec) and " + writes + " writes (~" + (writes / 10.0) + " per sec)"
         )
 
-        { (writerThreads ++ readerThreads).filter(_.isAlive).toList must_== Nil } and
-        { failures.toList must_== Nil }
+        { (writerThreads ++ readerThreads).filter(_.isAlive).toList ==== Nil } and
+        { failures.toList ==== Nil }
     }
 
     def is =
+        sequential ^
         "LFU Cache load" ^
         "many readers few writers" ! loadTest(4, 1) ^
         "even readers and writers" ! loadTest(5, 5) ^
@@ -438,13 +440,13 @@ class LFUCacheEvictionSpecTest extends SpecificationWithJUnit with LFUCacheHelpe
         val lfu = new LFUCache[Int, Int](20, 0.25)
         (1 to 20).foreach(i => lfu.store(i, i))
         lfu.waitForWriteQueueToEmpty()
-        lfu.byKey.valueMap must_== Map((1 to 20).map(i => i -> i): _*)
+        lfu.byKey.valueMap ==== Map((1 to 20).map(i => i -> i): _*)
     } ^
     "should honor the evict fraction" ! {
         val lfu = new LFUCache[Int, Int](20, 0.25)
         (1 to 21).foreach(i => lfu.store(i, i))
         lfu.waitForWriteQueueToEmpty()
-        lfu.byKey.valueMap.size must_== 15 // 20 * 0.25 == 15 after eviction
+        lfu.byKey.valueMap.size ==== 15 // 20 * 0.25 == 15 after eviction
     } ^
     "should evict the least used entries in order (ascending accesses)" ! {
         val lfu = new LFUCache[Int, Int](20, 0.25)
@@ -453,10 +455,10 @@ class LFUCacheEvictionSpecTest extends SpecificationWithJUnit with LFUCacheHelpe
 
         lfu.waitForWriteQueueToEmpty()
 
-        { lfu.byKey.valueMap must_== Map((1 to 20).map(i => i -> i): _*) } and {
+        { lfu.byKey.valueMap ==== Map((1 to 20).map(i => i -> i): _*) } and {
             lfu.store(99, 99) // trigger eviction
             lfu.waitForWriteQueueToEmpty()
-            lfu.byKey.valueMap must_== Map((99 :: (7 to 20).toList).map(i => i -> i): _*)
+            lfu.byKey.valueMap ==== Map((99 :: (7 to 20).toList).map(i => i -> i): _*)
         }
     } ^
     "should evict the least used entries in order (descending accesses)" ! {
@@ -466,10 +468,10 @@ class LFUCacheEvictionSpecTest extends SpecificationWithJUnit with LFUCacheHelpe
 
         lfu.waitForWriteQueueToEmpty()
 
-        { lfu.byKey.valueMap must_== Map((1 to 20).map(i => i -> i): _*) } and {
+        { lfu.byKey.valueMap ==== Map((1 to 20).map(i => i -> i): _*) } and {
             lfu.store(99, 99) // trigger eviction
             lfu.waitForWriteQueueToEmpty()
-            lfu.byKey.valueMap must_== Map((99 :: (1 to 14).toList).map(i => i -> i): _*)
+            lfu.byKey.valueMap ==== Map((99 :: (1 to 14).toList).map(i => i -> i): _*)
         }
     }
 }

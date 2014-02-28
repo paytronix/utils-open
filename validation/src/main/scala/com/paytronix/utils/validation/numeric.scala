@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,171 +18,181 @@ package com.paytronix.utils.validation
 
 import scala.util.control.Exception.catching
 
-import base.{ValidationError, ValidationFunction, missingValueError}
+import base.{Validated, ValidationError, failure, missingValueError, predicateE, success}
+import ordered.{tooSmallErrorExclusive, tooSmallError, tooLargeErrorExclusive, tooLargeError}
 
 object numeric {
     val nonPositiveError                  = ValidationError("invalid_negative_or_zero", "positive value required")
     val nonNegativeError                  = ValidationError("invalid_positive_or_zero", "negative value required")
     val negativeError                     = ValidationError("invalid_negative", "non-negative value required")
     val positiveError                     = ValidationError("invalid_positive", "non-positive value required")
-    def tooSmallErrorExclusive(s: String) = ValidationError("underflow", "must greater than %s", s)
-    def tooSmallError(s: String)          = ValidationError("underflow", "must greater than or equal to %s", s)
-    def tooLargeErrorExclusive(s: String) = ValidationError("overflow", "must less than %s", s)
-    def tooLargeError(s: String)          = ValidationError("overflow", "must less than or equal to %s", s)
 
-    /** Assert that some number is greater than some value (> x) */
-    def greaterThan[A](minimum: A, error: ValidationError = null)(implicit num: Numeric[A]): ValidationFunction[A, A] = in =>
-        if (num.gt(in, minimum))   Right(in)
-        else if (error == null)    Left(tooSmallErrorExclusive(minimum.toString) :: Nil)
-        else                       Left(error :: Nil)
+    /** Assert that some value is ordered greater than some value (> x) */
+    def greaterThan[A: Numeric](minimum: A): A => Validated[A] =
+        ordered.greaterThan[A](minimum)
 
-    /** Assert that some number is not less than some value (>= x) */
-    def noLessThan[A](minimum: A, error: ValidationError = null)(implicit num: Numeric[A]): ValidationFunction[A, A] = in =>
-        if (num.gteq(in, minimum)) Right(in)
-        else if (error == null)    Left(tooSmallError(minimum.toString) :: Nil)
-        else                       Left(error :: Nil)
+    /** Assert that some value is ordered greater than some value (> x) */
+    def greaterThanE[A: Numeric](error: A => ValidationError)(minimum: A): A => Validated[A] =
+        ordered.greaterThanE[A](error)(minimum)
 
-    /** Assert that some number is greater than some value (< x) */
-    def lessThan[A](maximum: A, error: ValidationError = null)(implicit num: Numeric[A]): ValidationFunction[A, A] = in =>
-        if (num.lt(in, maximum))   Right(in)
-        else if (error == null)    Left(tooSmallErrorExclusive(maximum.toString) :: Nil)
-        else                       Left(error :: Nil)
+    /** Assert that some value is not ordered less than some value (>= x) */
+    def noLessThan[A: Numeric](minimum: A): A => Validated[A] =
+        ordered.noLessThan[A](minimum)
 
-    /** Assert that some number is not less than some value (<= x) */
-    def noGreaterThan[A](maximum: A, error: ValidationError = null)(implicit num: Numeric[A]): ValidationFunction[A, A] = in =>
-        if (num.lteq(in, maximum)) Right(in)
-        else if (error == null)    Left(tooSmallError(maximum.toString) :: Nil)
-        else                       Left(error :: Nil)
+    /** Assert that some value is not ordered less than some value (>= x) */
+    def noLessThanE[A: Numeric](error: A => ValidationError)(minimum: A): A => Validated[A] =
+        ordered.noLessThanE[A](error)(minimum)
+
+    /** Assert that some value is ordered lesser than some value (< x) */
+    def lessThan[A: Numeric](maximum: A): A => Validated[A] =
+        ordered.lessThan[A](maximum)
+
+    /** Assert that some value is ordered lesser than some value (< x) */
+    def lessThanE[A: Numeric](error: A => ValidationError)(maximum: A): A => Validated[A] =
+        ordered.lessThanE[A](error)(maximum)
+
+    /** Assert that some value is not ordered lesser than some value (<= x) */
+    def noGreaterThan[A: Numeric](maximum: A): A => Validated[A] =
+        ordered.noGreaterThan[A](maximum)
+
+    /** Assert that some value is not ordered lesser than some value (<= x) */
+    def noGreaterThanE[A: Numeric](error: A => ValidationError)(maximum: A): A => Validated[A] =
+        ordered.noGreaterThanE[A](error)(maximum)
 
     /** Assert that some number is positive (> 0) */
-    def positive[A](error: ValidationError = nonPositiveError)(implicit num: Numeric[A]): ValidationFunction[A, A] =
-        in => if (num.signum(in) > 0) Right(in)
-              else Left(error :: Nil)
+    def positive[A: Numeric]: A => Validated[A] =
+        positiveE(nonPositiveError)
+
+    /** Assert that some number is positive (> 0) */
+    def positiveE[A: Numeric](error: ValidationError): A => Validated[A] =
+        predicateE(error)(a => implicitly[Numeric[A]].signum(a) > 0)
 
     /** Assert that some number is negative (< 0) */
-    def negative[A](error: ValidationError = nonNegativeError)(implicit num: Numeric[A]): ValidationFunction[A, A] =
-        in => if (num.signum(in) < 0) Right(in)
-              else Left(error :: Nil)
+    def negative[A: Numeric]: A => Validated[A] =
+        negativeE(nonNegativeError)
+
+    /** Assert that some number is negative (< 0) */
+    def negativeE[A: Numeric](error: ValidationError): A => Validated[A] =
+        predicateE(error)(a => implicitly[Numeric[A]].signum(a) < 0)
 
     /** Assert that some number is non-negative (>= 0) */
-    def nonNegative[A](error: ValidationError = negativeError)(implicit num: Numeric[A]): ValidationFunction[A, A] =
-        in => if (num.signum(in) >= 0) Right(in)
-              else Left(error :: Nil)
+    def nonNegative[A: Numeric]: A => Validated[A] =
+        nonNegativeE(negativeError)
+
+    /** Assert that some number is non-negative (>= 0) */
+    def nonNegativeE[A: Numeric](error: ValidationError): A => Validated[A] =
+        predicateE(error)(a => implicitly[Numeric[A]].signum(a) >= 0)
 
     /** Assert that some number is non-positive (<= 0) */
-    def nonPositive[A](error: ValidationError = nonNegativeError)(implicit num: Numeric[A]): ValidationFunction[A, A] =
-        in => if (num.signum(in) <= 0) Right(in)
-              else Left(error :: Nil)
+    def nonPositive[A: Numeric]: A => Validated[A] =
+        nonPositiveE(nonNegativeError)
 
-    import string.{nonBlank, numericWithSign, numericWithSignAndDecimal, nonNumericError}
+    /** Assert that some number is non-positive (<= 0) */
+    def nonPositiveE[A: Numeric](error: ValidationError): A => Validated[A] =
+        predicateE(error)(a => implicitly[Numeric[A]].signum(a) <= 0)
 
-    /** Assert that some string is a well formatted number, converting it */
-    def number[A] (
-        parse: String => A, // expected to throw NumberFormatException on overflow and underflow
-        minValue: A,
-        maxValue: A,
+    import string.{nonBlankE, numericWithSignE, numericWithSignAndDecimalE, nonNumericError}
+
+    /** Assert that some string is a well formatted number, converting it using some parsing function */
+    def numberE[A] (
         missingValue: ValidationError,
         malformatted: ValidationError,
-        underflow: ValidationError,
-        overflow: ValidationError
-    ): ValidationFunction[String, A] = nonBlank() and numericWithSign(malformatted) and (
-        in => catching(classOf[NumberFormatException]).either(parse(in)).left.map(_ => {
-            if (in.startsWith("-")) {
-                if (underflow != null) underflow else tooSmallError(minValue.toString)
-            } else {
-                if (overflow  != null) overflow  else tooLargeError(maxValue.toString)
-            }
-        } :: Nil)
-    )
+        underflow: A => ValidationError,
+        overflow: A => ValidationError
+    )(
+        parse: String => A, // expected to throw NumberFormatException on overflow and underflow
+        minValue: A,
+        maxValue: A
+    ): String => Validated[A] = nonBlankE(missingValue) and numericWithSignE(malformatted) and { s =>
+        try success(parse(s)) catch { case _: NumberFormatException =>
+            failure(if (s.startsWith("-")) underflow(minValue) else overflow(maxValue))
+        }
+    }
 
     /** Assert that some string is a well formatted decimal number, converting it */
-    def numberWithDecimal[A] (
-        parse: String => A, // expected to throw NumberFormatException on overflow and underflow
-        minValue: A,
-        maxValue: A,
+    def numberWithDecimalE[A] (
         missingValue: ValidationError,
         malformatted: ValidationError,
-        underflow: ValidationError,
-        overflow: ValidationError
-    ): ValidationFunction[String, A] = nonBlank() and numericWithSignAndDecimal(malformatted) and (
-        in => catching(classOf[NumberFormatException]).either(parse(in)).left.map(_ => {
-            if (in.startsWith("-")) {
-                if (underflow != null) underflow else tooSmallError(minValue.toString)
-            } else {
-                if (overflow  != null) overflow  else tooLargeError(maxValue.toString)
-            }
-        } :: Nil)
-    )
+        underflow: A => ValidationError,
+        overflow: A => ValidationError
+    )(
+        parse: String => A, // expected to throw NumberFormatException on overflow and underflow
+        minValue: A,
+        maxValue: A
+    ): String => Validated[A] = nonBlankE(missingValue) and numericWithSignAndDecimalE(malformatted) and { s =>
+        try success(parse(s)) catch { case _: NumberFormatException =>
+            failure(if (s.startsWith("-")) underflow(minValue) else overflow(maxValue))
+        }
+    }
+
 
     import java.lang.{Byte => JLByte, Short => JLShort, Integer => JLInteger, Long => JLLong, Float => JLFloat, Double => JLDouble}
 
     /** Assert that a string is a well formatted byte and convert it */
-    def byte (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError,
-        underflow: ValidationError = null,
-        overflow: ValidationError = null
-    ): ValidationFunction[String, Byte] =
-        number(s => JLByte.parseByte(s): JLByte, JLByte.MIN_VALUE, JLByte.MAX_VALUE, missingValue, malformatted, underflow, overflow)
+    val byte: String => Validated[Byte] =
+        byteE(missingValueError, nonNumericError, tooSmallError, tooLargeError)
+
+    /** Assert that a string is a well formatted byte and convert it */
+    def byteE(missingValue: ValidationError, malformatted: ValidationError, underflow: Byte => ValidationError, overflow: Byte => ValidationError): String => Validated[Byte] =
+        numberE(missingValue, malformatted, underflow, overflow)(s => JLByte.parseByte(s): JLByte, JLByte.MIN_VALUE, JLByte.MAX_VALUE)
 
     /** Assert that a string is a well formatted short and convert it */
-    def short (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError,
-        underflow: ValidationError = null,
-        overflow: ValidationError = null
-    ): ValidationFunction[String, Short] =
-        number(s => JLShort.parseShort(s): JLShort, JLShort.MIN_VALUE, JLShort.MAX_VALUE, missingValue, malformatted, underflow, overflow)
+    val short: String => Validated[Short] =
+        shortE(missingValueError, nonNumericError, tooSmallError, tooLargeError)
+
+    /** Assert that a string is a well formatted short and convert it */
+    def shortE(missingValue: ValidationError, malformatted: ValidationError, underflow: Short => ValidationError, overflow: Short => ValidationError): String => Validated[Short] =
+        numberE(missingValue, malformatted, underflow, overflow)(s => JLShort.parseShort(s): JLShort, JLShort.MIN_VALUE, JLShort.MAX_VALUE)
 
     /** Assert that a string is a well formatted int and convert it */
-    def int (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError,
-        underflow: ValidationError = null,
-        overflow: ValidationError = null
-    ): ValidationFunction[String, Int] =
-        number(s => JLInteger.parseInt(s): JLInteger, JLInteger.MIN_VALUE, JLInteger.MAX_VALUE, missingValue, malformatted, underflow, overflow)
+    val int: String => Validated[Int] =
+        intE(missingValueError, nonNumericError, tooSmallError, tooLargeError)
+
+    /** Assert that a string is a well formatted int and convert it */
+    def intE(missingValue: ValidationError, malformatted: ValidationError, underflow: Int => ValidationError, overflow: Int => ValidationError): String => Validated[Int] =
+        numberE(missingValue, malformatted, underflow, overflow)(s => JLInteger.parseInt(s): JLInteger, JLInteger.MIN_VALUE, JLInteger.MAX_VALUE)
 
     /** Assert that a string is a well formatted long and convert it */
-    def long (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError,
-        underflow: ValidationError = null,
-        overflow: ValidationError = null
-    ): ValidationFunction[String, Long] =
-        number(s => JLLong.parseLong(s): JLLong, JLLong.MIN_VALUE, JLLong.MAX_VALUE, missingValue, malformatted, underflow, overflow)
+    val long: String => Validated[Long] =
+        longE(missingValueError, nonNumericError, tooSmallError, tooLargeError)
+
+    /** Assert that a string is a well formatted long and convert it */
+    def longE(missingValue: ValidationError, malformatted: ValidationError, underflow: Long => ValidationError, overflow: Long => ValidationError): String => Validated[Long] =
+        numberE(missingValue, malformatted, underflow, overflow)(s => JLLong.parseLong(s): JLLong, JLLong.MIN_VALUE, JLLong.MAX_VALUE)
 
     /** Assert that a string is a well formatted float and convert it */
-    def float (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError,
-        underflow: ValidationError = null,
-        overflow: ValidationError = null
-    ): ValidationFunction[String, Float] =
-        numberWithDecimal(s => JLFloat.parseFloat(s): JLFloat, JLFloat.MIN_VALUE, JLFloat.MAX_VALUE, missingValue, malformatted, underflow, overflow)
+    val float: String => Validated[Float] =
+        floatE(missingValueError, nonNumericError, tooSmallError, tooLargeError)
+
+    /** Assert that a string is a well formatted float and convert it */
+    def floatE(missingValue: ValidationError, malformatted: ValidationError, underflow: Float => ValidationError, overflow: Float => ValidationError): String => Validated[Float] =
+        numberWithDecimalE(missingValue, malformatted, underflow, overflow)(s => JLFloat.parseFloat(s): JLFloat, JLFloat.MIN_VALUE, JLFloat.MAX_VALUE)
 
     /** Assert that a string is a well formatted double and convert it */
-    def double (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError,
-        underflow: ValidationError = null,
-        overflow: ValidationError = null
-    ): ValidationFunction[String, Double] =
-        numberWithDecimal(s => JLDouble.parseDouble(s): JLDouble, JLDouble.MIN_VALUE, JLDouble.MAX_VALUE, missingValue, malformatted, underflow, overflow)
+    val double: String => Validated[Double] =
+        doubleE(missingValueError, nonNumericError, tooSmallError, tooLargeError)
+
+    /** Assert that a string is a well formatted double and convert it */
+    def doubleE(missingValue: ValidationError, malformatted: ValidationError, underflow: Double => ValidationError, overflow: Double => ValidationError): String => Validated[Double] =
+        numberWithDecimalE(missingValue, malformatted, underflow, overflow)(s => JLDouble.parseDouble(s): JLDouble, JLDouble.MIN_VALUE, JLDouble.MAX_VALUE)
 
     /** Assert that a string is a well formatted integer value */
-    def bigInt (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError
-    ): ValidationFunction[String, BigInt] = nonBlank() and numericWithSignAndDecimal(malformatted) and (
-        in => catching(classOf[NumberFormatException]).either(BigInt(in)).left.map(_ => malformatted :: Nil)
-    )
+    val bigInt: String => Validated[BigInt] =
+        bigIntE(missingValueError, nonNumericError)
+
+    /** Assert that a string is a well formatted integer value */
+    def bigIntE(missingValue: ValidationError, malformatted: ValidationError): String => Validated[BigInt] =
+        nonBlankE(missingValue) and numericWithSignE(malformatted) and { s =>
+            try success(BigInt(s)) catch { case _: NumberFormatException => failure(malformatted) }
+        }
 
     /** Assert that a string is a well formatted decimal value */
-    def bigDecimal (
-        missingValue: ValidationError = missingValueError,
-        malformatted: ValidationError = nonNumericError
-    ): ValidationFunction[String, BigDecimal] = nonBlank() and numericWithSignAndDecimal(malformatted) and (
-        in => catching(classOf[NumberFormatException]).either(BigDecimal(in)).left.map(_ => malformatted :: Nil)
-    )
+    val bigDecimal: String => Validated[BigDecimal] =
+        bigDecimalE(missingValueError, nonNumericError)
+
+    /** Assert that a string is a well formatted decimal value */
+    def bigDecimalE(missingValue: ValidationError, malformatted: ValidationError): String => Validated[BigDecimal] =
+        nonBlankE(missingValue) and numericWithSignAndDecimalE(malformatted) and { s =>
+            try success(BigDecimal(s)) catch { case _: NumberFormatException => failure(malformatted) }
+        }
 }

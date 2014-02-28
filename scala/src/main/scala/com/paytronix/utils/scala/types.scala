@@ -1,5 +1,5 @@
 //
-// Copyright 2010-2012 Paytronix Systems, Inc.
+// Copyright 2010-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,15 +16,11 @@
 
 package com.paytronix.utils.scala
 
-object types {
-    /** Identity functor. Resolves to the type argument -- that is, Identity[String] =:= String */
+package object types {
+    /** Identity type function. Resolves to the type argument -- that is, Identity[String] =:= String */
     type Identity[A] = A
 
-    /**
-     * Constant type functor.
-     * Const[A] is a functor F[_] which is always a string.
-     * Example of use would be Const[String]#F
-     */
+    /** Constant type function. Const[A] is a function F[_] which always yields A, i.e. Const[String][Int] =:= String */
     type Const[A] = {
         type F[_] = A
     }

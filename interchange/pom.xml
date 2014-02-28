@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <!--
-    Copyright 2012 Paytronix Systems, Inc.
+    Copyright 2012-2014 Paytronix Systems, Inc.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -19,67 +19,27 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>14.1-beaker-SNAPSHOT</version>
+        <version>14.2-ernststavrosgrouper-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.paytronix.utils</groupId>
-    <artifactId>interchange</artifactId>
-    <packaging>jar</packaging>
-    <version>14.1-beaker-SNAPSHOT</version>
+    <groupId>com.paytronix.utils.interchange</groupId>
+    <artifactId>parent</artifactId>
+    <packaging>pom</packaging>
+    <version>14.2-ernststavrosgrouper-SNAPSHOT</version>
 
     <name>Paytronix Utils - Interchange</name>
-    <description>Library which allows for reflection-based transcoding of Scala and Java objects to/from JSON, Avro, and MongoDB with minimal metadata.</description>
+    <description>Family of libraries which implement rich transcoding to and from various formats with minimal required metadata but high customizability.</description>
 
-    <dependencies>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.liftweb</groupId>
-            <artifactId>lift-json_${lift.scala.compatibility.version}</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-            <version>1.7.4</version>
-        </dependency>
-        <dependency>
-            <groupId>joda-time</groupId>
-            <artifactId>joda-time</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.joda</groupId>
-            <artifactId>joda-convert</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.mongodb</groupId>
-            <artifactId>mongo-java-driver</artifactId>
-            <version>2.11.3</version>
-        </dependency>
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-library</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.specs2</groupId>
-            <artifactId>specs2_${scala.compatibility.version}</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.paytronix.utils</groupId>
-            <artifactId>scala</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.paytronix.utils</groupId>
-            <artifactId>extendedreflection</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+    <modules>
+        <module>base</module>
+        <module>avro</module>
+        <!--
+        <module>json</module>
+        <module>liftjson</module>
+        <module>parquet</module>
+        <module>avro</module>
+        -->
+    </modules>
 </project>

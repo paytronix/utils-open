@@ -1,5 +1,5 @@
 //
-// Copyright 2010-2012 Paytronix Systems, Inc.
+// Copyright 2010-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,19 @@
 
 package com.paytronix.utils.validation
 
-import shapeless.{::, HList, HNil, Poly2, RightFolder}
+import scalaz.{@@, NonEmptyList, Tag, Failure, Success, ValidationNel}
+import scalaz.Id.Id
+import scalaz.Kleisli.kleisli
+import scalaz.Tags.First
+import scalaz.std.option.optionFirst
+import scalaz.std.string.stringInstance
+import scalaz.syntax.foldable.ToFoldableOps /* .foldLeft, .intercalate */
+import shapeless.{::, HList, HNil, Poly2}
+import shapeless.ops.hlist.RightFolder
+
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG}
+
+import NonEmptyList.nels
 
 /**
  * Basic primitives for composing validations of values that can transform the value as it's being validated (e.g. instead of just testing a
@@ -25,9 +37,9 @@ import shapeless.{::, HList, HNil, Poly2, RightFolder}
  * The fundamental type being used is `Validated[A]`, which is a type alias for `Either[List[ValidationError], A]` where the Left side indicates
  * the value did not pass validation and contains one or more errors for the value, and the Right side indicates successful validation.
  *
- * Functions which take some value and produce a validated one are called `ValidationFunction[A, B]` with `A` being the input type (e.g. `String`) and
+ * Functions which take some value and produce a validated one are called `A => Validated[B]` with `A` being the input type (e.g. `String`) and
  * `B` being the output type (e.g. `Int`). Most validation functions have the same type, and do not perform any particular modification of the value.
- * For example, a function that validates the length of a string would be of type `ValidationFunction[String, String]`.
+ * For example, a function that validates the length of a string would be of type `String => Validated[String]`.
  *
  * Such functions can be composed together using the convenience operator `and`, for example:
  * {{{
@@ -44,51 +56,33 @@ import shapeless.{::, HList, HNil, Poly2, RightFolder}
  */
 object base {
     /** The type of a validated value. `Left(errors)` indicates the value did not pass validation, and `Right(v)` indicates it did pass. */
-    type Validated[+A] = Either[List[ValidationError], A]
+    type Validated[+A] = ValidationNel[ValidationError, A]
 
-    /** The type of functions that validate values of type `A`, yielding possibly modified values of type `B` */
-    type ValidationFunction[-A, +B] = A => Validated[B]
+    /** Type of field paths, represented by a list of field names. Empty list indicates a scalar value */
+    type ErrorPath = List[String]
 
     /**
      * Type of validation errors, which contain some error code, potentially some arguments for formatting the error code, and the
      * formatted version.
      */
-    trait ValidationError {
-        /** Path to the possibly-nested error. `Nil` for a scalar value. See the `field` function in [[com.paytronix.utils.validation.fields]]  */
-        val location: List[String]
-
-        /** Make a new `ValidationError` with the given segment prepended to the location, indicating it is for a nested value */
-        def nest(segment: String): ValidationError = {
-            val outer = this
-            new ValidationError {
-                val location = segment :: outer.location
-                val code = outer.code
-                val text = outer.text
-                val invalidInput = outer.invalidInput
-            }
-        }
-
+    final case class ValidationError (
         /** Some regular code string, e.g. "null_field" indicating what type of error */
-        val code: String
-
+        code: String,
         /** A human readable default equivalent in english */
-        def text: String
-
+        text: String,
+        /** Path to the possibly-nested error. `Nil` for a scalar value. See the `field` function in [[com.paytronix.utils.validation.fields]]  */
+        location: ErrorPath = Nil,
         /** A textual representation of the invalid input value, or `None` if the input value is too complex to display in text */
-        def invalidInput: Option[String]
+        invalidInput: Option[String] = None
+    ) {
+        /** Make a new `ValidationError` with the given segment prepended to the location, indicating it is for a nested value */
+        def nest(segment: String): ValidationError =
+            copy(location = segment :: location)
 
         /** Supply the textual representation of the invalid input value */
-        def withInvalidInput(s: String): ValidationError = {
-            val outer = this
-            new ValidationError {
-                val location = outer.location
-                val code = outer.code
-                val text = outer.text
-                override val invalidInput = Some(s)
-            }
-        }
+        def withInvalidInput(s: String): ValidationError =
+            copy(invalidInput = Some(s))
 
-        /** Default `toString` makes things nicer */
         override def toString: String = (
             (location match {
                 case Nil => ""
@@ -99,32 +93,17 @@ object base {
 
     object ValidationError {
         /** Create a validation error with no code value */
-        def apply(_message: String): ValidationError = new ValidationError {
-            val location = Nil
-            val code = _message
-            val text = _message
-            val invalidInput = None
-        }
-
-        /** Create a validation error with no formattable parameters */
-        def apply(_code: String, _message: String): ValidationError = new ValidationError {
-            val location = Nil
-            val code = _code
-            val text = _message
-            val invalidInput = None
-        }
-
-        /** Create a validation error with some formatting parameters using `String.format` */
-        def apply(_code: String, _format: String, args: Any*): ValidationError = new ValidationError {
-            val location = Nil
-            val code = _code
-            val text = _format.format(args: _*)
-            val invalidInput = None
-        }
-
-        /** Extract the code and text from a `ValidationError` */
-        def unapply(in: ValidationError): Option[(String, String)] = Some((in.code, in.text))
+        def apply(message: String): ValidationError =
+            ValidationError(message, message)
     }
+
+    /** Make a `Success` with a value */
+    def success[A](value: A): Validated[A] =
+        Success(value)
+
+    /** Make a `Failure` with a `NonEmptyList` of the given errors */
+    def failure(error: ValidationError, errors: ValidationError*): Validated[Nothing] =
+        Failure(nels(error, errors: _*))
 
     /**
      * Combine a series of `Validated` values from a `HList` into a single `Validated` value containing either the validated
@@ -137,44 +116,55 @@ object base {
      *         field("bar", 1 is positive()) ::
      *         HNil
      *     )
-     *     == Right("foo" :: 1 :: HNil): Validated[String :: Int :: HNil]
+     *     == Success("foo" :: 1 :: HNil): Validated[String :: Int :: HNil]
      *
      *     validate (
      *         field("foo", "foo" is nonBlank()) ::
      *         field("bar", -1 is positive()) ::
      *         HNil
      *     )
-     *     == Left(List(ValidationError("At bar: invalid_negative_or_zero: positive value required"))
+     *     == Failure(NonEmptyList(ValidationError("At bar: invalid_negative_or_zero: positive value required"))
      * }}}
      */
     def validate[L <: HList](in: L)(implicit folder: RightFolder[L, Validated[HNil], combineValidated.type]): folder.Out =
-        in.foldRight(Right(HNil): Validated[HNil])(combineValidated)
+        in.foldRight(Success(HNil): Validated[HNil])(combineValidated)
 
     object combineValidated extends Poly2 {
-        implicit def caseValidatedValidated[A, B <: HList] = at[Validated[A], Validated[B]] {
-            (l, r) => (l, r) match {
-                case (Left(newErrors), Left(existingErrors) ) => Left(newErrors ++ existingErrors): Validated[A :: B]
-                case (Left(newErrors), _                    ) => Left(newErrors): Validated[A :: B]
-                case (_,               Left(existingErrors) ) => Left(existingErrors): Validated[A :: B]
-                case (Right(newValue), Right(existingValues)) => Right(newValue :: existingValues): Validated[A :: B]
+        implicit def caseValidatedValidated[A, B <: HList] = at[Validated[A], Validated[B]] { (l, r) =>
+            identity[Validated[A :: B]] {
+                (l, r) match {
+                    case (Failure(newErrors), Failure(existingErrors)) => Failure(newErrors append existingErrors)
+                    case (Failure(newErrors), _                      ) => Failure(newErrors)
+                    case (_,                  Failure(existingErrors)) => Failure(existingErrors)
+                    case (Success(newValue),  Success(existingValues)) => Success(newValue :: existingValues)
+                }
             }
         }
     }
 
     /** Attach a field name to any errors in a `Validated` value */
     def field[A](name: String, result: Validated[A]): Validated[A] =
-        result match {
-            case Left(errors) => Left(errors.map(_.nest(name)))
-            case Right(value) => Right(value)
-        }
+        result.leftMap(_.map(_.nest(name)))
 
-    /** Wrap a `ValidationFunction` such that any errors it yields will have a field name added */
-    def field[A, B](name: String, func: ValidationFunction[A, B]): ValidationFunction[A, B] =
+    /** Attach a field name to any errors in a `Validated` value */
+    def field[A, B](name: String, func: A => Validated[B]): A => Validated[B] =
         in => field(name, func(in))
 
+    /** Wrap a validation function `A => Validated[B]` such that any errors it yields will have a field name added */
+    def field[A, B >: A, C](name: String, container: String => A, func: B => Validated[C]): Validated[C] =
+        field(name, func(container(name)))
+
+    type ValidationErrorMap = Map[ErrorPath, NonEmptyList[ValidationError]]
+
     /** Convert a list of `ValidationError`s to a map by field name */
-    def validationErrorsToMap(in: List[ValidationError]): Map[List[String], List[ValidationError]] =
-        in.foldLeft(Map.empty[List[String], List[ValidationError]].withDefaultValue(Nil))((m, ve) => m + (ve.location -> (ve :: m(ve.location))))
+    def validationErrorsToMap(in: NonEmptyList[ValidationError]): ValidationErrorMap =
+        in.foldLeft[ValidationErrorMap](Map.empty) { (m, ve) =>
+            val errors = m.get(ve.location) match {
+                case Some(errors) => ve <:: errors
+                case None         => nels(ve)
+            }
+            m + (ve.location -> errors)
+        }
 
     /**
      * Convert a list of `ValidationError`s to error text, suitable for display to a console.
@@ -207,7 +197,7 @@ object base {
      * }}}
      */
     def validationErrorsToString (
-        in: List[ValidationError],
+        in: NonEmptyList[ValidationError],
         groupSeparator: String = "\n",
         fieldSeparator: String = ": ",
         errorSeparator: String = "\n",
@@ -233,9 +223,9 @@ object base {
                 val prefix = if (keyString != "") keyString + fieldSeparator else ""
 
                 if (bundled) {
-                    prefix + errors.mkString(errorSeparator + (if (indented) (" " * prefix.length) else ""))
+                    prefix + errors.intercalate(errorSeparator + (if (indented) (" " * prefix.length) else ""))
                 } else {
-                    errors.map(prefix + _).mkString(errorSeparator)
+                    errors.map(prefix + _).intercalate(errorSeparator)
                 }
             }
         ).mkString(groupSeparator)
@@ -254,69 +244,74 @@ object base {
      * Apply some validation but if it succeeds ignore the result and use the input.
      * That is, just assert the condition, but do not use the conversion of some validation
      */
-    def onlyAssert[A](f: ValidationFunction[A, _]): ValidationFunction[A, A] =
-        in => f(in).right.map(_ => in)
+    def onlyAssert[A](f: A => Validated[_]): A => Validated[A] =
+        in => f(in).map(_ => in)
 
     /** Apply a validation only if a boolean is true */
-    def when[A](condition: Boolean)(f: ValidationFunction[A, A]): ValidationFunction[A, A] =
+    def when[A](condition: Boolean)(f: A => Validated[A]): A => Validated[A] =
         in => if (condition) f(in)
-              else Right(in)
+              else Success(in)
 
-    /** Identity validation function that just passes the value through unchanged */
-    def pass[A]: ValidationFunction[A, A] = in => Right(in)
+    /** Apply some predicate function, failing validation if the predicate fails */
+    def predicateE[A](error: ValidationError)(p: A => Boolean): A => Validated[A] =
+        a => if (p(a)) Success(a) else Failure(nels(error))
 
-    /** Extend a `ValidationFunction` with the `and` combinator, which is provided by the wrapper `ValidationFunctionOps` */
-    implicit def validationFunctionOps[A, B](f: ValidationFunction[A, B]): ValidationFunctionOps[A, B] =
-        ValidationFunctionOps(f)
+    /** Accept the value with the first validation function `A => Validated[B]` which doesn't fail */
+    def any[A, B](fs: NonEmptyList[A => Validated[B]]) =
+        anyE(generalError)(fs)
 
-    /** Extension of `ValidationFunction` that provides composition via `and` */
-    final case class ValidationFunctionOps[A, B](f: ValidationFunction[A, B]) extends ValidationFunction[A, B] {
-        def apply(a: A): Validated[B] = f(a)
+    /** Accept the value with the first validation function `A => Validated[B]` which doesn't fail */
+    def anyE[A, B](error: ValidationError)(fs: NonEmptyList[A => Validated[B]]): A => Validated[B] = {
+        def unFirst[A](in: A @@ First): A = Tag.unsubst[A, Id, First](in)
+        a => unFirst(fs.foldMap(f => First(f(a).toOption))) match {
+            case Some(result) => Success(result)
+            case None         => Failure(nels(error))
+        }
+    }
 
+    /** Extend a validation kleisli `A => Validated[B]` with the `and` combinator, equivalent to reversed kleisli composition */
+    implicit class validationFunctionOps[A, B](f: A => Validated[B]) {
         /** Compose a validation function with another, from left to right */
-        def and[C](rhs: ValidationFunction[B, C]): ValidationFunction[A, C] =
-            in => f(in).right.flatMap(rhs)
+        def and[C](g: B => Validated[C]): A => Validated[C] =
+            a => f(a).flatMap(g)
+
+        /** Map the output value of the validation function */
+        def map[C](g: B => C): A => Validated[C] =
+            a => f(a).map(g)
     }
 
     /** Extend a `Validated[A]` with the `and` combinator */
-    implicit def validatedOps[A](in: Validated[A]): ValidatedOps[A] =
-        ValidatedOps(in)
-
-    /** Extension of `Validated[A]` with the `and` combinator */
-    final case class ValidatedOps[A](a: Validated[A]) {
+    implicit class validatedOps[A](lhs: Validated[A]) {
         /** Apply a `ValidationFunction` to a `Validated` value */
-        def and[B](rhs: ValidationFunction[A, B]): Validated[B] =
-            a.right.flatMap(rhs)
+        def and[B](rhs: A => Validated[B]): Validated[B] =
+            lhs.flatMap(rhs)
+
+        /** Convert the `Validated` to a `ResultG` containing the same information */
+        def toResultG: ResultG[NonEmptyList[ValidationError], A] =
+            lhs match {
+                case Success(a)      => Okay(a)
+                case Failure(errors) => FailedG("validation failed", errors)
+            }
+
+        /** Convert the `Validated` to a simple `Result` with all validation errors packed into the message */
+        def toResult: Result[A] =
+            lhs match {
+                case Success(a) => Okay(a)
+                case Failure(errors) => Failed(validationErrorsToString(errors))
+            }
+
+        /** Yield the `Success` value or throw an exception with the validation errors as the message */
+        def orThrow: A =
+            toResult.orThrow
     }
 
     /** Implicitly extend any value with an `is` operator that can be used to apply a validation function to the value */
-    implicit def valueOps[A](in: A): ValueOps[A] = ValueOps(in)
-
-    /** `ValueOps` wraps some value and provides additional operators for validation */
-    final case class ValueOps[A](a: A) {
+    implicit class valueOps[A](lhs: A) {
         /** `value is (validationFunction)` applies the given validation(s) to the value */
-        def is[B](f: ValidationFunction[A, B]): Validated[B] = f(a)
+        def is[B](f: A => Validated[B]): Validated[B] = f(lhs)
 
         /** alias for `is` that works better for plurals */
-        def are[B](f: ValidationFunction[A, B]): Validated[B] = f(a)
-    }
-
-     /** Implicitly extend a `String` with the `in` operator for writing field validations, e.g. `"field" in fieldContainer is nonBlank()` */
-    implicit def fieldNameOps(in: String): FieldNameOps = FieldNameOps(in)
-
-    /** Extended operations on `String`s that represent field names */
-    final case class FieldNameOps(name: String) {
-        /** Extract the value by name from the field container so it can be validated using `is` */
-        def in[A](container: String => A): FieldValueOps[A] = FieldValueOps(name, container(name))
-
-        /** Extract the value by name from the field container so it can be validated using `is` */
-        def from[A](container: String => A): FieldValueOps[A] = FieldValueOps(name, container(name))
-    }
-
-    /** Container of a field name and its value to allow for `"field" in container is validation...` */
-    final case class FieldValueOps[A](name: String, value: A) {
-        /** Validate the value of the field, as `field(name, value is validation)` */
-        def is[B](validation: ValidationFunction[A, B]): Validated[B] = field(name, validation(value))
+        def are[B](f: A => Validated[B]): Validated[B] = is(f)
     }
 }
 

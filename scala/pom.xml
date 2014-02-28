@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <!--
-    Copyright 2012 Paytronix Systems, Inc.
+    Copyright 2012-2014 Paytronix Systems, Inc.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>14.1-beaker-SNAPSHOT</version>
+        <version>14.2-ernststavrosgrouper-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,33 +27,19 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>scala</artifactId>
     <packaging>jar</packaging>
-    <version>14.1-beaker-SNAPSHOT</version>
+    <version>14.2-ernststavrosgrouper-SNAPSHOT</version>
 
     <name>Paytronix Utils - Miscellaneous Scala</name>
     <description>Library with various Scala utilities and types.</description>
 
     <dependencies>
         <dependency>
-            <groupId>com.thoughtworks.paranamer</groupId>
-            <artifactId>paranamer</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>javax.inject</groupId>
-            <artifactId>javax.inject</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.specs2</groupId>
-            <artifactId>specs2_${scala.compatibility.version}</artifactId>
-            <scope>test</scope>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-reflect</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -61,7 +47,18 @@
         </dependency>
         <dependency>
             <groupId>org.scalaz</groupId>
-            <artifactId>scalaz-core_${scala.compatibility.version}</artifactId>
+            <artifactId>scalaz-core_2.11</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2_2.11</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

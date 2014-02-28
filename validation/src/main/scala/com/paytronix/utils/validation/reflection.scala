@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,26 +16,31 @@
 
 package com.paytronix.utils.validation
 
-import base.{ValidationError, ValidationFunction}
+import scala.reflect.{ClassTag, classTag}
+
+import scalaz.{Failure, Success}
+import scalaz.NonEmptyList.nels
+
+import base.{Validated, ValidationError}
 
 object reflection {
     import string.nonBlank
 
     val invalidClassName = ValidationError("invalid_class_name", "invalid class name")
+
     def lookupError(e: Exception): ValidationError = ValidationError("unknown_error", "error while looking up class: " + e.toString)
 
     /** Assert that a String is nonblank and refers to a loadable class */
-    def className[A](bound: Class[A], classLoader: ClassLoader = null, error: ValidationError = invalidClassName): ValidationFunction[String, Class[_ <: A]] =
-        in => nonBlank()(in) match {
-            case Left(errors) => Left(errors)
-            case Right(s) => {
-                try {
-                    if (classLoader != null) Right(Class.forName(s, true, classLoader).asSubclass(bound))
-                    else                     Right(Class.forName(s).asSubclass(bound))
-                } catch {
-                    case e: ClassNotFoundException => Left(error :: Nil)
-                    case e: Exception              => Left(lookupError(e) :: Nil) // FIXME? do we need to be able to customize this one?
-                }
+    def className[A: ClassTag](classLoader: ClassLoader): String => Validated[Class[_ <: A]] =
+        classNameE[A](invalidClassName, lookupError)(classLoader)
+
+    /** Assert that a String is nonblank and refers to a loadable class */
+    def classNameE[A: ClassTag](unknownClassError: ValidationError, lookupError: Exception => ValidationError)(classLoader: ClassLoader): String => Validated[Class[_ <: A]] =
+        nonBlank and { s =>
+            try Success(Class.forName(s, true, classLoader).asSubclass(classTag[A].runtimeClass.asInstanceOf[Class[A]]))
+            catch {
+                case e: ClassNotFoundException => Failure(nels(unknownClassError))
+                case e: Exception              => Failure(nels(lookupError(e)))
             }
         }
 }
