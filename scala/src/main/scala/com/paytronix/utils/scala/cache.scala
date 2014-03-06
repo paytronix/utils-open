@@ -250,6 +250,7 @@ object cache {
 
         /** Reference to the thread running the `CacheWriter`, kept around for `unpark`ing */
         private val writerThread = new Thread(writer, this.toString + " Writer")
+        writerThread.setDaemon(true)
         writerThread.start()
 
         /** Process a `Store` request while in the writer thread */
@@ -348,7 +349,9 @@ object cache {
         /** Unit test hook: restore the writer thread after `killWriter` */
         private[scala] def restoreWriter(): Unit = {
             writer.continue = true
-            new Thread(writer, "writer thread").start()
+            val newWriter = new Thread(writer, "writer thread")
+            newWriter.setDaemon(true)
+            newWriter.start()
         }
 
         /** Unit test hook: wait for any pending write queue entries to be processed to test behavior after entries have been folded back into the main maps */
