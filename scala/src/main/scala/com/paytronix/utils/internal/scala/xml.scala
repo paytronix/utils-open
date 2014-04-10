@@ -10,8 +10,9 @@ import java.nio.charset.Charset
 import scala.collection.immutable
 import scala.collection.mutable.ListBuffer
 import scala.io.{Position, Source}
-import scala.xml.{Atom, Elem, EntityRef, MetaData, Node, NodeSeq, NamespaceBinding, Null, PrefixedAttribute, Text, TopScope, UnprefixedAttribute}
-import scala.xml.dtd.{DocType, PublicID}
+import scala.xml.{Atom, Elem, EntityRef, MetaData, Node, NodeSeq, NamespaceBinding, Null, PrefixedAttribute, Text, TopScope, UnprefixedAttribute, Utility}
+import scala.xml.dtd.{PublicID, ExternalID}
+import scala.xml.dtd
 import scala.xml.parsing.XhtmlParser
 import scala.xml.transform.BasicTransformer
 import net.liftweb.util.AltXML
@@ -32,9 +33,13 @@ object xml {
     }
 
     /** Turn some XML `NodeSeq` into an HTML text block with a `DOCTYPE` */
-    def xhtmlToHtmlString(ns: NodeSeq): String = {
+    def xhtmlToHtmlString(ns: NodeSeq, docType: Option[DocType]): String = {
         val sb = new StringBuilder()
-        sb.append(new DocType("html", new PublicID("-//W3C//DTD XHTML 1.0 Transitional//EN", "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"), Seq.empty))
+        docType match {
+            case Some(dt)  => sb.append(dt)
+            case None      => sb.append(new DocType("html", Some(new PublicID("-//W3C//DTD XHTML 1.0 Transitional//EN", "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd")), Seq.empty).toString())
+        }
+        sb.append("\n")
         AltXML.sequenceToXML(ns, TopScope, sb, false, false, false)
         sb.toString
     }
@@ -225,5 +230,46 @@ object xml {
           case Elem(pre, lab, md, scp, child@_*) => Elem(pre, lab, md, scp, (child flatMap removeEmpty):_*)
           case _                                 => parent
         }
+    }
+
+    /**
+      * Convert a string into a NodeSeqWithDoctype, with a DocType and NodeSeq
+     */
+    case class NodeSeqWithDocType(docType: Option[DocType], htmlBody: NodeSeq )
+    def stringToNodeSeqWithDocType(html: String): ParseResult[NodeSeqWithDocType] = {
+        val docTypeMatch = """^\s*<!DOCTYPE\s+(\w+)\s*(?:\s+\w+\s*)?(?:\s+"([\p{ASCII}&&[^"]]+)"\s+"([\p{ASCII}&&[^"]]+)")?>""".r findFirstMatchIn html
+        val docType = docTypeMatch.map(_.subgroups) match {
+            case Some(List(html, null, null)) => Some(DocType("html", None, Seq.empty))
+            case Some(List(html, dec1, dec2)) => Some(DocType("html", Some(new PublicID(dec1, dec2)), Seq.empty))
+            case _                                          => None
+        }
+
+        charsToXhtml(() => html.iterator) match {
+            case ParseSucceeded(nodeSeq)  => ParseSucceeded(new NodeSeqWithDocType(docType, nodeSeq))
+            case ParseFailed(errors)      => ParseFailed(errors)
+        }
+    }
+}
+
+/**
+ * New implementation of DocType to handle the Html5 Doctype
+ * @param name
+ * @param extID
+ * @param intSubset
+ */
+case class DocType(name: String, extID: Option[ExternalID], intSubset: Seq[dtd.Decl])
+{
+    /** returns "&lt;!DOCTYPE + name + extID? + ("["+intSubSet+"]")? >" */
+    final override def toString() = {
+        def intString =
+            if (intSubset.isEmpty) ""
+            else intSubset.mkString("[", "", "]")
+
+        extID match {
+            case None   => """<!DOCTYPE %s %s%s>""".format(name, "", intString)
+            case Some(eid)  => """<!DOCTYPE %s %s%s>""".format(name, eid.toString(), intString)
+        }
+
+
     }
 }
