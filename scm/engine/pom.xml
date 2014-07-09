@@ -3,7 +3,7 @@
     <parent>
         <groupId>paytronix.utils.internal.scm</groupId>
         <artifactId>parent</artifactId>
-        <version>13.4-angus-SNAPSHOT</version>
+        <version>14.1-droop-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -12,7 +12,7 @@
     <artifactId>engine</artifactId>
     <packaging>jar</packaging>
     <name>Paytronix Internal Utils - SCM Engine</name>
-    <version>13.4-angus-SNAPSHOT</version>
+    <version>14.1-droop-SNAPSHOT</version>
 
     <build>
         <plugins>
