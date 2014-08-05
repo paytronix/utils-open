@@ -40,6 +40,7 @@ import utils.nameAndNamespaceFromClass
 object scalar extends scalar
 
 trait scalar extends scalarLPI {
+    /** `AvroCoder` for `Unit`. Encodes as an empty record of type scala.Unit. */
     implicit object unitAvroCoder extends AvroCoder[Unit] {
         trait UnitEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = {
@@ -58,6 +59,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Boolean`. Encodes as an Avro boolean */
     implicit object booleanAvroCoder extends AvroCoder[Boolean] {
         trait BooleanEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.BOOLEAN)
@@ -72,6 +74,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Byte`. Encodes as an Avro fixed of size 1 */
     implicit object byteAvroCoderFixed extends AvroCoder[Byte] {
         trait ByteEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.createFixed("byte", "", "", 1)
@@ -95,6 +98,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Short`. Encodes as an Avro fixed of size 2 */
     implicit object shortAvroCoderFixed extends AvroCoder[Short] {
         trait ShortEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.createFixed("char", "", "", 2)
@@ -125,6 +129,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Int`. Encodes as an Avro int (zig-zag encoding) */
     implicit object intAvroCoder extends AvroCoder[Int] {
         trait IntEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.INT)
@@ -144,6 +149,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Long`. Encodes as an Avro long (zig-zag encoding) */
     implicit object longAvroCoder extends AvroCoder[Long] {
         trait LongEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.LONG)
@@ -163,6 +169,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Float`. Encodes as an Avro float */
     implicit object floatAvroCoder extends AvroCoder[Float] {
         trait FloatEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.FLOAT)
@@ -182,6 +189,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Double`. Encodes as an Avro double */
     implicit object doubleAvroCoder extends AvroCoder[Double] {
         trait DoubleEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.DOUBLE)
@@ -201,6 +209,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `java.math.BigInteger`. Encodes as an Avro byte array using `.toByteArray` of `BigInteger` */
     implicit object javaBigIntegerAvroCoderBytes extends AvroCoder[JavaBigInteger] {
         trait JavaBigIntegerEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.BYTES)
@@ -231,12 +240,14 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `scala.math.BigInt`. Encodes as an Avro byte array using `.toByteArray` of `BigInteger` */
     implicit lazy val scalaBigIntAvroCoderBytes = javaBigIntegerAvroCoderBytes.mapBijection(bijection (
         (bi: BigInt) => Okay(bi.bigInteger): Result[JavaBigInteger],
         (bi: JavaBigInteger) => Okay(BigInt(bi)): Result[BigInt]
     ))
 
 
+    /** `AvroCoder` for `java.math.BigDecimal`. Encodes as an Avro byte array with the scale as a 4-byte integer followed by the unscaled digits using `.toByteArray` */
     implicit object javaBigDecimalAvroCoderBytes extends AvroCoder[JavaBigDecimal] {
         trait JavaBigDecimalEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.BYTES)
@@ -273,11 +284,13 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `scala.math.BigDecimal`. Encodes as an Avro byte array with the scale as a 4-byte integer followed by the unscaled digits using `.toByteArray` */
     implicit lazy val scalaBigDecimalAvroCoderBytes = javaBigDecimalAvroCoderBytes.mapBijection(bijection (
         (bd: BigDecimal) => Okay(bd.bigDecimal): Result[JavaBigDecimal],
         (bd: JavaBigDecimal) => Okay(BigDecimal(bd)): Result[BigDecimal]
     ))
 
+    /** `AvroCoder` for `Char`. Encodes as an Avro fixed of length 2 */
     implicit object charAvroCoderFixed extends AvroCoder[Char] {
         trait CharEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.createFixed("char", "", "", 2)
@@ -306,6 +319,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `String`. Encodes as an Avro string: length as a zig-zag encoded integer followed by UTF-8 bytes */
     implicit object stringAvroCoder extends AvroCoder[String] {
         trait StringEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.STRING)
@@ -327,6 +341,7 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `java.nio.ByteByffer`. Encodes as an Avro byte array */
     implicit object byteBufferAvroCoder extends AvroCoder[ByteBuffer] {
         trait ByteBufferEncoderOrDecoder extends AvroEncoderOrDecoder {
             val schema = Schema.create(Schema.Type.BYTES)
@@ -354,12 +369,14 @@ trait scalar extends scalarLPI {
         }
     }
 
+    /** `AvroCoder` for `Array[Byte]`. Encodes as an Avro byte array */
     implicit lazy val byteArrayAvroCoder: AvroCoder[Array[Byte]] =
         byteBufferAvroCoder.mapBijection(bijection (
             (ba: Array[Byte]) => Okay(ByteBuffer.wrap(ba)),
             (bb: ByteBuffer) => Okay(bb.array)
         ))
 
+    /** `AvroCoder` for Java enumerations. Encodes as an Avro enumeration */
     implicit def javaEnumAvroCoder[A <: Enum[A]: ClassTag]: AvroCoder[A] = {
         def toSanitizedString(in: A): String = in.toString.replaceAll("[^_a-zA-Z0-9]", "")
         val enumClass = classTag[A].runtimeClass.asInstanceOf[Class[A]]
@@ -395,6 +412,7 @@ trait scalar extends scalarLPI {
         new javaEnumAvroCoder
     }
 
+    /** `AvroCoder` for Scala `Enumeration`s. Encodes as an Avro enumeration */
     implicit def scalaEnumAvroCoder[A <: Enumeration: TypeTag]: AvroCoder[A#Value] = {
         def toSanitizedString(in: A#Value): String = in.toString.replaceAll("[^_a-zA-Z0-9]", "")
         val enumeration = atTerminal(enumerationInstance[A]).orThrow

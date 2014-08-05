@@ -55,11 +55,22 @@ trait AvroEncoderLPI {
 /** Encoder which encodes binary data incrementally via an Avro `Encoder` */
 @implicitNotFound(msg="No AvroEncoder for ${A} found in the implicit scope. Perhaps you forgot to import something from com.paytronix.utils.interchange.format.avro.coders, or need to add some @derive annotations")
 trait AvroEncoder[A] extends Encoder[A, AvroFormat.type] with AvroEncoderOrDecoder { outer =>
+    /**
+     * Encode a value into the JSON format used by Avro in the schema to indicate default values.
+     * Note that there are limitations in Avro as to what values can be used as defaults, so this may fail (with `FailedG`)
+     * on a range of values that can otherwise be encoded with `run` (`toBytes`, `toOutputStream`, `asDatumWriter`)
+     */
     def encodeDefaultJson(a: A): CoderResult[JsonNode]
 
+    /**
+     * Produce a new encoder whose schema has the given value as a default.
+     * <strong>WARNING:</strong> throws an exception if the value cannot be encoded as default! This method is only inteded to be used
+     * at static initialization time.
+     */
     def default(a: A): AvroEncoder[A] =
         withDefaultJson(encodeDefaultJson(a).orThrow)
 
+    /** Produce a new encoder whose schema uses the given default JSON, usually encoded via `encodeDefaultJson` */
     def withDefaultJson(json: JsonNode) =
         new AvroEncoder[A] {
             val schema = outer.schema
@@ -68,8 +79,10 @@ trait AvroEncoder[A] extends Encoder[A, AvroFormat.type] with AvroEncoderOrDecod
             def run(a: A, sink: avro.io.Encoder) = outer.run(a, sink)
         }
 
+    /** Map a function over this encoder, yielding an encoder which takes in values of type `B` */
     def map[B](f: B => A): AvroEncoder[B] = mapKleisli(b => Okay(f(b)))
 
+    /** Map a kleisli (function which may fail gracefully) over this encoder, yielding an encoder which takes in values of type `B` */
     def mapKleisli[B](k: B => Result[A]): AvroEncoder[B] = new AvroEncoder[B] {
         def run(b: B, sink: avro.io.Encoder) = atTerminal(k(b)) >>= { outer.run(_, sink) }
         def encodeDefaultJson(b: B)       = atTerminal(k(b)) >>= outer.encodeDefaultJson
@@ -89,7 +102,7 @@ trait AvroEncoder[A] extends Encoder[A, AvroFormat.type] with AvroEncoderOrDecod
             encoder   <- tryCatch.value(avro.io.EncoderFactory.get.binaryEncoder(out, null)) | "Failed to create Avro encoder"
             encodedOk <- formatFailedPath(run(in, encoder))
             flushedOk <- tryCatch.value(encoder.flush) | "Failed to flush Avro encoder"
-        } yield { }
+        } yield ()
 
     /** Produce a DatumWriter that writes whatever this Coder codes to some Avro encoder */
     lazy val asDatumWriter: avro.io.DatumWriter[A] =
@@ -117,9 +130,15 @@ trait AvroDecoderLPI {
 /** Decoder which consumes binary data in the Avro format via an Avro `ResolvingDecoder` */
 @implicitNotFound(msg="No AvroDecoder for ${A} found in the implicit scope. Perhaps you forgot to import something from com.paytronix.utils.interchange.format.avro.coders, or need to add some @derive annotations")
 trait AvroDecoder[A] extends Decoder[A, AvroFormat.type] with AvroEncoderOrDecoder { outer =>
+    /**
+     * Produce a new decoder whose schema has the given value as a default.
+     * <strong>WARNING:</strong> throws an exception if the value cannot be encoded as default! This method is only inteded to be used
+     * at static initialization time.
+     */
     def default(a: A)(implicit encoder: AvroEncoder[A]): AvroDecoder[A] =
         withDefaultJson(encoder.encodeDefaultJson(a).orThrow)
 
+    /** Produce a new decoder whose schema uses the given default JSON, usually encoded via `encodeDefaultJson` */
     def withDefaultJson(json: JsonNode) =
         new AvroDecoder[A] {
             val schema = outer.schema
@@ -127,8 +146,10 @@ trait AvroDecoder[A] extends Decoder[A, AvroFormat.type] with AvroEncoderOrDecod
             def run(in: avro.io.ResolvingDecoder, out: Receiver[A]) = outer.run(in, out)
         }
 
+    /** Map a function over this decoder, yielding an decoder which produces values of type `B` by transforming `A`s using the given function */
     def map[B](f: A => B): AvroDecoder[B] = mapKleisli(a => Okay(f(a)))
 
+    /** Map a kleisli (function which may fail gracefully) over this decoder, yielding an decoder which produces values of type `B` */
     def mapKleisli[B](k: A => Result[B]): AvroDecoder[B] = new AvroDecoder[B] {
         def run(source: avro.io.ResolvingDecoder, outB: Receiver[B]) = {
             val outA = new Receiver[A]
@@ -196,8 +217,10 @@ trait AvroDecoder[A] extends Decoder[A, AvroFormat.type] with AvroEncoderOrDecod
 }
 
 object AvroCoder  {
+    /** Materializer for `AvroCoder` which looks in the implicit scope. Equivalent to `implicitly[AvroCoder[A]]` */
     def apply[A](implicit coder: AvroCoder[A]): AvroCoder[A] = implicitly
 
+    /** Make an `AvroCoder` from an `AvroEncoder` and `AvroDecoder` */
     def make[A](implicit encoder: AvroEncoder[A], decoder: AvroDecoder[A]): AvroCoder[A] =
         new AvroCoder[A] {
             val encode = encoder
@@ -208,15 +231,39 @@ object AvroCoder  {
 /** Module of a Avro streaming encoder and decoder pair */
 @implicitNotFound(msg="No AvroCoder for ${A} found in the implicit scope. Perhaps you forgot to import something from com.paytronix.utils.interchange.format.avro.coders, or need to add some @derive annotations")
 trait AvroCoder[A] extends Coder[AvroEncoder, AvroDecoder, A, AvroFormat.type] {
+    /** Encoder for the type `A` */
     val encode: AvroEncoder[A]
+
+    /** Decoder for the type `A` */
     val decode: AvroDecoder[A]
 
+    /** Avro schema for the value. Note that this returns the encoder schema but they should be identical for any given type */
     def schema: avro.Schema = encode.schema
+
+    /**
+     * Default value to use when a field of this type is not present in the incoming data,
+     * e.g. is being decoded from an older version of data that does not include it
+     */
     def defaultJson: Option[JsonNode] = decode.defaultJson
 
+    /**
+     * Map a bijection (pair of kleislis `A => Result[B]` and `B => Result[A]`) over this coder pair, yielding a new coder pair for some
+     * type `B` which can be bijected to the underlying type `A`.
+     *
+     * For example, to make a `AvroCoder` that is encoded in Avro as a string but decodes to Scala as a sequence of space separated tokens:
+     *
+     *    val tokenizedStringAvroCoder = scalar.stringAvroCoder.mapBijection(bijection (
+     *        (tokens: Seq[String]) => Okay(tokens.mkString(" ")),
+     *        (s: String) => Okay(s.split(' '))
+     *    ))
+     */
     def mapBijection[B](bijection: BijectionT[Result, Result, B, A]) =
         AvroCoder.make(encode.mapKleisli(bijection.to), decode.mapKleisli(bijection.from))
 
+    /**
+     * Yield a new `AvroCoder` for the same type which defaults to some value when decoding from a schema that doesn't include the field
+     * <strong>WARNING:</strong> throws an exception if the default value cannot be encoded as a default to be used in the Avro schema.
+     */
     def default(value: A): AvroCoder[A] = {
         val defaultJson = encode.encodeDefaultJson(value).orThrow
         AvroCoder.make(encode.withDefaultJson(defaultJson), decode.withDefaultJson(defaultJson))
