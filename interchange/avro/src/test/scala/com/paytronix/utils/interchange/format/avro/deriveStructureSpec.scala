@@ -21,11 +21,14 @@ import java.util.Arrays
 import scala.collection.JavaConverters.asScalaBufferConverter
 
 import org.apache.avro.Schema
+import org.scalacheck.Arbitrary
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 
 import com.paytronix.utils.interchange.base.default
 import com.paytronix.utils.interchange.test.fixtures.{BasicClass, CaseClass, POJOClass}
 import com.paytronix.utils.scala.result.Okay
+
+import Arbitrary.arbitrary
 
 trait StructureAvroMatchers extends AvroMatchers { self: SpecificationWithJUnit =>
     def pack(cc: CaseClass): Array[Byte] =
@@ -403,32 +406,101 @@ object avroStructureDefaultingFixture {
     import scalar.intAvroCoder
 
     @derive.structure.implicitCoder
-    case class DefaultingStructure(a: Int, @default(5 + 2) b: Int)
+    case class DefaultingStructure1(a: Int, @default(5 + 2) b: Int)
+    object DefaultingStructure1 {
+        implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure1(i, j))
+    }
+
+    @derive.structure.implicitCoder
+    case class DefaultingStructure2(a: Int, b: Int = 5 + 2)
+    object DefaultingStructure2 {
+        implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure2(i, j))
+    }
+
+    @derive.structure.implicitCoder
+    case class DefaultingStructure3(a: Int, @default(5 + 2) b: Int = 2)
+    object DefaultingStructure3 {
+        implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure3(i, j))
+    }
 }
 
-import avroStructureDefaultingFixture.DefaultingStructure
+import avroStructureDefaultingFixture.{DefaultingStructure1, DefaultingStructure2, DefaultingStructure3}
 
 class avroStructureDefaultingTest extends SpecificationWithJUnit with ScalaCheck with StructureAvroMatchers {
     def is = s2"""
-        Structure annotated with @default
-            sanity check for test $esanity
-            must decode from an older version of the structure without the field correctly $edecode
+        Structure annotated with @default or default arguments to the constructor
+            must have a correct schema when using @default $eschema1
+            must decode from an older version of the structure without the field correctly when using @default $edecode1
+            must round trip correctly when using @default $etrivial1
+            must have a correct schema when using default arguments $eschema2
+            must round trip correctly when using default arguments $etrivial2
+            must have a correct schema when using default arguments and @default $eschema3
+            must decode from an older version of the structure without the field correctly when using default arguments and @default $edecode3
+            must round trip correctly when using default arguments and @default $etrivial3
     """
 
-    lazy val writerSchema = {
-        val r = Schema.createRecord("DefaultingStructure", "", "com.paytronix.utils.interchange.format.avro.avroStructureDefaultingFixture", false)
+    lazy val writerSchema1 = {
+        val r = Schema.createRecord("DefaultingStructure1", "", "com.paytronix.utils.interchange.format.avro.avroStructureDefaultingFixture", false)
         r.setFields(Arrays.asList(utils.makeField("a", Schema.create(Schema.Type.INT), None)))
         r
     }
 
-    lazy val coder = DefaultingStructure.avroCoder
+    lazy val writerSchema2 = {
+        val r = Schema.createRecord("DefaultingStructure2", "", "com.paytronix.utils.interchange.format.avro.avroStructureDefaultingFixture", false)
+        r.setFields(Arrays.asList(utils.makeField("a", Schema.create(Schema.Type.INT), None)))
+        r
+    }
 
-    def esanity =
-        (coder.schema.getName ==== writerSchema.getName).updateMessage("schema name: " + _) and
-        (coder.schema.getNamespace ==== writerSchema.getNamespace).updateMessage("schema namespace: " + _) and
-        (coder.schema.getFields.size ==== (writerSchema.getFields.size + 1)).updateMessage("schema field count: " + _)
+    lazy val writerSchema3 = {
+        val r = Schema.createRecord("DefaultingStructure3", "", "com.paytronix.utils.interchange.format.avro.avroStructureDefaultingFixture", false)
+        r.setFields(Arrays.asList(utils.makeField("a", Schema.create(Schema.Type.INT), None)))
+        r
+    }
 
-    def edecode = prop { (i: Int) =>
-        coder.decode.fromBytes(writerSchema)(zigZagEncode(i)) ==== Okay(DefaultingStructure(i, 7))
+    lazy val coder1 = DefaultingStructure1.avroCoder
+    lazy val coder2 = DefaultingStructure2.avroCoder
+    lazy val coder3 = DefaultingStructure3.avroCoder
+
+    def eschema1 =
+        (coder1.schema.getName ==== writerSchema1.getName).updateMessage("schema name: " + _) and
+        (coder1.schema.getNamespace ==== writerSchema1.getNamespace).updateMessage("schema namespace: " + _) and
+        (coder1.schema.getFields.size ==== (writerSchema1.getFields.size + 1)).updateMessage("schema field count: " + _)
+
+    def edecode1 = prop { (i: Int) =>
+        coder1.decode.fromBytes(writerSchema1)(zigZagEncode(i)) ==== Okay(DefaultingStructure1(i, 7))
+    }
+
+    def etrivial1 = prop { (ds1: DefaultingStructure1) =>
+        (coder1.encode.toBytes(ds1) >>= coder1.decode.fromBytes(coder1.schema)) ==== Okay(ds1)
+    }
+
+    def eschema2 =
+        (coder2.schema.getName ==== writerSchema2.getName).updateMessage("schema name: " + _) and
+        (coder2.schema.getNamespace ==== writerSchema2.getNamespace).updateMessage("schema namespace: " + _) and
+        (coder2.schema.getFields.size ==== (writerSchema2.getFields.size + 1)).updateMessage("schema field count: " + _)
+
+    /*
+     * 2014-07-29 RMM: I can't seem to support this because the macro / reflection API doesn't appear to have a way to recover the default
+     *                 argument, only that a default argument exists.
+     */
+    def edecode2 = prop { (i: Int) =>
+        coder2.decode.fromBytes(writerSchema2)(zigZagEncode(i)) ==== Okay(DefaultingStructure2(i, 7))
+    }
+
+    def etrivial2 = prop { (ds2: DefaultingStructure2) =>
+        (coder2.encode.toBytes(ds2) >>= coder2.decode.fromBytes(coder2.schema)) ==== Okay(ds2)
+    }
+
+    def eschema3 =
+        (coder3.schema.getName ==== writerSchema3.getName).updateMessage("schema name: " + _) and
+        (coder3.schema.getNamespace ==== writerSchema3.getNamespace).updateMessage("schema namespace: " + _) and
+        (coder3.schema.getFields.size ==== (writerSchema3.getFields.size + 1)).updateMessage("schema field count: " + _)
+
+    def edecode3 = prop { (i: Int) =>
+        coder3.decode.fromBytes(writerSchema3)(zigZagEncode(i)) ==== Okay(DefaultingStructure3(i, 7))
+    }
+
+    def etrivial3 = prop { (ds3: DefaultingStructure3) =>
+        (coder3.encode.toBytes(ds3) >>= coder3.decode.fromBytes(coder3.schema)) ==== Okay(ds3)
     }
 }

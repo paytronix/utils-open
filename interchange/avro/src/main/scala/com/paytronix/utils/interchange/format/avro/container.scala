@@ -263,7 +263,7 @@ trait container extends containerLPI {
             paramEncoder.schema, paramEncoder.defaultJson,
             valueEncoder.schema, valueEncoder.defaultJson
         )
-        val defaultJson = Some(jsonNodeFactory.nullNode)
+        val defaultJson = Some(jsonNodeFactory.objectNode)
 
         def encodeDefaultJson(in: ResultG[E, A]) =
             in match {
@@ -271,7 +271,7 @@ trait container extends containerLPI {
                     FailedG("cannot have an Avro default of Okay(...) for ResultG as Avro only supports defaulting to the first branch of a union", CoderFailure.terminal)
 
                 case _ =>
-                    Okay(jsonNodeFactory.nullNode)
+                    Okay(jsonNodeFactory.objectNode)
             }
 
         def run(in: ResultG[E, A], out: io.Encoder) = {
