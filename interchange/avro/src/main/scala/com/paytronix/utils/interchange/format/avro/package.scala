@@ -24,7 +24,7 @@ import org.codehaus.jackson.JsonNode
 import scalaz.BijectionT
 
 import com.paytronix.utils.interchange.base.{
-    Coder, CoderResult, Decoder, Encoder, FailedPath, Format, Receiver, atTerminal, formatFailedPath, terminal
+    Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, atTerminal, formatFailedPath, terminal
 }
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatch}
 
@@ -157,7 +157,7 @@ trait AvroDecoder[A] extends Decoder[A, AvroFormat.type] with AvroEncoderOrDecod
                 case _: Okay[_] =>
                     k(outA.value) match {
                         case Okay(b) => outB(b)
-                        case failed: FailedG[_] => failed.mapFailure { _ => Nil: FailedPath }
+                        case failed: FailedG[_] => failed.mapFailure { _ => CoderFailure.terminal }
                     }
                 case failed => failed
             }

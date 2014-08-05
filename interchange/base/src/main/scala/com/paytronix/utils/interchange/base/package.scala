@@ -22,7 +22,7 @@ import scala.language.higherKinds
 import scalaz.{BijectionT, Show}
 
 import com.paytronix.utils.scala.concurrent.ThreadLocal
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG, parameter}
+import com.paytronix.utils.scala.result.{Failed, FailedG, FailedParameter, FailedParameterDefault, Okay, Result, ResultG, parameter}
 
 package base {
     /**
@@ -197,43 +197,76 @@ package base {
 
 package object base {
      /** Result type for encoding and decoding which carries the path in the data model to the failure */
-    type CoderResult[A] = ResultG[FailedPath, A]
+    type CoderResult[A] = ResultG[CoderFailure, A]
+
+    /** Location of the coding failure in the source material, if known, along with the failure in the logical model */
+    final case class CoderFailure(sourceLocation: Option[String], path: FailedPath) extends FailedParameter
+
+    object CoderFailure {
+        /** "Zero" for CoderFailure indicating failure at a leaf node in the logical model and an unknown source location */
+        val terminal = CoderFailure(None, Nil)
+
+        /** CoderFailure indicating failure at a leaf node in the logical model and a known source location */
+        def terminalAt(location: String) = CoderFailure(Some(location), Nil)
+
+        implicit val failedParameterDefault = new FailedParameterDefault[CoderFailure] {
+            val default = terminal
+        }
+    }
 
     /** Path through the data model to a coding failure */
     type FailedPath = List[Segment]
 
-
     /** Replace some failed parameter with an empty `FailedPath` */
-    val terminal: FailedG[Any] => FailedG[FailedPath] = { case FailedG(t, _) => FailedG(t, Nil) }
+    val terminal: FailedG[Any] => FailedG[CoderFailure] = { case FailedG(t, _) => FailedG(t, CoderFailure.terminal) }
 
-    /** Convert a Result[A] to CoderResult[A] */
+    /** Replace some failed parameter with an empty `FailedPath` but a known location */
+    def terminalLocation(location: String): FailedG[Any] => FailedG[CoderFailure] =
+        { case FailedG(t, _) => FailedG(t, CoderFailure.terminalAt(location)) }
+
+    /** Convert a Result[A] to CoderResult[A] at a terminal node */
     def atTerminal[A](f: Result[A]): CoderResult[A] =
         f | terminal
 
+    /** Convert a Result[A] to CoderResult[A] at a terminal node with a known location */
+    def atTerminalLocation[A](location: String)(f: Result[A]): CoderResult[A] =
+        f | terminalLocation(location)
+
     /** Equivalent to trackFailedPath with an IntIndexSegment */
     def atIndex[A](idx: Int)(f: CoderResult[A]): CoderResult[A] =
-        f mapFailure { IntIndexSegment(idx) :: _ }
+        f mapFailure { cf => cf.copy(path = IntIndexSegment(idx) :: cf.path) }
 
     /** Equivalent to trackFailedPath with an OtherIndexSegment */
     def atIndex[A: Show, B](idx: A)(f: CoderResult[B]): CoderResult[B] =
-        f mapFailure { OtherIndexSegment(idx) :: _ }
+        f mapFailure { cf => cf.copy(path = OtherIndexSegment(idx) :: cf.path) }
 
     /** Equivalent to trackFailedPath with a PropertySegment  */
-    def atProperty[A](prop: String)(f: CoderResult[A]): CoderResult[A] = f mapFailure { PropertySegment(prop) :: _ }
+    def atProperty[A](prop: String)(f: CoderResult[A]): CoderResult[A] =
+        f mapFailure { cf => cf.copy(path = PropertySegment(prop) :: cf.path) }
 
     /** Convert a ParamFailed containing a path back to a "normal" Failed with a prefix to the message */
     def formatFailedPath[A](in: CoderResult[A]): Result[A] = in match {
         case Okay(value) => Okay(value)
-        case FailedG(throwable, path) => {
-            val formattedPath = path match {
-                case PropertySegment(_) :: _ => path.mkString("").substring(1)
-                case _ => path.mkString("")
+        case FailedG(throwable, cf) => {
+            lazy val formattedPath = cf.path match {
+                case PropertySegment(_) :: _ => cf.path.mkString("").substring(1)
+                case                       _ => cf.path.mkString("")
             }
-            val msg = throwable.getMessage match {
+            lazy val msg = throwable.getMessage match {
                 case null => throwable.toString
-                case s => s
+                case s    => s
             }
-            Failed((if (formattedPath.isEmpty) "" else "At " + formattedPath + ": ") + msg, throwable)
+
+            cf.sourceLocation match {
+                case Some(loc) if !formattedPath.isEmpty =>
+                    Failed(s"At source location $loc, field $formattedPath: $msg", throwable)
+                case Some(loc) =>
+                    Failed(s"At source location $loc: $msg", throwable)
+                case None if !formattedPath.isEmpty =>
+                    Failed(s"At field $formattedPath: $msg", throwable)
+                case None =>
+                    Failed(msg, throwable)
+            }
         }
     }
 }

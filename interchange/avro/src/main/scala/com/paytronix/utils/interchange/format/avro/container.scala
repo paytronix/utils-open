@@ -27,7 +27,7 @@ import org.codehaus.jackson.JsonNode
 import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 import scalaz.syntax.apply.^
 
-import com.paytronix.utils.interchange.base.{CoderResult, InterchangeClassLoader, InsecureContext, Receiver, atIndex, atProperty, atTerminal, terminal}
+import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InterchangeClassLoader, InsecureContext, Receiver, atIndex, atProperty, atTerminal, terminal}
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.result.{FailedG, FailedParameterDefault, Okay, ResultG, iterableResultOps, tryCatch}
@@ -49,7 +49,7 @@ trait container extends containerLPI {
 
         def encodeDefaultJson(in: A) =
             if (in == null) Okay(jsonNodeFactory.nullNode)
-            else FailedG("nullable fields must default to null due to Avro restrictions", Nil)
+            else FailedG("nullable fields must default to null due to Avro restrictions", CoderFailure.terminal)
 
         def run(in: A, out: io.Encoder) =
             tryCatch.resultG(terminal) {
@@ -100,7 +100,7 @@ trait container extends containerLPI {
         def encodeDefaultJson(in: Option[A]) =
             in match {
                 case None => Okay(jsonNodeFactory.nullNode)
-                case Some(a) => FailedG("Options must default to None due to Avro restrictions", Nil)
+                case Some(a) => FailedG("Options must default to None due to Avro restrictions", CoderFailure.terminal)
             }
 
         def run(in: Option[A], out: io.Encoder) =
@@ -169,7 +169,7 @@ trait container extends containerLPI {
                         Okay(obj)
                     }
                 case Right(_) =>
-                    FailedG("can't encode a default value for Avro that uses Right, since Avro doesn't allow union defaults using anything but the first branch", Nil)
+                    FailedG("can't encode a default value for Avro that uses Right, since Avro doesn't allow union defaults using anything but the first branch", CoderFailure.terminal)
             }
 
         def run(in: Either[A, B], out: io.Encoder) =
@@ -197,7 +197,7 @@ trait container extends containerLPI {
                 in.readIndex() match {
                     case 0     => val r = new Receiver[A]; leftDecoder.run(in, r) >> { out(Left(r.value)) }
                     case 1     => val r = new Receiver[B]; rightDecoder.run(in, r) >> { out(Right(r.value)) }
-                    case other => FailedG("read unknown union index " + other + " from Avro for Either", Nil)
+                    case other => FailedG("read unknown union index " + other + " from Avro for Either", CoderFailure.terminal)
                 }
             }
     }
@@ -268,7 +268,7 @@ trait container extends containerLPI {
         def encodeDefaultJson(in: ResultG[E, A]) =
             in match {
                 case Okay(_) =>
-                    FailedG("cannot have an Avro default of Okay(...) for ResultG as Avro only supports defaulting to the first branch of a union", Nil)
+                    FailedG("cannot have an Avro default of Okay(...) for ResultG as Avro only supports defaulting to the first branch of a union", CoderFailure.terminal)
 
                 case _ =>
                     Okay(jsonNodeFactory.nullNode)
@@ -346,7 +346,7 @@ trait container extends containerLPI {
                             in.readIndex() match {
                                 case 0 => in.readNull(); Okay(None)
                                 case 1 => decodeThrowable() map Some.apply
-                                case other => FailedG("read unknown union index " + other + " from Avro for cause of throwable", Nil)
+                                case other => FailedG("read unknown union index " + other + " from Avro for cause of throwable", CoderFailure.terminal)
                             }
                         }
                     }
@@ -360,7 +360,7 @@ trait container extends containerLPI {
                     case 1     => val receiver = new Receiver[A]
                                   valueDecoder.run(in, receiver) >> { out(Okay(receiver.value)) }
                     case 2     => decodeFailed() >>= out.apply
-                    case other => FailedG("read unknown union index " + other + " from Avro for ResultG", Nil)
+                    case other => FailedG("read unknown union index " + other + " from Avro for ResultG", CoderFailure.terminal)
                 }
             }
         }

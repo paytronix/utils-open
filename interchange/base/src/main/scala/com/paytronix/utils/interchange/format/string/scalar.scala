@@ -27,7 +27,7 @@ import scala.reflect.runtime.universe.{TypeTag, typeTag}
 import org.joda.time.{DateTime, LocalDate, LocalDateTime, LocalTime}
 import scalaz.BijectionT.bijection
 
-import com.paytronix.utils.interchange.base.{FailedPath, Receiver, atTerminal, datetime, terminal}
+import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, parameter, tryCatch, tryCatching}
 
@@ -54,7 +54,7 @@ trait scalar {
                 in.toLowerCase match {
                     case "true"  => out(true)
                     case "false" => out(false)
-                    case _       => FailedG("not \"true\" or \"false\"", Nil)
+                    case _       => FailedG("not \"true\" or \"false\"", CoderFailure.terminal)
                 }
         }
     }
@@ -155,7 +155,7 @@ trait scalar {
         object decode extends StringDecoder[Char] {
             def run(in: String, out: Receiver[Char]) =
                 if (in.length == 1) out(in.charAt(0))
-                else FailedG("expected a string with exactly one character in it", Nil)
+                else FailedG("expected a string with exactly one character in it", CoderFailure.terminal)
         }
     }
 
@@ -202,7 +202,7 @@ trait scalar {
         }
         object decode extends StringDecoder[A] {
             def run(in: String, out: Receiver[A]) = {
-                val errorMessage = FailedG(s""""$in" is not a valid enumeration value""", Nil: FailedPath)
+                val errorMessage = FailedG(s""""$in" is not a valid enumeration value""", CoderFailure.terminal)
                 tryCatching[IllegalArgumentException].resultG(errorMessage) {
                     out(Enum.valueOf(classTag[A].runtimeClass.asInstanceOf[Class[A]], in))
                 }

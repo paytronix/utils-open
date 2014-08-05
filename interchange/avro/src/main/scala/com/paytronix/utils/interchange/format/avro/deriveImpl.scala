@@ -310,7 +310,10 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                     $instance match {
                         case $value: ${targetSubtypes.head} => ${encoderFor(targetSubtypes.head)}.encodeDefaultJson($value)
                         case _ =>
-                            com.paytronix.utils.scala.result.FailedG("cannot encode value as a default because Avro only supports defaulting to the first alternative of a union", scala.Nil)
+                            com.paytronix.utils.scala.result.FailedG (
+                                "cannot encode value as a default because Avro only supports defaulting to the first alternative of a union",
+                                com.paytronix.utils.interchange.base.CoderFailure.terminal
+                            )
                     }
             """,
             q"""
@@ -318,8 +321,10 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                     $instance match {
                         case ..$encodeAlts
                         case $value =>
-                            com.paytronix.utils.scala.result.FailedG("cannot encode value " + $value + " as it was not configured as a valid union alternative", scala.Nil)
-
+                            com.paytronix.utils.scala.result.FailedG (
+                                "cannot encode value " + $value + " as it was not configured as a valid union alternative",
+                                com.paytronix.utils.interchange.base.CoderFailure.terminal
+                            )
                     }
             """
         )
@@ -365,7 +370,10 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                         $resolvingDecoder.readIndex() match {
                             case ..$decodeAlts
                             case $invalidIndex =>
-                                com.paytronix.utils.scala.result.FailedG("invalid union index " + $invalidIndex, scala.Nil)
+                                com.paytronix.utils.scala.result.FailedG (
+                                    "invalid union index " + $invalidIndex,
+                                    com.paytronix.utils.interchange.base.CoderFailure.terminal
+                                )
                         }
                     }
             """

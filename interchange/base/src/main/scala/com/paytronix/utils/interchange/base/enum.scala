@@ -31,6 +31,6 @@ object enum {
     def enumerationValueFromString[A <: Enumeration](enum: A, in: String, out: Receiver[A#Value]): CoderResult[Unit] =
         enum.values.find(_.toString == in) match {
             case Some(e) => out(e)
-            case None    => FailedG(s""""${in}" is not a valid enumeration value""", Nil: FailedPath)
+            case None    => FailedG(s""""${in}" is not a valid enumeration value""", CoderFailure.terminal)
         }
 }

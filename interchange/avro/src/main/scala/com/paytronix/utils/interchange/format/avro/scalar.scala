@@ -31,7 +31,7 @@ import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 import org.joda.time.{DateTime, LocalDate, LocalDateTime, LocalTime}
 import scalaz.BijectionT.bijection
 
-import com.paytronix.utils.interchange.base.{Receiver, atTerminal, datetime, terminal}
+import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatch}
 
@@ -230,7 +230,7 @@ trait scalar extends scalarLPI {
                 val byteBuffer = in.readBytes(null)
                 if (byteBuffer.remaining < 1)
                     FailedG("insufficient number of bytes to represent a BigInteger - got " +
-                            byteBuffer.remaining + " but need at least 1", Nil)
+                            byteBuffer.remaining + " but need at least 1", CoderFailure.terminal)
                 else {
                     val bytes = Array.ofDim[Byte](byteBuffer.remaining)
                     byteBuffer.get(bytes)
@@ -273,7 +273,7 @@ trait scalar extends scalarLPI {
                 val byteBuffer = in.readBytes(null)
                 if (byteBuffer.remaining < 5)
                     FailedG("insufficient number of bytes to represent a BigDecimal - got " +
-                            byteBuffer.remaining + " but need at least 5", Nil)
+                            byteBuffer.remaining + " but need at least 5", CoderFailure.terminal)
                 else {
                     val scale = byteBuffer.getInt
                     val bytes = Array.ofDim[Byte](byteBuffer.remaining)
@@ -328,7 +328,7 @@ trait scalar extends scalarLPI {
         object encode extends AvroEncoder[String] with StringEncoderOrDecoder {
             def encodeDefaultJson(in: String) = Okay(jsonNodeFactory.textNode(in))
             def run(in: String, out: io.Encoder) =
-                if (in == null) FailedG("cannot encode null string", Nil)
+                if (in == null) FailedG("cannot encode null string", CoderFailure.terminal)
                 else tryCatch.resultG(terminal) {
                     out.writeString(in)
                     Okay.unit
@@ -402,8 +402,8 @@ trait scalar extends scalarLPI {
             object decode extends AvroDecoder[A] with JavaEnumEncoderOrDecoder {
                 def run(in: io.ResolvingDecoder, out: Receiver[A]) = tryCatch.resultG(terminal) {
                     in.readEnum() match {
-                        case i if i < 0                  => FailedG("read negative enum index " + i + " from Avro", Nil)
-                        case i if i >= enumValues.length => FailedG("read overflow enum index " + i + " from Avro", Nil)
+                        case i if i < 0                  => FailedG("read negative enum index " + i + " from Avro", CoderFailure.terminal)
+                        case i if i >= enumValues.length => FailedG("read overflow enum index " + i + " from Avro", CoderFailure.terminal)
                         case i                           => out(enumsByOrdinal(i))
                     }
                 }
@@ -438,8 +438,8 @@ trait scalar extends scalarLPI {
             object decode extends AvroDecoder[A#Value] with ScalaEnumEncoderOrDecoder {
                 def run(in: io.ResolvingDecoder, out: Receiver[A#Value]) = tryCatch.resultG(terminal) {
                     in.readEnum() match {
-                        case i if i < 0                  => FailedG("read negative enum index " + i + " from Avro", Nil)
-                        case i if i >= enumValues.length => FailedG("read overflow enum index " + i + " from Avro", Nil)
+                        case i if i < 0                  => FailedG("read negative enum index " + i + " from Avro", CoderFailure.terminal)
+                        case i if i >= enumValues.length => FailedG("read overflow enum index " + i + " from Avro", CoderFailure.terminal)
                         case i                           => out(enumsByOrdinal(i))
                     }
                 }
