@@ -35,11 +35,10 @@
     <modules>
         <module>base</module>
         <module>avro</module>
-        <!--
         <module>json</module>
+        <!--
         <module>liftjson</module>
         <module>parquet</module>
-        <module>avro</module>
         -->
     </modules>
 </project>

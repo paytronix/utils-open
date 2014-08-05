@@ -25,7 +25,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.paytronix.utils</groupId>
-    <artifactId>interchange-xml</artifactId>
+    <artifactId>interchange-json</artifactId>
     <packaging>jar</packaging>
     <version>14.2-ernststavrosgrouper-SNAPSHOT</version>
 
@@ -43,6 +43,16 @@
             <artifactId>interchange-base</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2_2.11</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
