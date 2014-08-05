@@ -22,7 +22,7 @@ import javax.xml.bind.DatatypeConverter
 import org.scalacheck.{Arbitrary, Gen, Prop}
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 
-import com.paytronix.utils.interchange.test.fixtures.JavaEnum
+import com.paytronix.utils.interchange.test.fixtures.{JavaEnum, ScalaEnum}
 import com.paytronix.utils.scala.result.{FailedG, Okay}
 
 import Arbitrary.arbitrary
@@ -338,12 +338,6 @@ class javaEnumStringCoderTest extends SpecificationWithJUnit with ScalaCheck {
 
     def e1 = prop { (e: JavaEnum) => coder.encode(e) ==== Okay(e.toString) }
     def e2 = prop { (e: JavaEnum) => coder.decode(e.toString) ==== Okay(e) }
-}
-
-object ScalaEnum extends Enumeration {
-    val BANANA = Value("banana")
-    val APPLE = Value("apple")
-    val CARROT = Value("carrot")
 }
 
 class scalaEnumStringCoderTest extends SpecificationWithJUnit with ScalaCheck {
