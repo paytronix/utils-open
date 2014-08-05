@@ -355,7 +355,9 @@ class javaBigDecimalAvroCoderStringTest extends SpecificationWithJUnit with Scal
     def estrings = Prop.forAll(safeScalaBigDecimals) { bd =>
         scalar.scalaBigDecimalAvroCoderString.encode.toBytes(bd) must beLike { case Okay(a) => a must beAvroString(bd.toString) }
     }
-    def edefault = Prop.forAll(safeJavaBigDecimals) { (bd: java.math.BigDecimal) => decodeDefault(scalar.javaBigDecimalAvroCoderString.default(bd)) ==== Okay(bd) }
+    def edefault = Prop.forAll(safeJavaBigDecimals) { (bd: java.math.BigDecimal) =>
+        decodeDefault(scalar.javaBigDecimalAvroCoderString.default(bd)) ==== Okay(bd)
+    }
 }
 
 class scalaBigDecimalAvroCoderBytesTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
