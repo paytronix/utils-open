@@ -27,11 +27,10 @@ import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 import org.specs2.matcher.Matcher
 
 import com.paytronix.utils.interchange.base.{InsecureContext, Receiver}
-import com.paytronix.utils.interchange.format.string.coders.intStringCoder
+import com.paytronix.utils.interchange.format.string
 import com.paytronix.utils.scala.result.{FailedException, FailedG, FailedParameterDefault, Okay, Result, ResultG}
 
 import Arbitrary.arbitrary
-import scalar.{intAvroCoder, stringAvroCoder}
 import utils.makeField
 
 class nullableAvroCoderTest extends SpecificationWithJUnit with AvroMatchers {
@@ -45,7 +44,7 @@ class nullableAvroCoderTest extends SpecificationWithJUnit with AvroMatchers {
             refuse to default to something other than null $einvaliddefault
     """
 
-    val coder = container.nullableAvroCoder[String]
+    val coder = container.nullableAvroCoder(scalar.stringAvroCoder)
     def eschema =
         (coder.schema.getType ==== Schema.Type.UNION) and
         (coder.schema.getTypes.asScala.toList must beLike { case List(nullSchema, stringSchema) =>
@@ -74,7 +73,7 @@ class optionAvroCoderTest extends SpecificationWithJUnit with AvroMatchers {
             work when containing another option $enested
     """
 
-    val coder = container.optionAvroCoder[String]
+    val coder = container.optionAvroCoder(scalar.stringAvroCoder)
     def eschema =
         (coder.schema.getType ==== Schema.Type.UNION) and
         (coder.schema.getTypes.asScala.toList must beLike { case List(nullSchema, stringSchema) =>
@@ -87,7 +86,7 @@ class optionAvroCoderTest extends SpecificationWithJUnit with AvroMatchers {
     def edefault = decodeDefault(coder) ==== Okay(None: Option[String])
     def evaliddefault = coder.encode.encodeDefaultJson(None) must beLike { case Okay(_) => ok }
     def einvaliddefault = coder.encode.encodeDefaultJson(Some("test")) must beLike { case FailedG(_, _) => ok }
-    def eimplicit = { import coders._; AvroCoder[Option[Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Option[Unit]].encode.getClass must_== coder.encode.getClass }
     def eunit = {
         // this special case exists because if you encode () as NULL (which seems like a natural choice) then a union [null, null] will be
         // attempted and rejected
@@ -119,7 +118,7 @@ class eitherAvroCoderTest extends SpecificationWithJUnit with AvroMatchers with 
             must be the implicit coder for Either[…, …] $eimplicit
     """
 
-    val coder = container.eitherAvroCoder[Int, String]
+    val coder = container.eitherAvroCoder(scalar.intAvroCoder, scalar.stringAvroCoder)
     def eschema =
         (coder.schema.getType ==== Schema.Type.UNION) and
         (coder.schema.getTypes.asScala.toList must beLike { case List(leftSchema, rightSchema) =>
@@ -143,7 +142,7 @@ class eitherAvroCoderTest extends SpecificationWithJUnit with AvroMatchers with 
     def edefault = prop { (i: Int) => decodeDefault(coder.default(Left(i))) ==== Okay(Left(i)) }
     def evaliddefault = coder.encode.encodeDefaultJson(Left(0)) must beLike { case Okay(_) => ok }
     def einvaliddefault = coder.encode.encodeDefaultJson(Right("test")) must beLike { case FailedG(_, _) => ok }
-    def eimplicit = { import coders._; AvroCoder[Either[Unit, Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Either[Unit, Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 class resultCoderTest extends SpecificationWithJUnit with AvroMatchers {
@@ -170,7 +169,7 @@ class resultCoderTest extends SpecificationWithJUnit with AvroMatchers {
     val failedWithCause: ResultG[Int, String] = FailedG(new RuntimeException("test", new RuntimeException("test2")), 123)
 
     implicit val defaultInt = FailedParameterDefault.value(-123)
-    val coder = container.resultGAvroCoder[Int, String]
+    val coder = container.resultGAvroCoder(scalar.intAvroCoder, scalar.stringAvroCoder)
 
     def eschema =
         (coder.schema.getType ==== Schema.Type.UNION) and
@@ -242,7 +241,7 @@ class resultCoderTest extends SpecificationWithJUnit with AvroMatchers {
     }
     def evaliddefault = coder.encode.encodeDefaultJson(failedWithoutCause) must beLike { case Okay(_) => ok }
     def einvaliddefault = coder.encode.encodeDefaultJson(Okay("test")) must beLike { case FailedG(_, _) => ok }
-    def eimplicit = { import coders._; AvroCoder[ResultG[Unit, Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[ResultG[Unit, Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 class insecureAvroCoderTest extends SpecificationWithJUnit with AvroMatchers {
@@ -255,9 +254,9 @@ class insecureAvroCoderTest extends SpecificationWithJUnit with AvroMatchers {
             must decode the default value when in an insecure context $einsecuredecode
     """
 
-    val coder = container.insecureAvroCoder("insecure")
+    val coder = container.insecureAvroCoder(scalar.stringAvroCoder, "insecure")
 
-    def eschema = coder.schema.toString ==== stringAvroCoder.schema.toString
+    def eschema = coder.schema.toString ==== scalar.stringAvroCoder.schema.toString
     def esecureencode = InsecureContext.doWith(false) {
         coder.encode.toBytes("test") must beLike { case Okay(a) => a must beAvroString("test") }
     }
@@ -275,7 +274,7 @@ class insecureAvroCoderTest extends SpecificationWithJUnit with AvroMatchers {
 abstract class avroArrayCoderSpecBase[S] extends SpecificationWithJUnit with AvroMatchers {
     def toIterable(s: S): Iterable[Int]
     def beCorrectSchema: Matcher[Schema] = beLike { case schema: Schema =>
-        (schema.getType ==== Schema.Type.ARRAY) and (schema.getElementType.toString ==== intAvroCoder.schema.toString)
+        (schema.getType ==== Schema.Type.ARRAY) and (schema.getElementType.toString ==== scalar.intAvroCoder.schema.toString)
     }
     def encode(s: S): Array[Byte] = makeAvroArray(toIterable(s).toSeq.map { i => zigZagEncode(i) })
     def encode(s: S, bs: Int): Array[Byte] = makeAvroArray(toIterable(s).toSeq.map { i => zigZagEncode(i) }, blockSize=Some(bs))
@@ -294,7 +293,7 @@ class scalaListCodingTest extends avroArrayCoderSpecBase[List[Int]] with ScalaCh
     """
 
     def toIterable(l: List[Int]) = l
-    val coder = container.avroArrayCoder[Int, List[Int]]
+    val coder: AvroCoder[List[Int]] = container.avroArrayCoder(scalar.intAvroCoder)
     val gen100Ints = Gen.listOfN(100, arbitrary[Int])
 
     def eschema = coder.schema must beCorrectSchema
@@ -305,7 +304,7 @@ class scalaListCodingTest extends avroArrayCoderSpecBase[List[Int]] with ScalaCh
         coder.decode.fromBytes(coder.schema)(encode(l, blockSize)) ==== Okay(l)
     }
     def edefault = prop { (l: List[Int]) => decodeDefault(coder.default(l)) ==== Okay(l) }
-    def eimplicit = { import coders._; AvroCoder[List[Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[List[Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 class scalaSetCodingTest extends avroArrayCoderSpecBase[Set[Int]] with ScalaCheck {
@@ -320,7 +319,7 @@ class scalaSetCodingTest extends avroArrayCoderSpecBase[Set[Int]] with ScalaChec
     """
 
     def toIterable(s: Set[Int]) = s
-    val coder = container.avroArrayCoder[Int, Set[Int]]
+    val coder: AvroCoder[Set[Int]] = container.avroArrayCoder(scalar.intAvroCoder)
     val gen100Ints = Gen.listOfN(100, arbitrary[Int]).map(Set.empty ++ _)
 
     def eschema = coder.schema must beCorrectSchema
@@ -331,7 +330,7 @@ class scalaSetCodingTest extends avroArrayCoderSpecBase[Set[Int]] with ScalaChec
         coder.decode.fromBytes(coder.schema)(encode(s, blockSize)) ==== Okay(s)
     }
     def edefault = prop { (s: Set[Int]) => decodeDefault(coder.default(s)) ==== Okay(s) }
-    def eimplicit = { import coders._; AvroCoder[Set[Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Set[Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 class javaListCodingTest extends avroArrayCoderSpecBase[java.util.List[Int]] with ScalaCheck {
@@ -346,7 +345,7 @@ class javaListCodingTest extends avroArrayCoderSpecBase[java.util.List[Int]] wit
     """
 
     def toIterable(l: java.util.List[Int]) = l.asScala
-    val coder = container.javaListAvroCoder[Int]
+    val coder = container.javaListAvroCoder(scalar.intAvroCoder)
     implicit val arbJavaList: Arbitrary[java.util.List[Int]] =
         Arbitrary(arbitrary[List[Int]].map(l => new java.util.ArrayList(l.asJavaCollection)))
 
@@ -360,16 +359,16 @@ class javaListCodingTest extends avroArrayCoderSpecBase[java.util.List[Int]] wit
         coder.decode.fromBytes(coder.schema)(encode(l, blockSize)) ==== Okay(l)
     }
     def edefault = prop { (l: java.util.List[Int]) => decodeDefault(coder.default(l)) ==== Okay(l) }
-    def eimplicit = { import coders._; AvroCoder[java.util.List[Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[java.util.List[Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 final case class TestKey(a: Int, b: Int)
 object TestKey {
-    implicit lazy val coder: AvroCoder[TestKey] = AvroCoder.make(encoder, decoder)
+    implicit lazy val avroCoder: AvroCoder[TestKey] = AvroCoder.make(encoder, decoder)
     val testKeySchema = {
         val s = Schema.createRecord("TestKey", "", "", false)
-        s.setFields(Arrays.asList(makeField("a", intAvroCoder.schema, None),
-            makeField("b", intAvroCoder.schema, None)))
+        s.setFields(Arrays.asList(makeField("a", scalar.intAvroCoder.schema, None),
+            makeField("b", scalar.intAvroCoder.schema, None)))
         s
     }
 
@@ -384,7 +383,7 @@ object TestKey {
             Okay(obj)
         }
         def run(in: TestKey, out: io.Encoder) =
-            intAvroCoder.encode.run(in.a, out) >> intAvroCoder.encode.run(in.b, out)
+            scalar.intAvroCoder.encode.run(in.a, out) >> scalar.intAvroCoder.encode.run(in.b, out)
     }
 
     lazy val decoder: AvroDecoder[TestKey] = new AvroDecoder[TestKey] {
@@ -394,7 +393,7 @@ object TestKey {
             val ar = new Receiver[Int]
             val br = new Receiver[Int]
             in.readFieldOrder
-            intAvroCoder.decode.run(in, ar) >> intAvroCoder.decode.run(in, br) >> out(TestKey(ar.value, br.value))
+            scalar.intAvroCoder.decode.run(in, ar) >> scalar.intAvroCoder.decode.run(in, br) >> out(TestKey(ar.value, br.value))
         }
     }
 
@@ -408,7 +407,7 @@ abstract class avroAssocArrayCoderSpecBase[S] extends SpecificationWithJUnit wit
         (schema.getElementType.getType ==== Schema.Type.RECORD) and
         (schema.getElementType.getFields.size ==== 2) and
         (schema.getElementType.getFields.get(0).schema.toString ==== TestKey.testKeySchema.toString) and
-        (schema.getElementType.getFields.get(1).schema.toString ==== stringAvroCoder.schema.toString)
+        (schema.getElementType.getFields.get(1).schema.toString ==== scalar.stringAvroCoder.schema.toString)
     }
     def encodePair(k: TestKey, v: String): Array[Byte] = {
         val keyABytes = zigZagEncode(k.a)
@@ -437,7 +436,7 @@ class scalaMapAssocCodingTest extends avroAssocArrayCoderSpecBase[Map[TestKey, S
     """
 
     def toIterable(m: Map[TestKey, String]) = m
-    val coder = container.avroAssocArrayCoder[TestKey, String, Map[TestKey, String]]
+    val coder: AvroCoder[Map[TestKey, String]] = container.avroAssocArrayCoder(TestKey.avroCoder, scalar.stringAvroCoder)
 
     val gen100Pairs = Gen.listOfN(100, arbitrary[(TestKey, String)]).map(Map.empty ++ _)
 
@@ -449,7 +448,7 @@ class scalaMapAssocCodingTest extends avroAssocArrayCoderSpecBase[Map[TestKey, S
         coder.decode.fromBytes(coder.schema)(encode(m, blockSize)) ==== Okay(m)
     }
     def edefault = prop { (m: Map[TestKey, String]) => decodeDefault(coder.default(m)) ==== Okay(m) }
-    def eimplicit = { import coders._; AvroCoder[Map[TestKey, Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Map[TestKey, Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 class javaMapAssocCodingTest extends avroAssocArrayCoderSpecBase[java.util.Map[TestKey, String]] with ScalaCheck {
@@ -465,7 +464,7 @@ class javaMapAssocCodingTest extends avroAssocArrayCoderSpecBase[java.util.Map[T
 
 
     def toIterable(m: java.util.Map[TestKey, String]) = m.asScala
-    val coder = container.javaMapAvroCoder[TestKey, String]
+    val coder = container.javaMapAvroCoder(TestKey.avroCoder, scalar.stringAvroCoder)
 
     val gen100Pairs = Gen.listOfN(100, arbitrary[(TestKey, String)]).map(Map.empty ++ _)
     implicit val arbJavaMap = Arbitrary(arbitrary[Map[TestKey, String]].map(_.asJava))
@@ -478,7 +477,7 @@ class javaMapAssocCodingTest extends avroAssocArrayCoderSpecBase[java.util.Map[T
         coder.decode.fromBytes(coder.schema)(encode(m, blockSize)) ==== Okay(m)
     }
     def edefault = prop { (m: java.util.Map[TestKey, String]) => decodeDefault(coder.default(m)) ==== Okay(m) }
-    def eimplicit = { import coders._; AvroCoder[java.util.Map[TestKey, Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[java.util.Map[TestKey, Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 abstract class avroMapCoderSpecBase[S] extends SpecificationWithJUnit with AvroMatchers {
@@ -512,7 +511,7 @@ class scalaMapStringCodingTest extends avroMapCoderSpecBase[Map[Int, String]] wi
     """
 
     def toIterable(m: Map[Int, String]) = m
-    val coder = container.avroMapCoder[Int, String, Map[Int, String]]
+    val coder: AvroCoder[Map[Int, String]] = container.avroMapCoder(string.scalar.intStringCoder, scalar.stringAvroCoder)
 
     val gen100Pairs = Gen.listOfN(100, arbitrary[(Int, String)]).map(Map.empty ++ _)
 
@@ -524,7 +523,7 @@ class scalaMapStringCodingTest extends avroMapCoderSpecBase[Map[Int, String]] wi
         coder.decode.fromBytes(coder.schema)(encode(m, blockSize)) ==== Okay(m)
     }
     def edefault = prop { (m: Map[Int, String]) => decodeDefault(coder.default(m)) ==== Okay(m) }
-    def eimplicit = { import coders._; AvroCoder[Map[Int, Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Map[Int, Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 class javaMapStringCodingTest extends avroMapCoderSpecBase[java.util.Map[Int, String]] with ScalaCheck {
@@ -540,7 +539,7 @@ class javaMapStringCodingTest extends avroMapCoderSpecBase[java.util.Map[Int, St
 
 
     def toIterable(m: java.util.Map[Int, String]) = m.asScala
-    val coder = container.javaStringKeyedMapAvroCoder[Int, String]
+    val coder = container.javaStringKeyedMapAvroCoder(string.scalar.intStringCoder, scalar.stringAvroCoder)
 
     val gen100Pairs = Gen.listOfN(100, arbitrary[(Int, String)]).map(Map.empty ++ _)
     implicit val arbJavaMap = Arbitrary(arbitrary[Map[Int, String]].map(_.asJava))
@@ -553,5 +552,5 @@ class javaMapStringCodingTest extends avroMapCoderSpecBase[java.util.Map[Int, St
         coder.decode.fromBytes(coder.schema)(encode(m, blockSize)) ==== Okay(m)
     }
     def edefault = prop { (m: java.util.Map[Int, String]) => decodeDefault(coder.default(m)) ==== Okay(m) }
-    def eimplicit = { import coders._; AvroCoder[java.util.Map[Int, Unit]].getClass must_== coder.getClass }
+    def eimplicit = { import coders._; AvroCoder[java.util.Map[Int, Unit]].encode.getClass must_== coder.encode.getClass }
 }

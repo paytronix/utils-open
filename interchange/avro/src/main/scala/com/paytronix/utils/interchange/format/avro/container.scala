@@ -29,7 +29,7 @@ import scalaz.syntax.apply.^
 
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InterchangeClassLoader, InsecureContext, Receiver, atIndex, atProperty, atTerminal, terminal}
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
-import com.paytronix.utils.interchange.format.string.{StringDecoder, StringEncoder}
+import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.result.{FailedG, FailedParameterDefault, Okay, ResultG, iterableResultOps, tryCatch}
 
 import utils.{encodeSchemaName, makeField, nullable}
@@ -40,9 +40,21 @@ trait container extends containerLPI {
 
     // FIXME: a known bug with nullableAvroCoder is that you can't use it with a union type, e.g. @nullable X where X is a union blows up at runtime
 
+    /**
+     * Wrapper coding for nullable values. Encodes as a union between Avro null and the actual type.
+     * <strong>Warning:</strong> that this doesn't work for union types on account of Avro's limitation on not having nested unions.
+     */
+    def nullableAvroCoder[A >: Null](implicit valueCoder: AvroCoder[A]): AvroCoder[A] =
+        nullableAvroCoder(valueCoder.encode, valueCoder.decode)
+
+    /**
+     * Wrapper coding for nullable values. Encodes as a union between Avro null and the actual type.
+     * <strong>Warning:</strong> that this doesn't work for union types on account of Avro's limitation on not having nested unions.
+     */
     def nullableAvroCoder[A >: Null](implicit valueEncoder: AvroEncoder[A], valueDecoder: AvroDecoder[A]): AvroCoder[A] =
         AvroCoder.make(nullableAvroEncoder(valueEncoder), nullableAvroDecoder(valueDecoder))
 
+    /** Wrapper encoder for nullable values. Encodes `null` as an Avro `null`, uses the wrapped encoder otherwise */
     def nullableAvroEncoder[A >: Null](implicit valueEncoder: AvroEncoder[A]) = new AvroEncoder[A] {
         val schema = nullable(valueEncoder.schema)
         val defaultJson = Some(jsonNodeFactory.nullNode)
@@ -64,6 +76,7 @@ trait container extends containerLPI {
             }
     }
 
+    /** Wrapper decoder for nullable values. Decodes `null` and passes through to the wrapped coder otherwise */
     def nullableAvroDecoder[A >: Null](implicit valueDecoder: AvroDecoder[A]) = new AvroDecoder[A] {
         val schema = nullable(valueDecoder.schema)
         val defaultJson = Some(jsonNodeFactory.nullNode)
@@ -80,6 +93,11 @@ trait container extends containerLPI {
             }
     }
 
+    /** Coder for `Option[A]`. Encodes as a union of Avro null and a `Some` structure. */
+    def optionAvroCoder[A](valueCoder: AvroCoder[A]): AvroCoder[Option[A]] =
+        optionAvroCoder(valueCoder.encode, valueCoder.decode)
+
+    /** Coder for `Option[A]`. Encodes as a union of Avro null and a `Some` structure. */
     implicit def optionAvroCoder[A](implicit valueEncoder: AvroEncoder[A], valueDecoder: AvroDecoder[A]): AvroCoder[Option[A]] =
         AvroCoder.make(optionAvroEncoder(valueEncoder), optionAvroDecoder(valueDecoder))
 
@@ -93,6 +111,7 @@ trait container extends containerLPI {
             }
         }
 
+    /** Encoder for `Option[A]`. Encodes as a union of Avro null and a `Some` structure. */
     def optionAvroEncoder[A](implicit valueEncoder: AvroEncoder[A]) = new AvroEncoder[Option[A]] {
         val schema = optionSchema(valueEncoder.schema, valueEncoder.defaultJson)
         val defaultJson = Some(jsonNodeFactory.nullNode)
@@ -117,6 +136,7 @@ trait container extends containerLPI {
             }
     }
 
+    /** Decoder for `Option[A]`. Decodes from a union of Avro null and a `Some` structure. */
     def optionAvroDecoder[A](implicit valueDecoder: AvroDecoder[A]) = new AvroDecoder[Option[A]] {
         val schema = optionSchema(valueDecoder.schema, valueDecoder.defaultJson)
         val defaultJson = Some(jsonNodeFactory.nullNode)
@@ -137,6 +157,11 @@ trait container extends containerLPI {
             }
     }
 
+    /** Coder for `Either[A, B]`. Encodes as a union of a `Left` record and `Right` record. */
+    def eitherAvroCoder[A, B](leftCoder: AvroCoder[A], rightCoder: AvroCoder[B]): AvroCoder[Either[A, B]] =
+        eitherAvroCoder(leftCoder.encode, rightCoder.encode, leftCoder.decode, rightCoder.decode)
+
+    /** Coder for `Either[A, B]`. Encodes as a union of a `Left` record and `Right` record. */
     implicit def eitherAvroCoder[A, B] (
         implicit leftEncoder: AvroEncoder[A],
                  rightEncoder: AvroEncoder[B],
@@ -156,6 +181,7 @@ trait container extends containerLPI {
     }
 
 
+    /** Encoder for `Either[A, B]`. Encodes as a union of a `Left` record and `Right` record. */
     def eitherAvroEncoder[A, B](implicit leftEncoder: AvroEncoder[A], rightEncoder: AvroEncoder[B]) = new AvroEncoder[Either[A, B]] {
         val schema = eitherSchema(leftEncoder.schema, leftEncoder.defaultJson, rightEncoder.schema, rightEncoder.defaultJson)
         val defaultJson = None
@@ -188,6 +214,7 @@ trait container extends containerLPI {
             }
     }
 
+    /** Decoder for `Either[A, B]`. Decodes a union of a `Left` record and `Right` record. */
     def eitherAvroDecoder[A, B](implicit leftDecoder: AvroDecoder[A], rightDecoder: AvroDecoder[B]) = new AvroDecoder[Either[A, B]] {
         val schema = eitherSchema(leftDecoder.schema, leftDecoder.defaultJson, rightDecoder.schema, rightDecoder.defaultJson)
         val defaultJson = None
@@ -244,6 +271,12 @@ trait container extends containerLPI {
         value: Schema, valueDefault: Option[JsonNode]
     ): Schema =
         Schema.createUnion(Arrays.asList(missingSchema, okaySchema(value, valueDefault), failedSchema(param, paramDefault)))
+
+    def resultGAvroCoder[E, A]
+        (paramCoder: AvroCoder[E], valueCoder: AvroCoder[A])
+        (implicit paramDefault: FailedParameterDefault[E], interchangeClassLoader: InterchangeClassLoader)
+        : AvroCoder[ResultG[E, A]] =
+        resultGAvroCoder(paramCoder.encode, valueCoder.encode, paramCoder.decode, valueCoder.decode, paramDefault, interchangeClassLoader)
 
     implicit def resultGAvroCoder[E, A] (
         implicit paramEncoder: AvroEncoder[E],
@@ -366,7 +399,10 @@ trait container extends containerLPI {
         }
     }
 
-    def insecureAvroCoder[A](substitute: A)(implicit valueEncoder: AvroEncoder[A], valueDecoder: AvroDecoder[A]) =
+    def insecureAvroCoder[A](valueCoder: AvroCoder[A], substitute: A): AvroCoder[A] =
+        insecureAvroCoder(substitute)(valueCoder.encode, valueCoder.decode)
+
+    def insecureAvroCoder[A](substitute: A)(implicit valueEncoder: AvroEncoder[A], valueDecoder: AvroDecoder[A]): AvroCoder[A] =
         AvroCoder.make(insecureAvroEncoder(substitute), insecureAvroDecoder(substitute))
 
     def insecureAvroEncoder[A](substitute: A)(implicit valueEncoder: AvroEncoder[A]) =
@@ -397,6 +433,9 @@ trait container extends containerLPI {
                 }
         }
 
+    def javaListAvroCoder[E](elemCoder: AvroCoder[E]): AvroCoder[java.util.List[E]] =
+        javaListAvroCoder(elemCoder.encode, elemCoder.decode)
+
     implicit def javaListAvroCoder[E](implicit elemEncoder: AvroEncoder[E], elemDecoder: AvroDecoder[E]): AvroCoder[java.util.List[E]] =
         AvroCoder.make(javaListAvroEncoder(elemEncoder), javaListAvroDecoder(elemDecoder))
 
@@ -416,6 +455,12 @@ trait container extends containerLPI {
 
     def javaListAvroDecoder[E](implicit elemDecoder: AvroDecoder[E]): AvroDecoder[java.util.List[E]] =
         avroArrayDecoder[E, java.util.List[E]](canBuildJavaList, elemDecoder)
+
+    implicit def avroMapCoder[K, V, M]
+        (keyCoder: StringCoder[K], valueCoder: AvroCoder[V])
+        (implicit asIterable: M => Iterable[(K, V)], canBuildFrom: CanBuildFrom[Nothing, (K, V), M])
+        : AvroCoder[M] =
+        avroMapCoder(asIterable, canBuildFrom, keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
 
     implicit def avroMapCoder[K, V, M] (
         implicit asIterable:   M => Iterable[(K, V)],
@@ -500,6 +545,9 @@ trait container extends containerLPI {
             }
         }
 
+    def javaStringKeyedMapAvroCoder[K, V](keyCoder: StringCoder[K], valueCoder: AvroCoder[V]): AvroCoder[java.util.Map[K, V]] =
+        javaStringKeyedMapAvroCoder(keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
+
     implicit def javaStringKeyedMapAvroCoder[K, V] (
         implicit keyEncoder: StringEncoder[K],
                  valueEncoder: AvroEncoder[V],
@@ -516,6 +564,12 @@ trait container extends containerLPI {
 }
 
 trait containerLPI extends containerLPI2 {
+    def avroAssocArrayCoder[K, V, M]
+        (keyCoder: AvroCoder[K], valueCoder: AvroCoder[V])
+        (implicit asIterable: M => Iterable[(K, V)], canBuildFrom: CanBuildFrom[Nothing, (K, V), M])
+        : AvroCoder[M] =
+        avroAssocArrayCoder(asIterable, canBuildFrom, keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
+
     implicit def avroAssocArrayCoder[K, V, M] (
         implicit asIterable:   M => Iterable[(K, V)],
                  canBuildFrom: CanBuildFrom[Nothing, (K, V), M],
@@ -625,6 +679,9 @@ trait containerLPI extends containerLPI2 {
         def apply(from: Nothing) = apply()
     }
 
+    def javaMapAvroCoder[K, V](keyCoder: AvroCoder[K], valueCoder: AvroCoder[V]): AvroCoder[java.util.Map[K, V]] =
+        javaMapAvroCoder(keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
+
     implicit def javaMapAvroCoder[K, V] (
         implicit keyEncoder: AvroEncoder[K],
                  valueEncoder: AvroEncoder[V],
@@ -652,6 +709,12 @@ trait containerLPI extends containerLPI2 {
 }
 
 trait containerLPI2 {
+    def avroArrayCoder[E, S]
+        (elemCoder: AvroCoder[E])
+        (implicit asIterable: S => Iterable[E], canBuildFrom: CanBuildFrom[Nothing, E, S])
+        : AvroCoder[S] =
+        avroArrayCoder(asIterable, canBuildFrom, elemCoder.encode, elemCoder.decode)
+
     implicit def avroArrayCoder[E, S] (
         implicit asIterable: S => Iterable[E],
                  canBuildFrom: CanBuildFrom[Nothing, E, S],

@@ -37,8 +37,10 @@ import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatch
 
 import utils.nameAndNamespaceFromClass
 
+/** `AvroCoder`s for scalar types such as `int`, `String`, and so on. */
 object scalar extends scalar
 
+/** `AvroCoder`s for scalar types such as `int`, `String`, and so on. */
 trait scalar extends scalarLPI {
     /** `AvroCoder` for `Unit`. Encodes as an empty record of type scala.Unit. */
     implicit object unitAvroCoder extends AvroCoder[Unit] {
@@ -502,7 +504,9 @@ trait scalar extends scalarLPI {
     }
 }
 
+/** Lower priority implicit `AvroCoder`s that would conflict with the primary ones in `scalar` */
 trait scalarLPI { self: scalar =>
+    /** `AvroCoder` for `Byte` which encodes as an Avro integer instead of fixed. Can increase the space required but is more compatible with other tools */
     implicit lazy val byteAvroCoderInt = intAvroCoder.mapBijection(bijection (
         (b: Byte) => Okay(b: Int): Result[Int],
         (i: Int) => {
@@ -511,6 +515,7 @@ trait scalarLPI { self: scalar =>
         }: Result[Byte]
     ))
 
+    /** `AvroCoder` for `Short` which encodes as an Avro integer instead of fixed. More compatible with other tools, but variable storage space.  */
     implicit lazy val shortAvroCoderInt = intAvroCoder.mapBijection(bijection (
         (s: Short) => Okay(s): Result[Int],
         (i: Int) => {
@@ -519,6 +524,7 @@ trait scalarLPI { self: scalar =>
         }: Result[Short]
     ))
 
+    /** `AvroCoder` for `Char` which encodes as an Avro string instead of fixed. More compatible with other tools, but increased storage space.  */
     implicit lazy val charAvroCoderString = stringAvroCoder.mapBijection(bijection (
         (c: Char) => Okay(new String(Array(c))): Result[String],
         (s: String) => (s.size match {
@@ -527,21 +533,25 @@ trait scalarLPI { self: scalar =>
         }): Result[Char]
     ))
 
+    /** `AvroCoder` for `java.math.BigInteger` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
     implicit lazy val javaBigIntegerAvroCoderString = stringAvroCoder.mapBijection(bijection (
         (bi: JavaBigInteger) => Okay(bi.toString): Result[String],
         (s: String) => tryCatch.value(new JavaBigInteger(s)): Result[JavaBigInteger]
     ))
 
+    /** `AvroCoder` for `scala.math.BigInt` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
     implicit lazy val scalaBigIntAvroCoderString = javaBigIntegerAvroCoderString.mapBijection(bijection (
         (bi: BigInt) => Okay(bi.bigInteger): Result[JavaBigInteger],
         (bi: JavaBigInteger) => Okay(BigInt(bi)): Result[BigInt]
     ))
 
+    /** `AvroCoder` for `java.math.BigDecimal` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
     implicit lazy val javaBigDecimalAvroCoderString = stringAvroCoder.mapBijection(bijection (
         (bd: JavaBigDecimal) => Okay(bd.toString): Result[String],
         (s: String) => tryCatch.value(new JavaBigDecimal(s)): Result[JavaBigDecimal]
     ))
 
+    /** `AvroCoder` for `scala.math.BigDecimal` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
     implicit lazy val scalaBigDecimalAvroCoderString = javaBigDecimalAvroCoderString.mapBijection(bijection (
         (bd: BigDecimal) => Okay(bd.bigDecimal): Result[JavaBigDecimal],
         (bd: JavaBigDecimal) => Okay(BigDecimal(bd)): Result[BigDecimal]

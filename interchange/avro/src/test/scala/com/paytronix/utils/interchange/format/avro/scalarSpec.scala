@@ -64,7 +64,7 @@ class unitAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with Avro
     def e1 = (scalar.unitAvroCoder.schema.getType ==== Schema.Type.RECORD) and (scalar.unitAvroCoder.schema.getFields.size ==== 0)
     def e2 = scalar.unitAvroCoder.encode.toBytes(()) must beLike { case Okay(a) => a must beEqualToArray(Array[Byte]()) }
     def e3 = scalar.unitAvroCoder.decode.fromBytes(scalar.unitAvroCoder.schema)(Array[Byte]()) ==== Okay(())
-    def e4 = { import coders._; AvroCoder[Unit].getClass must_== scalar.unitAvroCoder.getClass }
+    def e4 = { import coders._; AvroCoder[Unit].encode.getClass must_== scalar.unitAvroCoder.encode.getClass }
 }
 
 class booleanAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -85,7 +85,7 @@ class booleanAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with A
     def e4 = scalar.booleanAvroCoder.decode.fromBytes(scalar.booleanAvroCoder.schema)(Array[Byte](0)) ==== Okay(false)
     def e5 = scalar.booleanAvroCoder.decode.fromBytes(scalar.booleanAvroCoder.schema)(Array[Byte](1)) ==== Okay(true)
     def e6 = prop { (b: Boolean) => decodeDefault(scalar.booleanAvroCoder.default(b)) ==== Okay(b) }
-    def e7 = { import coders._; AvroCoder[Boolean].getClass must_== scalar.booleanAvroCoder.getClass }
+    def e7 = { import coders._; AvroCoder[Boolean].encode.getClass must_== scalar.booleanAvroCoder.encode.getClass }
 }
 
 class byteAvroCoderFixedTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -102,7 +102,7 @@ class byteAvroCoderFixedTest extends SpecificationWithJUnit with ScalaCheck with
     def e2 = prop { (b: Byte) => scalar.byteAvroCoderFixed.encode.toBytes(b) must beLike { case Okay(a) => a must beEqualToArray(Array(b)) } }
     def e3 = prop { (b: Byte) => scalar.byteAvroCoderFixed.decode.fromBytes(scalar.byteAvroCoderFixed.schema)(Array[Byte](b)) ==== Okay(b) }
     def e4 = prop { (b: Byte) => decodeDefault(scalar.byteAvroCoderFixed.default(b)) ==== Okay(b) }
-    def e5 = { import coders._; AvroCoder[Byte].getClass must_== scalar.byteAvroCoderFixed.getClass }
+    def e5 = { import coders._; AvroCoder[Byte].encode.getClass must_== scalar.byteAvroCoderFixed.encode.getClass }
 }
 
 class byteAvroCoderIntTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -148,7 +148,7 @@ class shortAvroCoderFixedTest extends SpecificationWithJUnit with ScalaCheck wit
         scalar.shortAvroCoderFixed.decode.fromBytes(scalar.shortAvroCoderFixed.schema)(a) ==== Okay(s)
     }
     def e4 = prop { (s: Short) => decodeDefault(scalar.shortAvroCoderFixed.default(s)) ==== Okay(s) }
-    def e5 = { import coders._; AvroCoder[Short].getClass must_== scalar.shortAvroCoderFixed.getClass }
+    def e5 = { import coders._; AvroCoder[Short].encode.getClass must_== scalar.shortAvroCoderFixed.encode.getClass }
 }
 
 class shortAvroCoderIntTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -192,7 +192,7 @@ class intAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroM
     def en1 = scalar.intAvroCoder.encode.toBytes(-1) must beLike { case Okay(a) => a must beEqualToArray(Array[Byte](1)) }
     def e1 = scalar.intAvroCoder.encode.toBytes(1) must beLike { case Okay(a) => a must beEqualToArray(Array[Byte](2)) }
     def edefault = prop { (i: Int) => decodeDefault(scalar.intAvroCoder.default(i)) ==== Okay(i) }
-    def eimplicit = { import coders._; AvroCoder[Int].getClass must_== scalar.intAvroCoder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Int].encode.getClass must_== scalar.intAvroCoder.encode.getClass }
 }
 
 class longAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -215,7 +215,7 @@ class longAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with Avro
     def en1 = scalar.longAvroCoder.encode.toBytes(-1L) must beLike { case Okay(a) => a must beEqualToArray(Array[Byte](1)) }
     def e1 = scalar.longAvroCoder.encode.toBytes(1L) must beLike { case Okay(a) => a must beEqualToArray(Array[Byte](2)) }
     def edefault = prop { (l: Long) => decodeDefault(scalar.longAvroCoder.default(l)) ==== Okay(l) }
-    def eimplicit = { import coders._; AvroCoder[Long].getClass must_== scalar.longAvroCoder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Long].encode.getClass must_== scalar.longAvroCoder.encode.getClass }
 }
 
 class floatAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -232,7 +232,7 @@ class floatAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with Avr
         (scalar.floatAvroCoder.encode.toBytes(f) >>= scalar.floatAvroCoder.decode.fromBytes(scalar.floatAvroCoder.schema)) ==== Okay(f)
     }
     def edefault = prop { (f: Float) => decodeDefault(scalar.floatAvroCoder.default(f)) ==== Okay(f) }
-    def eimplicit = { import coders._; AvroCoder[Float].getClass must_== scalar.floatAvroCoder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Float].encode.getClass must_== scalar.floatAvroCoder.encode.getClass }
 }
 
 class doubleAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -249,7 +249,7 @@ class doubleAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with Av
         (scalar.doubleAvroCoder.encode.toBytes(d) >>= scalar.doubleAvroCoder.decode.fromBytes(scalar.doubleAvroCoder.schema)) ==== Okay(d)
     }
     def edefault = prop { (d: Double) => decodeDefault(scalar.doubleAvroCoder.default(d)) ==== Okay(d) }
-    def eimplicit = { import coders._; AvroCoder[Double].getClass must_== scalar.doubleAvroCoder.getClass }
+    def eimplicit = { import coders._; AvroCoder[Double].encode.getClass must_== scalar.doubleAvroCoder.encode.getClass }
 }
 
 class javaBigIntegerAvroCoderBytesTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -267,7 +267,7 @@ class javaBigIntegerAvroCoderBytesTest extends SpecificationWithJUnit with Scala
          scalar.javaBigIntegerAvroCoderBytes.decode.fromBytes(scalar.javaBigIntegerAvroCoderBytes.schema)) ==== Okay(bi)
     }
     def edefault = prop { (bi: java.math.BigInteger) => decodeDefault(scalar.javaBigIntegerAvroCoderBytes.default(bi)) ==== Okay(bi) }
-    def eimplicit = { import coders._; AvroCoder[java.math.BigInteger].getClass must_== scalar.javaBigIntegerAvroCoderBytes.getClass }
+    def eimplicit = { import coders._; AvroCoder[java.math.BigInteger].encode.getClass must_== scalar.javaBigIntegerAvroCoderBytes.encode.getClass }
 }
 
 class javaBigIntegerAvroCoderStringTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -301,7 +301,7 @@ class scalaBigIntAvroCoderBytesTest extends SpecificationWithJUnit with ScalaChe
          scalar.scalaBigIntAvroCoderBytes.decode.fromBytes(scalar.scalaBigIntAvroCoderBytes.schema)) ==== Okay(bi)
     }
     def edefault = prop { (bi: BigInt) => decodeDefault(scalar.scalaBigIntAvroCoderBytes.default(bi)) ==== Okay(bi) }
-    def eimplicit = { import coders._; AvroCoder[BigInt].getClass must_== scalar.scalaBigIntAvroCoderBytes.getClass }
+    def eimplicit = { import coders._; AvroCoder[BigInt].encode.getClass must_== scalar.scalaBigIntAvroCoderBytes.encode.getClass }
 }
 
 class scalaBigIntAvroCoderStringTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -335,7 +335,7 @@ class javaBigDecimalAvroCoderBytesTest extends SpecificationWithJUnit with Scala
          scalar.javaBigDecimalAvroCoderBytes.decode.fromBytes(scalar.javaBigDecimalAvroCoderBytes.schema)) ==== Okay(bd)
     }
     def edefault = prop { (bd: java.math.BigDecimal) => decodeDefault(scalar.javaBigDecimalAvroCoderBytes.default(bd)) ==== Okay(bd) }
-    def eimplicit = { import coders._; AvroCoder[java.math.BigDecimal].getClass must_== scalar.javaBigDecimalAvroCoderBytes.getClass }
+    def eimplicit = { import coders._; AvroCoder[java.math.BigDecimal].encode.getClass must_== scalar.javaBigDecimalAvroCoderBytes.encode.getClass }
 }
 
 class javaBigDecimalAvroCoderStringTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -375,7 +375,7 @@ class scalaBigDecimalAvroCoderBytesTest extends SpecificationWithJUnit with Scal
          scalar.scalaBigDecimalAvroCoderBytes.decode.fromBytes(scalar.scalaBigDecimalAvroCoderBytes.schema)) ==== Okay(bd)
     }
     def edefault = Prop.forAll(safeScalaBigDecimals) { bd => decodeDefault(scalar.scalaBigDecimalAvroCoderBytes.default(bd)) ==== Okay(bd) }
-    def eimplicit = { import coders._; AvroCoder[BigDecimal].getClass must_== scalar.scalaBigDecimalAvroCoderBytes.getClass }
+    def eimplicit = { import coders._; AvroCoder[BigDecimal].encode.getClass must_== scalar.scalaBigDecimalAvroCoderBytes.encode.getClass }
 }
 
 class scalaBigDecimalAvroCoderStringTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -419,7 +419,7 @@ class charAvroCoderFixedTest extends SpecificationWithJUnit with ScalaCheck with
         scalar.charAvroCoderFixed.decode.fromBytes(scalar.charAvroCoderFixed.schema)(a) ==== Okay(c)
     }
     def e4 = prop { (c: Char) => decodeDefault(scalar.charAvroCoderFixed.default(c)) ==== Okay(c) }
-    def e5 = { import coders._; AvroCoder[Char].getClass must_== scalar.charAvroCoderFixed.getClass }
+    def e5 = { import coders._; AvroCoder[Char].encode.getClass must_== scalar.charAvroCoderFixed.encode.getClass }
 }
 
 class charAvroCoderStringTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -459,7 +459,7 @@ class stringAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with Av
         scalar.stringAvroCoder.decode.fromBytes(scalar.stringAvroCoder.schema)(makeAvroString(s)) ==== Okay(s)
     }
     def e4 = prop { (s: String) => decodeDefault(scalar.stringAvroCoder.default(s)) ==== Okay(s) }
-    def e5 = { import coders._; AvroCoder[String].getClass must_== scalar.stringAvroCoder.getClass }
+    def e5 = { import coders._; AvroCoder[String].encode.getClass must_== scalar.stringAvroCoder.encode.getClass }
 
 }
 
@@ -490,7 +490,7 @@ class byteBufferAvroCoderTest extends SpecificationWithJUnit with ScalaCheck wit
             bb.array.mkString("[", ",", "]") ==== a.mkString("[", ",", "]")
         }
     }
-    def e5 = { import coders._; AvroCoder[ByteBuffer].getClass must_== scalar.byteBufferAvroCoder.getClass }
+    def e5 = { import coders._; AvroCoder[ByteBuffer].encode.getClass must_== scalar.byteBufferAvroCoder.encode.getClass }
 }
 
 class byteArrayAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
@@ -519,7 +519,7 @@ class byteArrayAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with
             a.mkString("[", ",", "]") ==== expected.mkString("[", ",", "]")
         }
     }
-    def e5 = { import coders._; AvroCoder[Array[Byte]].getClass must_== scalar.byteArrayAvroCoder.getClass }
+    def e5 = { import coders._; AvroCoder[Array[Byte]].encode.getClass must_== scalar.byteArrayAvroCoder.encode.getClass }
 }
 
 class javaEnumAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
