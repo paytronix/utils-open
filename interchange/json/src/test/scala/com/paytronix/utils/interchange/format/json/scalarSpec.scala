@@ -24,391 +24,352 @@ import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 import org.specs2.execute.{Result => SpecsResult}
 import org.specs2.matcher.{Matcher, MatchResult}
 
-import com.paytronix.utils.interchange.base.{CoderResult, Receiver, formatFailedPath}
+import com.paytronix.utils.interchange.base.{Receiver, formatFailedPath}
 import com.paytronix.utils.interchange.test.fixtures.{JavaEnum, ScalaEnum}
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result}
 
 import Arbitrary.arbitrary
 
-object arbitraries {
-    val nonnumericStr = Gen.frequency (
-        (1, ""),
-        (5, Gen.alphaStr),
-        (5, Arbitrary.arbString.arbitrary.filter(s => !s.forall(Character.isDigit)))
-    )
-
-    val safeJavaBigDecimals = arbitrary[BigDecimal].map(_.bigDecimal).filter { bd =>
-        try { new java.math.BigDecimal(bd.toString); true }
-        catch { case nfe: NumberFormatException => false }
-    }
-
-    val safeScalaBigDecimals = arbitrary[BigDecimal].filter { bd =>
-        try { new java.math.BigDecimal(bd.bigDecimal.toString); true }
-        catch { case nfe: NumberFormatException => false }
-    }
-
-    implicit val arbJavaMathBigDecimals = Arbitrary(arbitrary[BigDecimal].map(_.bigDecimal))
-
-    implicit val arbJavaMathBigInteger = Arbitrary(arbitrary[BigInt].map(_.bigInteger))
-}
-
 import arbitraries._
 
-trait JsonMatchers { self: SpecificationWithJUnit =>
-    def decodeMissing[A](decoder: JsonDecoder[A]): CoderResult[A] = {
-        val jp = new JsonFactory().createParser("")
-        val ijp = new InterchangeJsonParser(jp)
-        ijp.nextValueIsMissing()
-        val rec = new Receiver[A]
-        decoder.run(ijp, rec) map { _ => rec.value }
-    }
-
-    def checkMissing[A](decoder: JsonDecoder[A]): SpecsResult =
-        (decoder.fromString("null") must beMissingValue[A]).updateMessage("explicit null: " + _) and
-        (formatFailedPath(decodeMissing(decoder)) must beMissingValue[A]).updateMessage("missing value: " + _)
-
-    def beMissingValue[A]: Matcher[Result[A]] =
-        beLike { case f@FailedG(_, _) =>
-            f.message must beMatching("At source location \\d+:\\d+: required but missing")
-        }
-}
-
-class unitJsonCoderTest extends SpecificationWithJUnit {
+class unitJsonCoderTest extends SpecificationWithJUnit with JsonMatchers {
     def is = s2"""
         `unitJsonCoder`
-            should write nothing $encode
-            should read nothing $decode
+            should write null outside a field context $encodeNullCase
+            should write nothing in a field context $encodeNothingCase
+            should read nothing $decodeNothingCase
+            should read null $decodeNullCase
     """
 
-    def encode = (scalar.unitJsonCoder.encode.toString(()) ==== Okay("")) // FIXME assert that no field is emitted in an object context
-    def decode = (scalar.unitJsonCoder.decode.fromString("") ==== Okay(()))
+    def encodeNullCase = scalar.unitJsonCoder.encode.toString(()) ==== Okay("null")
+    def encodeNothingCase = encodeField(scalar.unitJsonCoder.encode, ()) ==== Okay("")
+    def decodeNothingCase = decodeMissing(scalar.unitJsonCoder.decode) ==== Okay(())
+    def decodeNullCase = decode(scalar.unitJsonCoder.decode)("null") ==== Okay(())
 }
 
 class booleanJsonCoderTest extends SpecificationWithJUnit with JsonMatchers {
     def is = s2"""
         `booleanJsonCoder`
-            should write true for true and false for false $encode
-            should decode true to true and false to false $decode
-            should decode "true" to true and "false" to false $decodeString
-            should fail to decode other strings $decodeInvalidString
-            should fail to decode a missing value $decodeMissing
+            should write true for true and false for false $encodeCase
+            should decode true to true and false to false $decodeCase
+            should decode "true" to true and "false" to false $decodeStringCase
+            should fail to decode other strings $decodeInvalidStringCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode =
+    def encodeCase =
         (scalar.booleanJsonCoder.encode.toString(true)  ==== Okay("true")) and
         (scalar.booleanJsonCoder.encode.toString(false) ==== Okay("false"))
-    def decode =
-        (scalar.booleanJsonCoder.decode.fromString("true")  ==== Okay(true)) and
-        (scalar.booleanJsonCoder.decode.fromString("false") ==== Okay(false))
-    def decodeString =
-        (scalar.booleanJsonCoder.decode.fromString("\"true\"")  ==== Okay(true)) and
-        (scalar.booleanJsonCoder.decode.fromString("\"false\"") ==== Okay(false))
-    def decodeInvalidString =
-        (scalar.booleanJsonCoder.decode.fromString("\"\"")  must beLike { case FailedG(_, _) => ok }) and
-        (scalar.booleanJsonCoder.decode.fromString("\"0\"") must beLike { case FailedG(_, _) => ok })
-    def decodeMissing = checkMissing(scalar.booleanJsonCoder.decode)
+    def decodeCase =
+        (decode(scalar.booleanJsonCoder.decode)("true")  ==== Okay(true)) and
+        (decode(scalar.booleanJsonCoder.decode)("false") ==== Okay(false))
+    def decodeStringCase =
+        (decode(scalar.booleanJsonCoder.decode)("\"true\"")  ==== Okay(true)) and
+        (decode(scalar.booleanJsonCoder.decode)("\"false\"") ==== Okay(false))
+    def decodeInvalidStringCase =
+        (decode(scalar.booleanJsonCoder.decode)("\"\"")  must beLike { case FailedG(_, _) => ok }) and
+        (decode(scalar.booleanJsonCoder.decode)("\"0\"") must beLike { case FailedG(_, _) => ok })
+    def decodeMissingCase = checkMissing(scalar.booleanJsonCoder.decode)
 }
 
 class byteJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `byteJsonCoder`
-            should encode to numbers $encode
-            should decode from in-range numbers $decode
-            should fail to decode from numbers with a decimal component $decodeInvalidDecimal
-            should fail to decode from out-of-range numbers $decodeInvalidOutOfRange
-            should decode from in-range strings $decodeString
-            should fail to decode a missing value $decodeMissing
+            should encode to numbers $encodeCase
+            should decode from in-range numbers $decodeCase
+            should fail to decode from numbers with a decimal component $decodeInvalidDecimalCase
+            should fail to decode from out-of-range numbers $decodeInvalidOutOfRangeCase
+            should decode from in-range strings $decodeStringCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (b: Byte) => scalar.byteJsonCoder.encode.toString(b) ==== Okay(b.toString) }
-    def decode = prop { (b: Byte) => scalar.byteJsonCoder.decode.fromString(b.toString) ==== Okay(b) }
-    def decodeInvalidDecimal = prop { (f: Float) => scalar.byteJsonCoder.decode.fromString(f.toString) must beLike { case FailedG(_, _) => ok } }
-    def decodeInvalidOutOfRange = Prop.forAll(arbitrary[Int].filter(i => i < Byte.MinValue | i > Byte.MaxValue)) { i =>
-        scalar.byteJsonCoder.decode.fromString(i.toString) must beLike { case FailedG(_, _) => ok }
+    def encodeCase = prop { (b: Byte) => scalar.byteJsonCoder.encode.toString(b) ==== Okay(b.toString) }
+    def decodeCase = prop { (b: Byte) => decode(scalar.byteJsonCoder.decode)(b.toString) ==== Okay(b) }
+    def decodeInvalidDecimalCase = prop { (f: Float) => decode(scalar.byteJsonCoder.decode)(f.toString) must beLike { case FailedG(_, _) => ok } }
+    def decodeInvalidOutOfRangeCase = Prop.forAll(arbitrary[Int].filter(i => i < Byte.MinValue | i > Byte.MaxValue)) { i =>
+        decode(scalar.byteJsonCoder.decode)(i.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeString = prop { (b: Byte) => scalar.byteJsonCoder.decode.fromString(s""" "${b.toString}" """) ==== Okay(b) }
-    def decodeMissing = checkMissing(scalar.booleanJsonCoder.decode)
+    def decodeStringCase = prop { (b: Byte) => decode(scalar.byteJsonCoder.decode)(s""" "${b.toString}" """) ==== Okay(b) }
+    def decodeMissingCase = checkMissing(scalar.booleanJsonCoder.decode)
 }
 
 class shortJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `shortJsonCoder`
-            should encode to numbers $encode
-            should decode from in-range numbers $decode
-            should fail to decode from numbers with a decimal component $decodeInvalidDecimal
-            should fail to decode from out-of-range numbers $decodeInvalidOutOfRange
-            should decode from in-range strings $decodeString
-            should fail to decode a missing value $decodeMissing
+            should encode to numbers $encodeCase
+            should decode from in-range numbers $decodeCase
+            should fail to decode from numbers with a decimal component $decodeInvalidDecimalCase
+            should fail to decode from out-of-range numbers $decodeInvalidOutOfRangeCase
+            should decode from in-range strings $decodeStringCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (s: Short) => scalar.shortJsonCoder.encode.toString(s) ==== Okay(s.toString) }
-    def decode = prop { (s: Short) => scalar.shortJsonCoder.decode.fromString(s.toString) ==== Okay(s) }
-    def decodeInvalidDecimal = prop { (f: Float) => scalar.shortJsonCoder.decode.fromString(f.toString) must beLike { case FailedG(_, _) => ok } }
-    def decodeInvalidOutOfRange = Prop.forAll(arbitrary[Int].filter(i => i < Short.MinValue | i > Short.MaxValue)) { i =>
-        scalar.shortJsonCoder.decode.fromString(i.toString) must beLike { case FailedG(_, _) => ok }
+    def encodeCase = prop { (s: Short) => scalar.shortJsonCoder.encode.toString(s) ==== Okay(s.toString) }
+    def decodeCase = prop { (s: Short) => decode(scalar.shortJsonCoder.decode)(s.toString) ==== Okay(s) }
+    def decodeInvalidDecimalCase = prop { (f: Float) => decode(scalar.shortJsonCoder.decode)(f.toString) must beLike { case FailedG(_, _) => ok } }
+    def decodeInvalidOutOfRangeCase = Prop.forAll(arbitrary[Int].filter(i => i < Short.MinValue | i > Short.MaxValue)) { i =>
+        decode(scalar.shortJsonCoder.decode)(i.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeString = prop { (s: Short) => scalar.shortJsonCoder.decode.fromString(s""" "${s.toString}" """) ==== Okay(s) }
-    def decodeMissing = checkMissing(scalar.shortJsonCoder.decode)
+    def decodeStringCase = prop { (s: Short) => decode(scalar.shortJsonCoder.decode)(s""" "${s.toString}" """) ==== Okay(s) }
+    def decodeMissingCase = checkMissing(scalar.shortJsonCoder.decode)
 }
 
 class intJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `intJsonCoder`
-            should encode to numbers $encode
-            should decode from in-range numbers $decode
-            should fail to decode from numbers with a decimal component $decodeInvalidDecimal
-            should fail to decode from out-of-range numbers $decodeInvalidOutOfRange
-            should decode from in-range strings $decodeString
-            should fail to decode a missing value $decodeMissing
+            should encode to numbers $encodeCase
+            should decode from in-range numbers $decodeCase
+            should fail to decode from numbers with a decimal component $decodeInvalidDecimalCase
+            should fail to decode from out-of-range numbers $decodeInvalidOutOfRangeCase
+            should decode from in-range strings $decodeStringCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (i: Int) => scalar.intJsonCoder.encode.toString(i) ==== Okay(i.toString) }
-    def decode = prop { (i: Int) => scalar.intJsonCoder.decode.fromString(i.toString) ==== Okay(i) }
-    def decodeInvalidDecimal = prop { (f: Float) => scalar.intJsonCoder.decode.fromString(f.toString) must beLike { case FailedG(_, _) => ok } }
-    def decodeInvalidOutOfRange = Prop.forAll(arbitrary[Long].filter(l => l < Int.MinValue | l > Int.MaxValue)) { l =>
-        scalar.intJsonCoder.decode.fromString(l.toString) must beLike { case FailedG(_, _) => ok }
+    def encodeCase = prop { (i: Int) => scalar.intJsonCoder.encode.toString(i) ==== Okay(i.toString) }
+    def decodeCase = prop { (i: Int) => decode(scalar.intJsonCoder.decode)(i.toString) ==== Okay(i) }
+    def decodeInvalidDecimalCase = prop { (f: Float) => decode(scalar.intJsonCoder.decode)(f.toString) must beLike { case FailedG(_, _) => ok } }
+    def decodeInvalidOutOfRangeCase = Prop.forAll(arbitrary[Long].filter(l => l < Int.MinValue | l > Int.MaxValue)) { l =>
+        decode(scalar.intJsonCoder.decode)(l.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeString = prop { (i: Int) => scalar.intJsonCoder.decode.fromString(s""" "${i.toString}" """) ==== Okay(i) }
-    def decodeMissing = checkMissing(scalar.intJsonCoder.decode)
+    def decodeStringCase = prop { (i: Int) => decode(scalar.intJsonCoder.decode)(s""" "${i.toString}" """) ==== Okay(i) }
+    def decodeMissingCase = checkMissing(scalar.intJsonCoder.decode)
 }
 
 class longJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `longJsonCoder`
-            should encode to numbers $encode
-            should decode from in-range numbers $decode
-            should fail to decode from numbers with a decimal component $decodeInvalidDecimal
-            should fail to decode from out-of-range numbers $decodeInvalidOutOfRange
-            should decode from in-range strings $decodeString
-            should fail to decode a missing value $decodeMissing
+            should encode to numbers $encodeCase
+            should decode from in-range numbers $decodeCase
+            should fail to decode from numbers with a decimal component $decodeInvalidDecimalCase
+            should fail to decode from out-of-range numbers $decodeInvalidOutOfRangeCase
+            should decode from in-range strings $decodeStringCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (l: Long) => scalar.longJsonCoder.encode.toString(l) ==== Okay(l.toString) }
-    def decode = prop { (l: Long) => scalar.longJsonCoder.decode.fromString(l.toString) ==== Okay(l) }
-    def decodeInvalidDecimal = prop { (f: Float) => scalar.longJsonCoder.decode.fromString(f.toString) must beLike { case FailedG(_, _) => ok } }
-    def decodeInvalidOutOfRange = Prop.forAll(arbitrary[BigInt].filter(i => i < Long.MinValue | i > Long.MaxValue)) { bi =>
-        scalar.longJsonCoder.decode.fromString(bi.toString) must beLike { case FailedG(_, _) => ok }
+    def encodeCase = prop { (l: Long) => scalar.longJsonCoder.encode.toString(l) ==== Okay(l.toString) }
+    def decodeCase = prop { (l: Long) => decode(scalar.longJsonCoder.decode)(l.toString) ==== Okay(l) }
+    def decodeInvalidDecimalCase = prop { (f: Float) => decode(scalar.longJsonCoder.decode)(f.toString) must beLike { case FailedG(_, _) => ok } }
+    def decodeInvalidOutOfRangeCase = Prop.forAll(arbitrary[BigInt].filter(i => i < Long.MinValue | i > Long.MaxValue)) { bi =>
+        decode(scalar.longJsonCoder.decode)(bi.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeString = prop { (l: Long) => scalar.longJsonCoder.decode.fromString(s""" "${l.toString}" """) ==== Okay(l) }
-    def decodeMissing = checkMissing(scalar.longJsonCoder.decode)
+    def decodeStringCase = prop { (l: Long) => decode(scalar.longJsonCoder.decode)(s""" "${l.toString}" """) ==== Okay(l) }
+    def decodeMissingCase = checkMissing(scalar.longJsonCoder.decode)
 }
 
 class floatJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `floatJsonCoder`
-            should encode to numbers $encode
-            should decode from numbers without a decimal $decodeIntegral
-            should decode from numbers with a decimal $decodeReal
-            should decode from strings without a decimal $decodeStringIntegral
-            should decode from strings with a decimal $decodeStringReal
-            should fail to decode a missing value $decodeMissing
+            should encode to numbers $encodeCase
+            should decode from numbers without a decimal $decodeIntegralCase
+            should decode from numbers with a decimal $decodeRealCase
+            should decode from strings without a decimal $decodeStringIntegralCase
+            should decode from strings with a decimal $decodeStringRealCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (f: Float) => scalar.floatJsonCoder.encode.toString(f) ==== Okay(f.toString) }
-    def decodeIntegral = prop { (i: Int) => scalar.floatJsonCoder.decode.fromString(i.toString) ==== Okay(i: Float) }
-    def decodeReal = prop { (f: Float) => scalar.floatJsonCoder.decode.fromString(f.toString) ==== Okay(f) }
-    def decodeStringIntegral = prop { (i: Int) => scalar.floatJsonCoder.decode.fromString(s""" "${i.toString}" """) ==== Okay(i: Float) }
-    def decodeStringReal = prop { (f: Float) => scalar.floatJsonCoder.decode.fromString(s""" "${f.toString}" """) ==== Okay(f) }
-    def decodeMissing = checkMissing(scalar.floatJsonCoder.decode)
+    def encodeCase = prop { (f: Float) => scalar.floatJsonCoder.encode.toString(f) ==== Okay(f.toString) }
+    def decodeIntegralCase = prop { (i: Int) => decode(scalar.floatJsonCoder.decode)(i.toString) ==== Okay(i: Float) }
+    def decodeRealCase = prop { (f: Float) => decode(scalar.floatJsonCoder.decode)(f.toString) ==== Okay(f) }
+    def decodeStringIntegralCase = prop { (i: Int) => decode(scalar.floatJsonCoder.decode)(s""" "${i.toString}" """) ==== Okay(i: Float) }
+    def decodeStringRealCase = prop { (f: Float) => decode(scalar.floatJsonCoder.decode)(s""" "${f.toString}" """) ==== Okay(f) }
+    def decodeMissingCase = checkMissing(scalar.floatJsonCoder.decode)
 }
 
 class doubleJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `doubleJsonCoder`
-            should encode to numbers $encode
-            should decode from numbers without a decimal $decodeIntegral
-            should decode from numbers with a decimal $decodeReal
-            should decode from strings without a decimal $decodeStringIntegral
-            should decode from strings with a decimal $decodeStringReal
-            should fail to decode a missing value $decodeMissing
+            should encode to numbers $encodeCase
+            should decode from numbers without a decimal $decodeIntegralCase
+            should decode from numbers with a decimal $decodeRealCase
+            should decode from strings without a decimal $decodeStringIntegralCase
+            should decode from strings with a decimal $decodeStringRealCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (d: Double) => scalar.doubleJsonCoder.encode.toString(d) ==== Okay(d.toString) }
-    def decodeIntegral = prop { (i: Int) => scalar.doubleJsonCoder.decode.fromString(i.toString) ==== Okay(i: Double) }
-    def decodeReal = prop { (d: Double) => scalar.doubleJsonCoder.decode.fromString(d.toString) ==== Okay(d) }
-    def decodeStringIntegral = prop { (i: Int) => scalar.doubleJsonCoder.decode.fromString(s""" "${i.toString}" """) ==== Okay(i: Double) }
-    def decodeStringReal = prop { (d: Double) => scalar.doubleJsonCoder.decode.fromString(s""" "${d.toString}" """) ==== Okay(d) }
-    def decodeMissing = checkMissing(scalar.doubleJsonCoder.decode)
+    def encodeCase = prop { (d: Double) => scalar.doubleJsonCoder.encode.toString(d) ==== Okay(d.toString) }
+    def decodeIntegralCase = prop { (i: Int) => decode(scalar.doubleJsonCoder.decode)(i.toString) ==== Okay(i: Double) }
+    def decodeRealCase = prop { (d: Double) => decode(scalar.doubleJsonCoder.decode)(d.toString) ==== Okay(d) }
+    def decodeStringIntegralCase = prop { (i: Int) => decode(scalar.doubleJsonCoder.decode)(s""" "${i.toString}" """) ==== Okay(i: Double) }
+    def decodeStringRealCase = prop { (d: Double) => decode(scalar.doubleJsonCoder.decode)(s""" "${d.toString}" """) ==== Okay(d) }
+    def decodeMissingCase = checkMissing(scalar.doubleJsonCoder.decode)
 }
 
 class javaBigIntegerJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `javaBigIntegerJsonCoder`
-            should encode to strings $encode
-            should decode from strings $decode
-            should decode from numbers without a decimal $decodeIntegral
-            should not decode from numbers with a decimal $decodeReal
-            should fail to decode a missing value $decodeMissing
+            should encode to strings $encodeCase
+            should decode from strings $decodeCase
+            should decode from numbers without a decimal $decodeIntegralCase
+            should not decode from numbers with a decimal $decodeRealCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (bi: java.math.BigInteger) => scalar.javaBigIntegerJsonCoder.encode.toString(bi) ==== Okay("\"" + bi.toString + "\"") }
-    def decode = prop { (bi: java.math.BigInteger) => scalar.javaBigIntegerJsonCoder.decode.fromString(s""" "${bi.toString}" """) ==== Okay(bi) }
-    def decodeIntegral = prop { (bi: java.math.BigInteger) => scalar.javaBigIntegerJsonCoder.decode.fromString(bi.toString) ==== Okay(bi) }
-    def decodeReal = prop { (d: Double) =>
-        scalar.javaBigIntegerJsonCoder.decode.fromString(d.toString) must beLike { case FailedG(_, _) => ok }
+    def encodeCase = prop { (bi: java.math.BigInteger) => scalar.javaBigIntegerJsonCoder.encode.toString(bi) ==== Okay("\"" + bi.toString + "\"") }
+    def decodeCase = prop { (bi: java.math.BigInteger) => decode(scalar.javaBigIntegerJsonCoder.decode)(s""" "${bi.toString}" """) ==== Okay(bi) }
+    def decodeIntegralCase = prop { (bi: java.math.BigInteger) => decode(scalar.javaBigIntegerJsonCoder.decode)(bi.toString) ==== Okay(bi) }
+    def decodeRealCase = prop { (d: Double) =>
+        decode(scalar.javaBigIntegerJsonCoder.decode)(d.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeMissing = checkMissing(scalar.javaBigIntegerJsonCoder.decode)
+    def decodeMissingCase = checkMissing(scalar.javaBigIntegerJsonCoder.decode)
 }
 
 class scalaBigIntJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `scalaBigIntJsonCoder`
-            should encode to strings $encode
-            should decode from strings $decode
-            should decode from numbers without a decimal $decodeIntegral
-            should not decode from numbers with a decimal $decodeReal
-            should fail to decode a missing value $decodeMissing
+            should encode to strings $encodeCase
+            should decode from strings $decodeCase
+            should decode from numbers without a decimal $decodeIntegralCase
+            should not decode from numbers with a decimal $decodeRealCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (bi: BigInt) => scalar.scalaBigIntJsonCoder.encode.toString(bi) ==== Okay("\"" + bi.toString + "\"") }
-    def decode = prop { (bi: BigInt) => scalar.scalaBigIntJsonCoder.decode.fromString(s""" "${bi.toString}" """) ==== Okay(bi) }
-    def decodeIntegral = prop { (bi: BigInt) => scalar.scalaBigIntJsonCoder.decode.fromString(bi.toString) ==== Okay(bi) }
-    def decodeReal = prop { (d: Double) =>
-        scalar.scalaBigIntJsonCoder.decode.fromString(d.toString) must beLike { case FailedG(_, _) => ok }
+    def encodeCase = prop { (bi: BigInt) => scalar.scalaBigIntJsonCoder.encode.toString(bi) ==== Okay("\"" + bi.toString + "\"") }
+    def decodeCase = prop { (bi: BigInt) => decode(scalar.scalaBigIntJsonCoder.decode)(s""" "${bi.toString}" """) ==== Okay(bi) }
+    def decodeIntegralCase = prop { (bi: BigInt) => decode(scalar.scalaBigIntJsonCoder.decode)(bi.toString) ==== Okay(bi) }
+    def decodeRealCase = prop { (d: Double) =>
+        decode(scalar.scalaBigIntJsonCoder.decode)(d.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeMissing = checkMissing(scalar.scalaBigIntJsonCoder.decode)
+    def decodeMissingCase = checkMissing(scalar.scalaBigIntJsonCoder.decode)
 }
 
 class javaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `javaBigDecimalJsonCoder`
-            should encode to strings $encode
-            should decode from strings $decode
-            should decode from numbers without a decimal $decodeIntegral
-            should decode from numbers with a decimal $decodeReal
-            should fail to decode a missing value $decodeMissing
+            should encode to strings $encodeCase
+            should decode from strings $decodeCase
+            should decode from numbers without a decimal $decodeIntegralCase
+            should decode from numbers with a decimal $decodeRealCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = Prop.forAll(safeJavaBigDecimals) { bd => scalar.javaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
-    def decode = Prop.forAll(safeJavaBigDecimals) { bd => scalar.javaBigDecimalJsonCoder.decode.fromString(s""" "${bd.toString}" """) ==== Okay(bd) }
-    def decodeIntegral = prop { (bi: java.math.BigInteger) =>
+    def encodeCase = Prop.forAll(safeJavaBigDecimals) { bd => scalar.javaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
+    def decodeCase = Prop.forAll(safeJavaBigDecimals) { bd => decode(scalar.javaBigDecimalJsonCoder.decode)(s""" "${bd.toString}" """) ==== Okay(bd) }
+    def decodeIntegralCase = prop { (bi: java.math.BigInteger) =>
         val bd = new java.math.BigDecimal(bi)
-        scalar.javaBigDecimalJsonCoder.decode.fromString(bi.toString) ==== Okay(bd)
+        decode(scalar.javaBigDecimalJsonCoder.decode)(bi.toString) ==== Okay(bd)
     }
-    def decodeReal = prop { (d: Double) =>
-        scalar.javaBigDecimalJsonCoder.decode.fromString(d.toString) ==== Okay(new java.math.BigDecimal(d.toString))
+    def decodeRealCase = prop { (d: Double) =>
+        decode(scalar.javaBigDecimalJsonCoder.decode)(d.toString) ==== Okay(new java.math.BigDecimal(d.toString))
     }
-    def decodeMissing = checkMissing(scalar.javaBigDecimalJsonCoder.decode)
+    def decodeMissingCase = checkMissing(scalar.javaBigDecimalJsonCoder.decode)
 }
 
 class scalaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `scalaBigDecimalJsonCoder`
-            should encode to strings $encode
-            should decode from strings $decode
-            should decode from numbers without a decimal $decodeIntegral
-            should decode from numbers with a decimal $decodeReal
-            should fail to decode a missing value $decodeMissing
+            should encode to strings $encodeCase
+            should decode from strings $decodeCase
+            should decode from numbers without a decimal $decodeIntegralCase
+            should decode from numbers with a decimal $decodeRealCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = Prop.forAll(safeScalaBigDecimals) { bd => scalar.scalaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
-    def decode = Prop.forAll(safeScalaBigDecimals) { bd => scalar.scalaBigDecimalJsonCoder.decode.fromString(s""" "${bd.toString}" """) ==== Okay(bd) }
-    def decodeIntegral = prop { (bi: java.math.BigInteger) =>
+    def encodeCase = Prop.forAll(safeScalaBigDecimals) { bd => scalar.scalaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
+    def decodeCase = Prop.forAll(safeScalaBigDecimals) { bd => decode(scalar.scalaBigDecimalJsonCoder.decode)(s""" "${bd.toString}" """) ==== Okay(bd) }
+    def decodeIntegralCase = prop { (bi: java.math.BigInteger) =>
         val bd = BigDecimal(BigInt(bi))
-        scalar.scalaBigDecimalJsonCoder.decode.fromString(bi.toString) ==== Okay(bd)
+        decode(scalar.scalaBigDecimalJsonCoder.decode)(bi.toString) ==== Okay(bd)
     }
-    def decodeReal = prop { (d: Double) =>
-        scalar.scalaBigDecimalJsonCoder.decode.fromString(d.toString) ==== Okay(BigDecimal(d.toString))
+    def decodeRealCase = prop { (d: Double) =>
+        decode(scalar.scalaBigDecimalJsonCoder.decode)(d.toString) ==== Okay(BigDecimal(d.toString))
     }
-    def decodeMissing = checkMissing(scalar.scalaBigDecimalJsonCoder.decode)
+    def decodeMissingCase = checkMissing(scalar.scalaBigDecimalJsonCoder.decode)
 }
 
 class charJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `charJsonCoder`
-            should encode to strings $encode
-            should decode from strings with one character $decode
-            should not decode from the empty string $decodeEmptyString
-            should not decode from from strings > 1 character long $decodeInvalidStrings
-            should fail to decode a missing value $decodeMissing
+            should encode to strings $encodeCase
+            should decode from strings with one character $decodeCase
+            should round trip $roundTripCase
+            should not decode from the empty string $decodeEmptyStringCase
+            should not decode from from strings > 1 character long $decodeInvalidStringsCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def encode = prop { (c: Char) => scalar.charJsonCoder.encode.toString(c) ==== Okay("\"" + c + "\"") }
-    def decode = prop { (c: Char) => scalar.charJsonCoder.decode.fromString(s""" "$c" """) ==== Okay(c) }
-    def decodeEmptyString = scalar.charJsonCoder.decode.fromString("\"\"") must beLike { case FailedG(_, _) => ok }
-    def decodeInvalidStrings = Prop.forAll(arbitrary[String].filter(_.length > 1)) { s =>
-        scalar.charJsonCoder.decode.fromString("\"\"") must beLike { case FailedG(_, _) => ok }
+    def encodeCase = scalar.charJsonCoder.encode.toString('a') ==== Okay("\"a\"")
+    def decodeCase = decode(scalar.charJsonCoder.decode)("\"a\"") ==== Okay('a')
+    def roundTripCase = prop { (c: Char) =>
+        (scalar.charJsonCoder.encode.toString(c) >>= scalar.charJsonCoder.decode.fromString) ==== Okay(c)
     }
-    def decodeMissing = checkMissing(scalar.charJsonCoder.decode)
+    def decodeEmptyStringCase = decode(scalar.charJsonCoder.decode)("\"\"") must beLike { case FailedG(_, _) => ok }
+    def decodeInvalidStringsCase = Prop.forAll(arbitrary[String].filter(_.length > 1)) { s =>
+        decode(scalar.charJsonCoder.decode)("\"\"") must beLike { case FailedG(_, _) => ok }
+    }
+    def decodeMissingCase = checkMissing(scalar.charJsonCoder.decode)
 }
 
 class stringJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `stringJsonCoder`
-            should round trip $roundTrip
-            should fail to decode a missing value $decodeMissing
+            should round trip $roundTripCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def roundTrip = prop { (s: String) => (scalar.stringJsonCoder.encode.toString(s) >>= scalar.stringJsonCoder.decode.fromString) ==== Okay(s) }
-    def decodeMissing = checkMissing(scalar.stringJsonCoder.decode)
+    def roundTripCase = prop { (s: String) => (scalar.stringJsonCoder.encode.toString(s) >>= scalar.stringJsonCoder.decode.fromString) ==== Okay(s) }
+    def decodeMissingCase = checkMissing(scalar.stringJsonCoder.decode)
 }
 
 class byteBufferJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `byteBufferJsonCoder`
-            should round trip $roundTrip
-            should fail to decode a missing value $decodeMissing
+            should round trip $roundTripCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def roundTrip = prop { (a: Array[Byte]) =>
+    def roundTripCase = prop { (a: Array[Byte]) =>
         val bb = ByteBuffer.wrap(a)
         (scalar.byteBufferJsonCoder.encode.toString(bb) >>= scalar.byteBufferJsonCoder.decode.fromString) ==== Okay(bb)
     }
-    def decodeMissing = checkMissing(scalar.byteBufferJsonCoder.decode)
+    def decodeMissingCase = checkMissing(scalar.byteBufferJsonCoder.decode)
 }
 
 class byteArrayJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `byteArrayJsonCoder`
-            should round trip $roundTrip
-            should fail to decode a missing value $decodeMissing
+            should round trip $roundTripCase
+            should fail to decode a missing value $decodeMissingCase
     """
 
-    def roundTrip = prop { (a: Array[Byte]) =>
+    def roundTripCase = prop { (a: Array[Byte]) =>
         (scalar.byteArrayJsonCoder.encode.toString(a) >>= scalar.byteArrayJsonCoder.decode.fromString) must beLike { case Okay(a2) =>
             (a.length ==== a2.length) and (a zip a2).foldLeft(ok: MatchResult[Any]) { (prev, t) => prev and (t._1 ==== t._2) }
         }
     }
-    def decodeMissing = checkMissing(scalar.byteArrayJsonCoder.decode)
+    def decodeMissingCase = checkMissing(scalar.byteArrayJsonCoder.decode)
 }
 
 class javaEnumJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         javaEnumStringCoder
-            must encode to the correct string $encode
-            must decode from the correct string $decode
-            must fail to decode a missing value $decodeMissing
+            must encode to the correct string $encodeCase
+            must decode from the correct string $decodeCase
+            must fail to decode a missing value $decodeMissingCase
     """
 
     lazy val coder = scalar.javaEnumJsonCoder[JavaEnum]
 
     implicit val arbJavaEnum = Arbitrary(Gen.oneOf(JavaEnum.values().toSeq))
 
-    def encode = prop { (e: JavaEnum) => coder.encode.toString(e) ==== Okay("\"" + e.toString + "\"") }
-    def decode = prop { (e: JavaEnum) => coder.decode.fromString("\"" + e.toString + "\"") ==== Okay(e) }
-    def decodeMissing = checkMissing(coder.decode)
-}
-
-object ScalaEnum extends Enumeration {
-    val BANANA = Value("banana")
-    val APPLE = Value("apple")
-    val CARROT = Value("carrot")
+    def encodeCase = prop { (e: JavaEnum) => coder.encode.toString(e) ==== Okay("\"" + e.toString + "\"") }
+    def decodeCase = prop { (e: JavaEnum) => decode(coder.decode)("\"" + e.toString + "\"") ==== Okay(e) }
+    def decodeMissingCase = checkMissing(coder.decode)
 }
 
 class scalaEnumJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         scalaEnumStringCoder
-            must encode to the correct string $encode
-            must decode from the correct string $decode
-            must fail to decode a missing value $decodeMissing
+            must encode to the correct string $encodeCase
+            must decode from the correct string $decodeCase
+            must fail to decode a missing value $decodeMissingCase
     """
 
     lazy val coder = scalar.scalaEnumJsonCoder[ScalaEnum.type]
 
     implicit val arbScalaEnum = Arbitrary(Gen.oneOf(ScalaEnum.values.toSeq))
 
-    def encode = prop { (e: ScalaEnum.Value) => coder.encode.toString(e) ==== Okay("\"" + e.toString + "\"") }
-    def decode = prop { (e: ScalaEnum.Value) => coder.decode.fromString("\"" + e.toString + "\"") ==== Okay(e) }
-    def decodeMissing = checkMissing(coder.decode)
+    def encodeCase = prop { (e: ScalaEnum.Value) => coder.encode.toString(e) ==== Okay("\"" + e.toString + "\"") }
+    def decodeCase = prop { (e: ScalaEnum.Value) => decode(coder.decode)("\"" + e.toString + "\"") ==== Okay(e) }
+    def decodeMissingCase = checkMissing(coder.decode)
 }
 

@@ -20,9 +20,10 @@ import java.io.{
     InputStream, OutputStream, Reader, Writer,
     ByteArrayInputStream, ByteArrayOutputStream, StringReader, StringWriter
 }
-import scala.annotation.implicitNotFound
+import scala.annotation.{StaticAnnotation, implicitNotFound, tailrec}
+import scala.collection.mutable.Queue
 
-import com.fasterxml.jackson.core.{JsonEncoding, JsonFactory, JsonGenerator, JsonLocation, JsonParser, JsonToken}
+import com.fasterxml.jackson.core.{JsonEncoding, JsonFactory, JsonGenerator, JsonLocation, JsonParser, JsonParseException, JsonToken}
 import scalaz.BijectionT
 
 import com.paytronix.utils.interchange.base.{
@@ -43,6 +44,26 @@ object closeables {
 
 import closeables.{JsonGeneratorCloseable, JsonParserCloseable}
 
+object InterchangeJsonGenerator {
+    /**
+     * Trait of objects which filter objects as they're written, for example to write additional
+     * fields at the beginning or end, or watch what fields are created
+     */
+    trait ObjectFilter {
+        val suppressStartAndEnd: Boolean = false
+        def beginning(): CoderResult[Unit] = Okay.unit
+        def fieldName(name: String): CoderResult[Unit] = Okay.unit
+        def end(): CoderResult[Unit] = Okay.unit
+    }
+
+    object ObjectFilter {
+        val zero = new ObjectFilter {}
+        val flatten = new ObjectFilter {
+            override val suppressStartAndEnd = true
+        }
+    }
+}
+
 /**
  * Wrapper around a `JsonGenerator` which includes additional state for writing out objects correctly.
  *
@@ -51,102 +72,556 @@ import closeables.{JsonGeneratorCloseable, JsonParserCloseable}
  *
  * So, the `InterchangeJsonGenerator` keeps track of the intended field name so the enclosed encoder can trigger
  * writing the field name or not.
+ *
+ * This class essentially encapsulates all the messiness that results from generating JSON incrementally and is not intended
+ * for prettiness.
  */
-final class InterchangeJsonGenerator(val generator: JsonGenerator) {
-    private var latchedFieldName: String = null // yeah null!
+final class InterchangeJsonGenerator(generator: JsonGenerator) {
+    import InterchangeJsonGenerator._
 
-    def aboutToWriteValue(): Unit =
-        if (latchedFieldName != null) { generator.writeFieldName(latchedFieldName); latchedFieldName = null }
+    private var _fieldName: String = null // yeah null!
+    private var _omitNextMissing: Boolean = false
+    private var _nextObjectFilter: ObjectFilter = null
+    private var _objectFilters: List[ObjectFilter] = Nil
 
-    def writeNothing(): CoderResult[Unit] = { latchedFieldName = null; Okay.unit }
-    def writeFieldName(name: String): Unit = { latchedFieldName = name }
+    private def clearLatched(): Unit = {
+        _fieldName = null
+        _omitNextMissing = false
+        _nextObjectFilter = null
+    }
+
+    private def aboutToWriteToken(): CoderResult[Unit] =
+        if (_fieldName != null) {
+            writeFieldNameNotMissing(_fieldName)
+        } else Okay.unit
+
+    def writeNothingOrNull(): CoderResult[Unit] =
+        if (_fieldName == null && !_omitNextMissing) {
+            try {
+                generator.writeNull()
+                clearLatched()
+                Okay.unit
+            } catch {
+                case e: Exception => FailedG(e, CoderFailure.terminal)
+            }
+        } else {
+            clearLatched()
+            Okay.unit
+        }
+
+    def writeFieldName(name: String): CoderResult[Unit] = { _fieldName = name; Okay.unit }
+    def writeFieldNameNotMissing(name: String): CoderResult[Unit] =
+        tryCatch.resultG(terminal) { clearLatched(); generator.writeFieldName(name); Okay.unit } >>
+        (_objectFilters match {
+            case filter :: _ => filter.fieldName(name)
+            case _           => Okay.unit
+        })
+
+    def omitNextMissing(): Unit = { _omitNextMissing = true }
+    def filterNextObject(filter: ObjectFilter): Unit = { _nextObjectFilter = filter}
 
     def writeBoolean(b: Boolean): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeBoolean(b); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeBoolean(b); Okay.unit }
     def writeNumber(s: Short): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeNumber(s); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(s); Okay.unit }
     def writeNumber(i: Int): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeNumber(i); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(i); Okay.unit }
     def writeNumber(l: Long): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeNumber(l); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(l); Okay.unit }
     def writeNumber(f: Float): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeNumber(f); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(f); Okay.unit }
     def writeNumber(d: Double): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeNumber(d); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(d); Okay.unit }
     def writeNumber(bi: java.math.BigInteger): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeNumber(bi); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(bi); Okay.unit }
     def writeNull(): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeNull(); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNull(); Okay.unit }
     def writeString(s: String): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeString(s); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeString(s); Okay.unit }
 
     def writeStartArray(): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeStartArray(); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeStartArray(); Okay.unit }
     def writeEndArray(): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeEndArray(); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeEndArray(); Okay.unit }
 
     def writeStartObject(): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeStartObject(); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        tryCatch.resultG(terminal) {
+            val nextObjectFilter = _nextObjectFilter
+            aboutToWriteToken()
+            if (nextObjectFilter != null) {
+                _objectFilters ::= nextObjectFilter
+                if (!nextObjectFilter.suppressStartAndEnd) generator.writeStartObject()
+                nextObjectFilter.beginning()
+            } else if (_objectFilters.nonEmpty) {
+                // push a null object filter so that the current object filter doesn't get calls until the current object is left
+                _objectFilters ::= ObjectFilter.zero
+                generator.writeStartObject()
+                Okay.unit
+            } else {
+                generator.writeStartObject()
+                Okay.unit
+            }
+        }
     def writeEndObject(): CoderResult[Unit] =
-        try { aboutToWriteValue(); generator.writeEndObject(); Okay.unit }
-        catch { case e: Exception => FailedG(e, CoderFailure.terminal) }
+        tryCatch.resultG(terminal) {
+            clearLatched()
+
+            _objectFilters match {
+                case filter :: tail =>
+                    _objectFilters = tail
+                    filter.end() >> tryCatch.resultG(terminal) {
+                        if (!filter.suppressStartAndEnd) generator.writeEndObject()
+                        Okay.unit
+                    }
+                case _ =>
+                    generator.writeEndObject()
+                    Okay.unit
+            }
+        }
+}
+
+
+object InterchangeJsonParser {
+    /**
+     * Recorded parse event along with any value.
+     *
+     * Recording a long stream of events can cause a bunch of allocs and slowdown as they will be stored in a pretty
+     * inefficient form (BigInteger / BigDecimal / String) to make sure we have the full fidelity version since we won't
+     * know how it will be used later.
+     */
+    sealed abstract class RecordedParseEvent {
+        val token: JsonToken
+    }
+
+    final case class RecordedInteger(value: java.math.BigInteger) extends RecordedParseEvent {
+        val token = JsonToken.VALUE_NUMBER_INT
+    }
+
+    final case class RecordedDecimal(value: java.math.BigDecimal) extends RecordedParseEvent {
+        val token = JsonToken.VALUE_NUMBER_FLOAT
+    }
+
+    final case class RecordedString(value: String) extends RecordedParseEvent {
+        val token = JsonToken.VALUE_STRING
+    }
+
+    final case class RecordedFieldName(field: String) extends RecordedParseEvent {
+        val token = JsonToken.FIELD_NAME
+    }
+
+    case object RecordedStartObject extends RecordedParseEvent { val token = JsonToken.START_OBJECT }
+    case object RecordedEndObject extends RecordedParseEvent { val token = JsonToken.END_OBJECT }
+
+    case object RecordedStartArray extends RecordedParseEvent { val token = JsonToken.START_ARRAY }
+    case object RecordedEndArray extends RecordedParseEvent { val token = JsonToken.END_ARRAY }
+
+    case object RecordedTrue extends RecordedParseEvent { val token = JsonToken.VALUE_TRUE }
+    case object RecordedFalse extends RecordedParseEvent { val token = JsonToken.VALUE_FALSE }
+    case object RecordedNull extends RecordedParseEvent { val token = JsonToken.VALUE_NULL }
+
+    val MIN_BYTE = new java.math.BigInteger("-128")
+    val MAX_BYTE = new java.math.BigInteger("255")
+
+    val MIN_SHORT = new java.math.BigInteger("-32768")
+    val MAX_SHORT = new java.math.BigInteger("65535")
+
+    val MIN_INT = new java.math.BigInteger("-2147483648")
+    val MAX_INT = new java.math.BigInteger("4294967295")
+
+    val MIN_LONG = new java.math.BigInteger("-9223372036854775808")
+    val MAX_LONG = new java.math.BigInteger("18446744073709551615")
+
+    final class Mark private[json] (val point: RecordBuffer) {
+        var consumed: Boolean = false
+
+        override def toString = s"Mark($point, consumed=$consumed)"
+    }
+
+    private[json] final class RecordBuffer(val event: RecordedParseEvent, val location: JsonLocation) {
+        var next: RecordBuffer = null
+
+        override def toString = {
+            var i = 0
+            var b = next
+            while (b != null) {
+                i += 1
+                b = b.next
+            }
+            s"RecordBuffer($event, <location>, next=<$i more>)"
+        }
+    }
 }
 
 /**
- * Wrapper around a `JsonParser` which includes additional state to support missing values.
+ * Wrapper around a `JsonParser` which includes additional state to support missing values and record/rewind.
  *
  * Because the object decoding incrementally walks through field names and so knows which fields are missing by the end
  * but things like `nullableJsonDecoder` and `optionJsonDecoder` are what handles missing values, those decoders need to
  * be run but have it signalled to them that the value is missing.
+ *
+ * Unions are encoded intensionally with an additional field indicating which union alternative was encoded, so for decoding
+ * those the union decoder needs to scan ahead into the object of find the discriminant, then rewind and replay the visited
+ * tokens back to the alternate decoder.
  */
-final class InterchangeJsonParser(val parser: JsonParser) {
-    private var _nextValueIsMissing   = false
+final class InterchangeJsonParser(parser: JsonParser) {
+    import InterchangeJsonParser._
+
+    private var _currentValueIsMissing   = false
     private var _didCheckMissingValue = false // make sure to fail fast if anybody doesn't call `hasNextToken`
+    private var _replaying: RecordBuffer = null
+    private var _recording: RecordBuffer = null
+    private var _activeMarks: List[Mark] = Nil
 
-    def hasNextToken: Boolean = {
+    /** Yield `true` if the current value is missing and `currentToken` should not be called */
+    def hasValue: Boolean = {
         _didCheckMissingValue = true
-        !_nextValueIsMissing
+        !_currentValueIsMissing
     }
 
-    def nextValueIsMissing(): Unit = {
+    /** Signal that the current value is missing and that `currentToken` should fail because there is no valid token to give */
+    def currentValueIsMissing(): Unit = {
         _didCheckMissingValue = false
-        _nextValueIsMissing = true
+        _currentValueIsMissing = true
     }
 
-    def nextToken(): JsonToken =
-        if (!_didCheckMissingValue)
-            sys.error("decoder should have checked whether a value was present prior to calling nextToken")
+    /** Yield the current (i.e. most recently read) token */
+    def currentToken: JsonToken =
+        if (!_didCheckMissingValue) sys.error("decoder should have checked whether a value was present prior to calling currentToken")
+        else if (_replaying == null) parser.getCurrentToken
+        else _replaying.event.token
+
+    /** Yield the location of the current token in the source material or `JsonLocation.NA` if not available */
+    def currentLocation: JsonLocation =
+        if (_replaying == null) parser.getCurrentLocation
+        else _replaying.location
+
+
+    /** Move the parser forward to the next token from the input. */
+    def advanceToken(): CoderResult[Unit] = {
+        _didCheckMissingValue = false
+        _currentValueIsMissing = false
+        _advance()
+    }
+
+
+    /**
+     * Move the parser forward to the next token from the input but don't require a call to `hasValue` to follow.
+     * This is the "real" form of `advanceToken` without the missing value protection.
+     */
+    def advanceTokenUnguarded(): CoderResult[Unit] = {
+        _didCheckMissingValue = true
+        _currentValueIsMissing = false
+        _advance()
+    }
+
+    /** Mark the current location in the token stream and allow resuming to that point with `rewind` */
+    def mark(): Mark = {
+        if (!_didCheckMissingValue) sys.error("decoder should have checked whether a value was present prior to calling mark")
+
+        val point =
+            if (_replaying == null) {
+                // marking while reading from the parser, so set the recording point and use that
+                _recording = _record()
+                _recording
+            } else {
+                // marking while replaying, so just snap another copy of the replay point
+                _replaying
+            }
+
+        val m = new Mark(point)
+        _activeMarks ::= m
+        //println(s"mark(): _recording = ${_recording} replaying = ${_replaying}, _activeMarks = ${_activeMarks}, mark = $m")
+        m
+    }
+
+    /** Rewind to a given marked location */
+    def rewind(m: Mark): Unit =
+        if (m.consumed) sys.error("attempted to rewind back to consumed mark")
         else {
-            _didCheckMissingValue = false
-            _nextValueIsMissing = false
-            parser.nextToken()
+            _replaying = m.point
+            m.consumed = true
+            _activeMarks = _activeMarks.filterNot(_ == m)
+            _didCheckMissingValue = true // mark blows up if you haven't checked
+            _currentValueIsMissing = false
+            //println(s"rewind($m): _replaying = ${_replaying}, _activeMarks = ${_activeMarks}, _recording = ${_recording}")
+
         }
+
+    /** Perform some excursion into future JSON data, rewinding back to the beginning of the excursion when the enclosed function returns */
+    def excursion[A](f: => A): A = {
+        val m = mark()
+        try f finally rewind(m)
+    }
+
+
+    private def _advance(): CoderResult[Unit] = {
+        //println(s"_advance(): _replaying = ${_replaying}, _activeMarks = ${_activeMarks}, _recording = ${_recording}")
+        if (_replaying == null || _replaying.next == null) {
+            _replaying = null
+
+            // not replaying or there is no more to replay, so read from the underlying parser
+            val res = tryCatch.resultG(terminal) {
+                parser.nextToken()
+                Okay.unit
+            }
+
+            if (_activeMarks.nonEmpty) {
+                // but if there are active marks we should record what we just read and advance the recording point
+                val buf = _record()
+                _recording.next = buf
+                _recording = buf
+            } else {
+                // if no active marks, no reason to record so make sure to clear that
+                _recording = null
+            }
+
+            res
+        } else {
+            // _replaying is non-null and has more links, so just advance to the next link and call it a day
+            _replaying = _replaying.next
+            Okay.unit
+        }
+    }
+
+    private def _record(): RecordBuffer =
+        _replaying match {
+            case null =>
+                val event = parser.getCurrentToken match {
+                    case JsonToken.VALUE_NULL         => RecordedNull
+                    case JsonToken.VALUE_TRUE         => RecordedTrue
+                    case JsonToken.VALUE_FALSE        => RecordedFalse
+                    case JsonToken.VALUE_STRING       => RecordedString(parser.getText)
+                    case JsonToken.VALUE_NUMBER_INT   => RecordedInteger(parser.getBigIntegerValue)
+                    case JsonToken.VALUE_NUMBER_FLOAT => RecordedDecimal(parser.getDecimalValue)
+                    case JsonToken.START_ARRAY        => RecordedStartArray
+                    case JsonToken.END_ARRAY          => RecordedEndArray
+                    case JsonToken.START_OBJECT       => RecordedStartObject
+                    case JsonToken.END_OBJECT         => RecordedEndObject
+                    case JsonToken.FIELD_NAME         => RecordedFieldName(parser.getCurrentName)
+                    case other => sys.error(s"unexpected JSON token $other that shouldn't show up for normal JSON parser")
+                }
+
+                val buf = new RecordBuffer(event, parser.getCurrentLocation)
+                //println(s"_record(): new buf = $buf")
+                buf
+
+            case buf =>
+                sys.error("_record() called when not reading from the parser")
+        }
+
+    private def replayingEvent: RecordedParseEvent =
+        if (_replaying == null) null
+        else _replaying.event
+
+    private def inBound(bi: java.math.BigInteger, min: java.math.BigInteger, max: java.math.BigInteger): Boolean =
+        bi.compareTo(min) >= 0 && bi.compareTo(max) <= 0
+
+    /** Yield the current integer value as a `Byte`, throwing `JsonParseException` if the current value is out of bounds or not an integer */
+    def byteValue: Byte =
+        replayingEvent match {
+            case null                                                   => parser.getByteValue
+            case RecordedInteger(bi) if inBound(bi, MAX_BYTE, MIN_BYTE) => throw new JsonParseException("number out of bounds", currentLocation)
+            case RecordedInteger(bi)                                    => bi.byteValue
+            case _                                                      => throw new JsonParseException("not an integer", currentLocation)
+        }
+
+    /** Yield the current integer value as a `Short`, throwing `JsonParseException` if the current value is out of bounds or not an integer */
+    def shortValue: Short =
+        replayingEvent match {
+            case null                                                     => parser.getShortValue
+            case RecordedInteger(bi) if inBound(bi, MAX_SHORT, MIN_SHORT) => throw new JsonParseException("number out of bounds", currentLocation)
+            case RecordedInteger(bi)                                      => bi.shortValue
+            case _                                                        => throw new JsonParseException("not an integer", currentLocation)
+        }
+
+    /** Yield the current integer value as a `Int`, throwing `JsonParseException` if the current value is out of bounds or not an integer */
+    def intValue: Int =
+        replayingEvent match {
+            case null                                                 => parser.getIntValue
+            case RecordedInteger(bi) if inBound(bi, MAX_INT, MIN_INT) => throw new JsonParseException("number out of bounds", currentLocation)
+            case RecordedInteger(bi)                                  => bi.intValue
+            case _                                                    => throw new JsonParseException("not an integer", currentLocation)
+        }
+
+    /** Yield the current integer value as a `Short`, throwing `JsonParseException` if the current value is out of bounds or not an integer */
+    def longValue: Long =
+        replayingEvent match {
+            case null                                                   => parser.getLongValue
+            case RecordedInteger(bi) if inBound(bi, MAX_LONG, MIN_LONG) => throw new JsonParseException("number out of bounds", currentLocation)
+            case RecordedInteger(bi)                                    => bi.longValue
+            case _                                                      => throw new JsonParseException("not an integer", currentLocation)
+        }
+
+    /** Yield the current integer value as a `BigInteger`, throwing `JsonParseException` if the current value is not an integer */
+    def bigIntegerValue: java.math.BigInteger =
+        replayingEvent match {
+            case null                => parser.getBigIntegerValue
+            case RecordedInteger(bi) => bi
+            case _                   => throw new JsonParseException("not an integer", currentLocation)
+        }
+
+    /** Yield the current decimal value as a `Float`, throwing `JsonParseException` if the current value is not a decimal */
+    def floatValue: Float =
+        replayingEvent match {
+            case null                => parser.getFloatValue
+            case RecordedDecimal(bd) => bd.floatValue
+            case _                   => throw new JsonParseException("not a decimal", currentLocation)
+        }
+
+    /** Yield the current decimal value as a `Double`, throwing `JsonParseException` if the current value is not a decimal */
+    def doubleValue: Double =
+        replayingEvent match {
+            case null                => parser.getDoubleValue
+            case RecordedDecimal(bd) => bd.doubleValue
+            case _                   => throw new JsonParseException("not a decimal", currentLocation)
+        }
+
+    /** Yield the current decimal value as a `BigDecimal`, throwing `JsonParseException` if the current value is not a decimal */
+    def bigDecimalValue: java.math.BigDecimal =
+        replayingEvent match {
+            case null                => parser.getDecimalValue
+            case RecordedDecimal(bd) => bd
+            case _                   => throw new JsonParseException("not a decimal", currentLocation)
+        }
+
+    /** Yield the current string value, throwing `JsonParseException` if the current value is not a string */
+    def stringValue: String =
+        replayingEvent match {
+            case null              => parser.getText
+            case RecordedString(s) => s
+            case _                 => throw new JsonParseException("not a string", currentLocation)
+        }
+
+    /** Yield the current field name, throwing `JsonParseException` if the current value is not a field */
+    def fieldName: String =
+        replayingEvent match {
+            case null                 => parser.getCurrentName
+            case RecordedFieldName(s) => s
+            case _                    => throw new JsonParseException("not a field name", currentLocation)
+        }
+
+    /** Peek at the fields of the current object (expecting `currentToken` to be `START_OBJECT`) extracting the string value of each */
+    def peekFields(names: Array[String]): CoderResult[Array[Option[String]]] =
+        excursion {
+            val out = Array.fill(names.length)(None: Option[String])
+            var found = 0
+            val skip = FailedG("done peeking fields", CoderFailure.terminal)
+            foreachFields { name =>
+                names.indexOf(name) match {
+                    case -1 => skipToEndOfValue()
+                    case n =>
+                        if (out(n) == None) found += 1
+                        out(n) = Some(stringValue)
+
+                        if (found == names.length) skip
+                        else skipToEndOfValue()
+                }
+            } match {
+                case (_: Okay[_])|`skip` =>
+                    Okay(out)
+                case failed: FailedG[_] =>
+                    failed
+            }
+        }
+
+    /** Skip past the current value, even if it's complicated */
+    def skipToEndOfValue(): CoderResult[Unit] =
+        tryCatch.resultG(terminal) {
+            def go(depth: Int): Unit =
+                currentToken match {
+                    case JsonToken.START_OBJECT|JsonToken.START_ARRAY =>
+                        advanceTokenUnguarded().orThrow
+                        go(depth+1)
+                    case JsonToken.END_OBJECT|JsonToken.END_ARRAY if depth == 1 =>
+                        ()
+                    case JsonToken.END_OBJECT|JsonToken.END_ARRAY =>
+                        advanceTokenUnguarded().orThrow
+                        go(depth-1)
+                    case _ if depth == 0 =>
+                        ()
+                    case null =>
+                        sys.error("EOF reached while skipping")
+                    case _ =>
+                        advanceTokenUnguarded().orThrow
+                        go(depth)
+                }
+            go(0)
+            Okay.unit
+        }
+
+    /**
+     * While positioned at the start of an object, call the function for each field in the enclosed object.
+     * If any invocation of the function fails, abort the parse
+     */
+    def foreachFields(f: String => CoderResult[Unit]): CoderResult[Unit] =
+        require(JsonToken.START_OBJECT) >>
+        {
+            @tailrec
+            def iterate(): CoderResult[Unit] = {
+                var atEnd = false
+                val fieldResult = advanceTokenUnguarded() >> {
+                    currentToken match {
+                        case JsonToken.FIELD_NAME =>
+                            val n = fieldName
+                            advanceTokenUnguarded() >> f(n)
+                        case JsonToken.END_OBJECT =>
+                            atEnd = true
+                            Okay.unit
+                        case _ =>
+                            unexpectedToken("field name")
+                    }
+                }
+
+                fieldResult match {
+                    case _: Okay[_] if !atEnd =>
+                        iterate()
+                    case other =>
+                        other
+                }
+            }
+
+            iterate()
+        }
+
+    /** Fail if the current token is not the given one */
+    def require(token: JsonToken): CoderResult[Unit] =
+        if (!hasValue || currentToken != token) unexpectedToken(token.toString)
+        else Okay.unit
+
+    /** Fail if the current token is not the given one */
+    def requireValue: CoderResult[Unit] =
+        if (!hasValue) unexpectedMissingValue
+        else Okay.unit
 
     /** Format an error indicating that the current token was unexpected */
     def unexpectedToken(expectedWhat: String): CoderResult[Unit] = {
-        val what = parser.getCurrentToken.toString
+        val what =
+            if (!hasValue) "missing value"
+            else currentToken match {
+                case null                         => "EOF"
+                case JsonToken.FIELD_NAME         => s""" field "$fieldName" """.trim
+                case JsonToken.VALUE_FALSE        => s"false"
+                case JsonToken.VALUE_TRUE         => s"true"
+                case JsonToken.VALUE_NULL         => s"null"
+                case JsonToken.VALUE_NUMBER_INT   => s"integer ($bigIntegerValue)"
+                case JsonToken.VALUE_NUMBER_FLOAT => s"decimal ($bigDecimalValue)"
+                case JsonToken.VALUE_STRING       => s"string ($stringValue)"
+                case JsonToken.START_OBJECT       => s"start of object ({)"
+                case JsonToken.END_OBJECT         => s"end of object (})"
+                case JsonToken.START_ARRAY        => s"start of array ([)"
+                case JsonToken.END_ARRAY          => s"end of array (])"
+                case other => other.toString
+            }
         FailedG(s"expected $expectedWhat but instead got $what", terminal)
     }
 
     /** Format an error indicating a value was expected but missing */
-    def missingValue: CoderResult[Unit] =
+    def unexpectedMissingValue: CoderResult[Unit] =
         FailedG("required but missing", terminal)
 
     /** Compute the path name and source position of the JSON parser for use in error messages */
     def sourceLocation: Option[String] =
-        parser.getCurrentLocation match {
+        currentLocation match {
             case loc if loc == JsonLocation.NA => None
             case loc                           => Some(s"${loc.getLineNr}:${loc.getColumnNr}")
         }
@@ -189,14 +664,36 @@ trait JsonEncoderLPI {
     implicit def fromCoder[A](implicit coder: JsonCoder[A]): JsonEncoder[A] = coder.encode
 }
 
+/** Common attributes of both `JsonEncoder` and `JsonDecoder` */
+trait JsonEncoderOrDecoder {
+    /**
+     * Whether this coder might encode to `null` and therefore need a wrapper.
+     * The primary use case of this is stacked `Option`s - in the case of `Option[Option[String]]` for example, it's impossible to tell
+     * whether `null` means `None` or `Some(None)` so this bit is investigated by the outer `Option` coder and if `true` then the outer coder
+     * will wrap a `Some` with a one-element array, so that `Some(Some("foo"))` encodes as `["foo"]`, `Some(None)` encodes as `[]` and `None`
+     * encodes as nothing or `null` like `Option[String]` would.
+     */
+    val mightBeNull: Boolean
+
+    /**
+     * Whether this coder will encode/decode from an object.
+     * Used so that coders which want to add fields to / look at fields of an object encoded by this coder,
+     * such as union coders using an intensional discriminant field ("type" field).
+     */
+    val codesAsObject: Boolean
+}
+
 /** Encoder which encodes JSON incrementally via a Jackson `JsonGenerator` */
 @implicitNotFound(msg="No JsonEncoder for ${A} found in the implicit scope. Perhaps you forgot to import something from com.paytronix.utils.interchange.format.json.coders, or need to add some @derive annotations")
-trait JsonEncoder[A] extends Encoder[A, JsonFormat.type] { outer =>
+trait JsonEncoder[A] extends Encoder[A, JsonFormat.type] with JsonEncoderOrDecoder { outer =>
     /** Map a function over this encoder, yielding an encoder which takes in values of type `B` */
     def map[B](f: B => A): JsonEncoder[B] = mapKleisli(b => Okay(f(b)))
 
     /** Map a kleisli (function which may fail gracefully) over this encoder, yielding an encoder which takes in values of type `B` */
     def mapKleisli[B](k: B => Result[A]): JsonEncoder[B] = new JsonEncoder[B] {
+        val mightBeNull = outer.mightBeNull
+        val codesAsObject = outer.codesAsObject
+
         def run(b: B, sink: InterchangeJsonGenerator) = atTerminal(k(b)) >>= { outer.run(_, sink) }
     }
 
@@ -252,14 +749,17 @@ trait JsonDecoderLPI {
     implicit def fromCoder[A](implicit coder: JsonCoder[A]): JsonDecoder[A] = coder.decode
 }
 
-/** Decoder which consumes binary data in the Avro format via an Avro `ResolvingDecoder` */
+/** Decoder which consumes JSON via a the Jackson `JsonParser`, as wrapped with a `InterchangeJsonParser` which manages Interchange parsing state */
 @implicitNotFound(msg="No JsonDecoder for ${A} found in the implicit scope. Perhaps you forgot to import something from com.paytronix.utils.interchange.format.json.coders, or need to add some @derive annotations")
-trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] { outer =>
+trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] with JsonEncoderOrDecoder { outer =>
     /** Map a function over this decoder, yielding an decoder which produces values of type `B` by transforming `A`s using the given function */
     def map[B](f: A => B): JsonDecoder[B] = mapKleisli(a => Okay(f(a)))
 
     /** Map a kleisli (function which may fail gracefully) over this decoder, yielding an decoder which produces values of type `B` */
     def mapKleisli[B](k: A => Result[B]): JsonDecoder[B] = new JsonDecoder[B] {
+        val mightBeNull = outer.mightBeNull
+        val codesAsObject = outer.codesAsObject
+
         def run(source: InterchangeJsonParser, outB: Receiver[B]) = {
             val outA = new Receiver[A]
             outer.run(source, outA) match {
@@ -272,6 +772,10 @@ trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] { outer =>
             }
         }
     }
+
+    /** Wrap this decoder with a `defaultJsonDecoder` to provide a default in the case where the value is missing or null */
+    def default(value: A): JsonDecoder[A] =
+        container.defaultJsonDecoder(value)(this)
 
     /** Attempt conversion of a byte array to a value of the mapped type */
     def fromBytes(in: Array[Byte])(implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[A] =
@@ -316,7 +820,8 @@ trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] { outer =>
      */
     def fromParser(in: JsonParser): Result[A] = {
         val receiver = new Receiver[A]
-        formatFailedPath(run(new InterchangeJsonParser(in), receiver)) map { _ => receiver.value }
+        val ijp = new InterchangeJsonParser(in)
+        tryCatch.value(ijp.advanceToken()) >> formatFailedPath(run(ijp, receiver)).map { _ => receiver.value }
     }
 }
 
@@ -354,4 +859,43 @@ trait JsonCoder[A] extends Coder[JsonEncoder, JsonDecoder, A, JsonFormat.type] {
      */
     def mapBijection[B](bijection: BijectionT[Result, Result, B, A]) =
         JsonCoder.make(encode.mapKleisli(bijection.to), decode.mapKleisli(bijection.from))
+
+    /** Wrap the decoder with a `defaultJsonDecoder` to provide a default in the case where the value is missing or null */
+    def default(value: A): JsonCoder[A] =
+        JsonCoder.make(encode, decode.default(value))
 }
+
+/**
+ * Specify that a field's value should "flatten" into the enclosing object rather than being a discrete field.
+ *
+ * For example, the usual coding of:
+ *
+ *     @derive.structure.implicitCoder
+ *     final case class Foo(a: Int, b: Bar)
+ *     @derive.structure.implicitCoder
+ *     final case class Bar(c: Int, d: Int)
+ *
+ * would be:
+ *
+ *     {
+ *         "a": 123,
+ *         "b": { "c": 123, "d": 123 }
+ *     }
+ *
+ * however if flattening is turned on for Bar:
+ *
+ *     @derive.structure.implicitCoder
+ *     final case class Foo(a: Int, @flatten b: Bar)
+ *     @derive.structure.implicitCoder
+ *     final case class Bar(c: Int, d: Int)
+ *
+ * then that coding becomes;
+ *
+ *     {
+ *         "a": 123,
+ *         "c": 123, "d": 123
+ *     }
+ */
+class flatten extends StaticAnnotation
+
+

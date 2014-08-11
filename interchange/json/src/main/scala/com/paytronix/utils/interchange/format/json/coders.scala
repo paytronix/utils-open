@@ -16,4 +16,4 @@
 
 package com.paytronix.utils.interchange.format.json
 
-object coders extends scalar // with container with tuple
+object coders extends scalar with container with tuple

@@ -240,19 +240,19 @@ trait container extends containerLPI {
         s
     }
 
-    val missingSchema = {
+    private val missingSchema = {
         val s = Schema.createRecord("__Missing", "", "com.paytronix.utils.scala.result", false)
         s.setFields(Arrays.asList())
         s
     }
 
-    def okaySchema(value: Schema, valueDefault: Option[JsonNode]): Schema = {
+    private def okaySchema(value: Schema, valueDefault: Option[JsonNode]): Schema = {
         val s = Schema.createRecord("Okay__" + encodeSchemaName(value), "", "com.paytronix.utils.scala.result", false)
         s.setFields(Arrays.asList(makeField("value", value, valueDefault, "")))
         s
     }
 
-    def failedSchema(param: Schema, paramDefault: Option[JsonNode]): Schema = {
+    private def failedSchema(param: Schema, paramDefault: Option[JsonNode]): Schema = {
         val s = Schema.createRecord (
             if (param.getType == Schema.Type.NULL) "Failed"
             else "FailedG__" + encodeSchemaName(param),
@@ -267,18 +267,20 @@ trait container extends containerLPI {
         s
     }
 
-    def resultGSchema (
+    private def resultGSchema (
         param: Schema, paramDefault: Option[JsonNode],
         value: Schema, valueDefault: Option[JsonNode]
     ): Schema =
         Schema.createUnion(Arrays.asList(missingSchema, okaySchema(value, valueDefault), failedSchema(param, paramDefault)))
 
+    /** Coder for `ResultG[E, A]`. Encodes as a union of [missing, failed, okay] with each a structure */
     def resultGAvroCoder[E, A]
         (paramCoder: AvroCoder[E], valueCoder: AvroCoder[A])
         (implicit paramDefault: FailedParameterDefault[E], interchangeClassLoader: InterchangeClassLoader)
         : AvroCoder[ResultG[E, A]] =
         resultGAvroCoder(paramCoder.encode, valueCoder.encode, paramCoder.decode, valueCoder.decode, paramDefault, interchangeClassLoader)
 
+    /** Coder for `ResultG[E, A]`. Encodes as a union of [missing, failed, okay] with each a structure */
     implicit def resultGAvroCoder[E, A] (
         implicit paramEncoder: AvroEncoder[E],
                  valueEncoder: AvroEncoder[A],
@@ -289,6 +291,7 @@ trait container extends containerLPI {
     ): AvroCoder[ResultG[E, A]] =
         AvroCoder.make(resultGAvroEncoder[E, A], resultGAvroDecoder[E, A])
 
+    /** Encoder for `ResultG[E, A]`. Encodes as a union of [missing, failed, okay] with each a structure */
     def resultGAvroEncoder[E, A] (
         implicit paramEncoder: AvroEncoder[E],
                  valueEncoder: AvroEncoder[A]
@@ -345,6 +348,7 @@ trait container extends containerLPI {
         }
     }
 
+    /** Decoder for `ResultG[E, A]`. Decodes from a union of [missing, failed, okay] with each a structure */
     def resultGAvroDecoder[E, A] (
         implicit paramDecoder: AvroDecoder[E],
                  valueDecoder: AvroDecoder[A],

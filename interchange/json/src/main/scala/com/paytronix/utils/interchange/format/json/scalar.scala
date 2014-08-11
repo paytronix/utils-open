@@ -41,24 +41,31 @@ trait scalar {
     /** JsonCoder for Unit. Does not emit any value */
     implicit object unitJsonCoder extends JsonCoder[Unit] {
         object encode extends JsonEncoder[Unit] {
+            val mightBeNull = true
+            val codesAsObject = false
+
             def run(in: Unit, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
-                    out.writeNothing()
+                    out.writeNothingOrNull()
                     Okay.unit
                 }
         }
 
         object decode extends JsonDecoder[Unit] {
-            def run(in: InterchangeJsonParser, out: Receiver[Unit]) = {
-                if (in.hasNextToken) in.nextToken
+            val mightBeNull = true
+            val codesAsObject = false
+
+            def run(in: InterchangeJsonParser, out: Receiver[Unit]) =
                 out(())
-            }
         }
     }
 
     /** JsonCoder for Boolean. Encodes as a JSON boolean */
     implicit object booleanJsonCoder extends JsonCoder[Boolean] {
         object encode extends JsonEncoder[Boolean] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Boolean, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeBoolean(in)
@@ -66,14 +73,18 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Boolean] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Boolean]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL   => in.missingValue
-                    case JsonToken.VALUE_TRUE   => out(true)
-                    case JsonToken.VALUE_FALSE  => out(false)
-                    case JsonToken.VALUE_STRING => booleanStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case _                      => in.unexpectedToken("a boolean, \"true\", or \"false\"")
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL   => in.unexpectedMissingValue
+                        case JsonToken.VALUE_TRUE   => out(true)
+                        case JsonToken.VALUE_FALSE  => out(false)
+                        case JsonToken.VALUE_STRING => booleanStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case _                      => in.unexpectedToken("a boolean, \"true\", or \"false\"")
+                    }
                 }
         }
     }
@@ -81,6 +92,9 @@ trait scalar {
     /** JsonCoder for Byte. Encodes as a JSON number */
     implicit object byteJsonCoder extends JsonCoder[Byte] {
         object encode extends JsonEncoder[Byte] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Byte, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeNumber(in)
@@ -88,17 +102,21 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Byte] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Byte]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => byteStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT =>
-                        try out(in.parser.getByteValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("an integer")
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => byteStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT =>
+                            try out(in.byteValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("an integer")
+                    }
                 }
         }
     }
@@ -106,6 +124,9 @@ trait scalar {
     /** JsonCoder for Short. Encodes as a JSON number */
     implicit object shortJsonCoder extends JsonCoder[Short] {
         object encode extends JsonEncoder[Short] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Short, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeNumber(in)
@@ -113,17 +134,21 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Short] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Short]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => shortStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT =>
-                        try out(in.parser.getShortValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("an integer")
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => shortStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT =>
+                            try out(in.shortValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("an integer")
+                    }
                 }
         }
     }
@@ -131,6 +156,9 @@ trait scalar {
     /** JsonCoder for Int. Encodes as a JSON number */
     implicit object intJsonCoder extends JsonCoder[Int] {
         object encode extends JsonEncoder[Int] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Int, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeNumber(in)
@@ -138,17 +166,21 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Int] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Int]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => intStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT =>
-                        try out(in.parser.getIntValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("an integer")
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => intStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT =>
+                            try out(in.intValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("an integer")
+                    }
                 }
         }
     }
@@ -156,6 +188,9 @@ trait scalar {
     /** JsonCoder for Long. Encodes as a JSON number */
     implicit object longJsonCoder extends JsonCoder[Long] {
         object encode extends JsonEncoder[Long] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Long, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeNumber(in)
@@ -163,17 +198,21 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Long] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Long]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => longStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT =>
-                        try out(in.parser.getLongValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("an integer")
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => longStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT =>
+                            try out(in.longValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("an integer")
+                    }
                 }
         }
     }
@@ -181,6 +220,9 @@ trait scalar {
     /** JsonCoder for Float. Encodes as a JSON number */
     implicit object floatJsonCoder extends JsonCoder[Float] {
         object encode extends JsonEncoder[Float] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Float, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeNumber(in)
@@ -188,17 +230,21 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Float] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Float]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => floatStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT|JsonToken.VALUE_NUMBER_FLOAT =>
-                        try out(in.parser.getFloatValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("a number")
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => floatStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT|JsonToken.VALUE_NUMBER_FLOAT =>
+                            try out(in.floatValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("a number")
+                    }
                 }
         }
     }
@@ -206,6 +252,9 @@ trait scalar {
     /** JsonCoder for Double. Encodes as a JSON number */
     implicit object doubleJsonCoder extends JsonCoder[Double] {
         object encode extends JsonEncoder[Double] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Double, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeNumber(in)
@@ -213,17 +262,21 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Double] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Double]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => doubleStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT|JsonToken.VALUE_NUMBER_FLOAT =>
-                        try out(in.parser.getDoubleValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("a number")
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => doubleStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT|JsonToken.VALUE_NUMBER_FLOAT =>
+                            try out(in.doubleValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("a number")
+                    }
                 }
         }
     }
@@ -231,6 +284,9 @@ trait scalar {
     /** JsonCoder for `java.math.BigInteger`. Encodes as a JSON string (to avoid issues with overflow) */
     implicit object javaBigIntegerJsonCoder extends JsonCoder[java.math.BigInteger] {
         object encode extends JsonEncoder[java.math.BigInteger] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: java.math.BigInteger, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeString(in.toString)
@@ -238,18 +294,22 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[java.math.BigInteger] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[java.math.BigInteger]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => javaBigIntegerStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT =>
-                        try out(in.parser.getBigIntegerValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("a string or integer")
-            }
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => javaBigIntegerStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT =>
+                            try out(in.bigIntegerValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("a string or integer")
+                    }
+                }
         }
     }
 
@@ -262,6 +322,9 @@ trait scalar {
     /** JsonCoder for `java.math.BigDecimal`. Encodes as a JSON string (to avoid issues with precision of IEEE754) */
     implicit object javaBigDecimalJsonCoder extends JsonCoder[java.math.BigDecimal] {
         object encode extends JsonEncoder[java.math.BigDecimal] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: java.math.BigDecimal, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeString(in.toString)
@@ -269,23 +332,27 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[java.math.BigDecimal] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[java.math.BigDecimal]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => javaBigDecimalStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case JsonToken.VALUE_NUMBER_INT =>
-                        try out(new java.math.BigDecimal(in.parser.getBigIntegerValue)) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case JsonToken.VALUE_NUMBER_FLOAT =>
-                        try out(in.parser.getDecimalValue) catch {
-                            case _: JsonParseException => FailedG("number out of bounds", in.terminal)
-                            case e: Exception          => FailedG(e, in.terminal)
-                        }
-                    case _ => in.unexpectedToken("a string or number")
-            }
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => javaBigDecimalStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NUMBER_INT =>
+                            try out(new java.math.BigDecimal(in.bigIntegerValue)) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case JsonToken.VALUE_NUMBER_FLOAT =>
+                            try out(in.bigDecimalValue) catch {
+                                case _: JsonParseException => FailedG("number out of bounds", in.terminal)
+                                case e: Exception          => FailedG(e, in.terminal)
+                            }
+                        case _ => in.unexpectedToken("a string or number")
+                    }
+                }
         }
     }
 
@@ -298,6 +365,9 @@ trait scalar {
     /** JsonCoder for `Char`. Encodes as a JSON string of one character */
     implicit object charJsonCoder extends JsonCoder[Char] {
         object encode extends JsonEncoder[Char] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Char, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeString(in.toString)
@@ -305,19 +375,26 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[Char] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Char]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => charStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case _ => in.unexpectedToken("a string with one character")
-            }
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => charStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case _ => in.unexpectedToken("a string with one character")
+                    }
+                }
         }
     }
 
     /** JsonCoder for `String`. Encodes as a JSON string */
     implicit object stringJsonCoder extends JsonCoder[String] {
         object encode extends JsonEncoder[String] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: String, out: InterchangeJsonGenerator) =
                 tryCatch.resultG(terminal) {
                     out.writeString(in)
@@ -325,19 +402,26 @@ trait scalar {
                 }
         }
         object decode extends JsonDecoder[String] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[String]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => out(in.parser.getText)
-                    case _ => in.unexpectedToken("a string")
-            }
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => out(in.stringValue)
+                        case _ => in.unexpectedToken("a string")
+                    }
+                }
         }
     }
 
     /** JsonCoder for `java.nio.ByteBuffer`. Encodes as a JSON string */
     implicit object byteBufferJsonCoder extends JsonCoder[ByteBuffer] {
         object encode extends JsonEncoder[ByteBuffer] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: ByteBuffer, out: InterchangeJsonGenerator) = {
                 val r = new Receiver[String]
                 byteBufferStringCoder.encode.run(in, r) >> tryCatch.resultG(terminal) {
@@ -347,19 +431,26 @@ trait scalar {
             }
         }
         object decode extends JsonDecoder[ByteBuffer] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[ByteBuffer]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => byteBufferStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case _ => in.unexpectedToken("a string with base64 formatted content")
-            }
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => byteBufferStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case _ => in.unexpectedToken("a string with base64 formatted content")
+                    }
+                }
         }
     }
 
     /** JsonCoder for `Array[Byte]`. Encodes as a JSON string */
     implicit object byteArrayJsonCoder extends JsonCoder[Array[Byte]] {
         object encode extends JsonEncoder[Array[Byte]] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: Array[Byte], out: InterchangeJsonGenerator) = {
                 val r = new Receiver[String]
                 byteArrayStringCoder.encode.run(in, r) >> tryCatch.resultG(terminal) {
@@ -369,13 +460,17 @@ trait scalar {
             }
         }
         object decode extends JsonDecoder[Array[Byte]] {
+            val mightBeNull = false
+            val codesAsObject = false
+
             def run(in: InterchangeJsonParser, out: Receiver[Array[Byte]]) =
-                if (!in.hasNextToken) in.missingValue
-                else in.nextToken() match {
-                    case JsonToken.VALUE_NULL       => in.missingValue
-                    case JsonToken.VALUE_STRING     => byteArrayStringCoder.decode.run(in.parser.getText, out) orElse in.noteSourceLocation
-                    case _ => in.unexpectedToken("a string with base64 formatted content")
-            }
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => byteArrayStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case _ => in.unexpectedToken("a string with base64 formatted content")
+                    }
+                }
         }
     }
 
@@ -386,6 +481,9 @@ trait scalar {
 
         class javaEnumJsonCoder extends JsonCoder[A] {
             object encode extends JsonEncoder[A] {
+                val mightBeNull = false
+                val codesAsObject = false
+
                 def run(in: A, out: InterchangeJsonGenerator) =
                     tryCatch.resultG(terminal) {
                         out.writeString(in.toString)
@@ -393,15 +491,19 @@ trait scalar {
                     }
             }
             object decode extends JsonDecoder[A] {
+                val mightBeNull = false
+                val codesAsObject = false
+
                 def run(in: InterchangeJsonParser, out: Receiver[A]) =
-                    if (!in.hasNextToken) in.missingValue
-                    else in.nextToken() match {
-                        case JsonToken.VALUE_NULL   => in.missingValue
-                        case JsonToken.VALUE_STRING =>
-                            tryCatching[IllegalArgumentException].resultG(in.terminal) {
-                                out(Enum.valueOf(enumClass, in.parser.getText))
-                            } | s""""${in.parser.getText}" is not a valid enumeration value (valid values: ${enumValues.map(_.toString).mkString(", ")})"""
-                        case _ => in.unexpectedToken(s"a string with one of the following values: ${enumValues.map(_.toString).mkString(", ")}")
+                    in.requireValue >> {
+                        in.currentToken match {
+                            case JsonToken.VALUE_NULL   => in.unexpectedMissingValue
+                            case JsonToken.VALUE_STRING =>
+                                tryCatching[IllegalArgumentException].resultG(in.terminal) {
+                                    out(Enum.valueOf(enumClass, in.stringValue))
+                                } | s""""${in.stringValue}" is not a valid enumeration value (valid values: ${enumValues.map(_.toString).mkString(", ")})"""
+                            case _ => in.unexpectedToken(s"a string with one of the following values: ${enumValues.map(_.toString).mkString(", ")}")
+                        }
                     }
             }
         }
@@ -415,6 +517,9 @@ trait scalar {
 
         class scalaEnumJsonCoder extends JsonCoder[A#Value] {
             object encode extends JsonEncoder[A#Value] {
+                val mightBeNull = false
+                val codesAsObject = false
+
                 def run(in: A#Value, out: InterchangeJsonGenerator) =
                     tryCatch.resultG(terminal) {
                         out.writeString(in.toString)
@@ -422,20 +527,24 @@ trait scalar {
                     }
             }
             object decode extends JsonDecoder[A#Value] {
+                val mightBeNull = false
+                val codesAsObject = false
+
                 def run(in: InterchangeJsonParser, out: Receiver[A#Value]) =
-                    if (!in.hasNextToken) in.missingValue
-                    else in.nextToken() match {
-                        case JsonToken.VALUE_NULL   => in.missingValue
-                        case JsonToken.VALUE_STRING =>
-                            tryCatch.valueG(in.terminal)(in.parser.getText) >>= { s =>
-                                enumeration.values.find(_.toString == s) match {
-                                    case Some(a) => out(a)
-                                    case None =>
-                                        val msg = s""""${in.parser.getText}" is not a valid enumeration value (valid values: ${enumValues.map(_.toString).mkString(", ")})"""
-                                        FailedG(msg, in.terminal)
+                    in.requireValue >> {
+                        in.currentToken match {
+                            case JsonToken.VALUE_NULL   => in.unexpectedMissingValue
+                            case JsonToken.VALUE_STRING =>
+                                tryCatch.valueG(in.terminal)(in.stringValue) >>= { s =>
+                                    enumeration.values.find(_.toString == s) match {
+                                        case Some(a) => out(a)
+                                        case None =>
+                                            val msg = s""""${in.stringValue}" is not a valid enumeration value (valid values: ${enumValues.map(_.toString).mkString(", ")})"""
+                                            FailedG(msg, in.terminal)
+                                    }
                                 }
-                            }
-                        case _ => in.unexpectedToken(s"a string with one of the following values: ${enumValues.map(_.toString).mkString(", ")}")
+                            case _ => in.unexpectedToken(s"a string with one of the following values: ${enumValues.map(_.toString).mkString(", ")}")
+                        }
                     }
             }
         }
