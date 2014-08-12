@@ -182,7 +182,7 @@ package base {
      * or not and either enables or disables insecure coding.
      */
     object InsecureContext extends ThreadLocal[Boolean] {
-        protected val initial = true
+        protected val initial = false
     }
 
     /**
