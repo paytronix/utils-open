@@ -515,7 +515,7 @@ Type: $tpe
         accept: (A, c.universe.Tree) => c.universe.Tree,
         body: Seq[c.universe.Tree] => c.universe.Tree
     ): c.Tree = {
-        import c.universe.{Bind, Ident, Quasiquote, TermName, termNames}
+        import c.universe.{Bind, Block, Ident, Quasiquote, TermName, termNames}
 
         val names = input.map(_ => TermName(c.freshName()))
 
@@ -524,7 +524,7 @@ Type: $tpe
         (input zip names).foldRight(body(names.map(name => Ident(name)))) { (pair, inside) =>
             val (a, name) = pair
             q"""
-                ${action(a)} match {
+                ${Block(Nil, action(a))} match {
                     case com.paytronix.utils.scala.result.Okay(${Bind(name, Ident(termNames.WILDCARD))}) =>
                         ${accept(a, Ident(name))}
                         $inside
