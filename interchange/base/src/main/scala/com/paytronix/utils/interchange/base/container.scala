@@ -16,6 +16,9 @@
 
 package com.paytronix.utils.interchange.base.container
 
+import scala.collection.generic.CanBuildFrom
+import scala.collection.mutable
+
 import com.paytronix.utils.interchange.base.{InsecureContext, InterchangeClassLoader}
 import com.paytronix.utils.scala.reflection.classByName
 import com.paytronix.utils.scala.result.{Okay, Result, tryCatch, tryCatching}
@@ -43,4 +46,42 @@ object result {
                     )
             }
         } yield inst
+}
+
+object javaCollections {
+    /** `CanBuildFrom` for `java.util.List` */
+    def canBuildJavaList[E] = new CanBuildFrom[Nothing, E, java.util.List[E]] {
+        def apply() = new mutable.Builder[E, java.util.List[E]] {
+            val jl = new java.util.ArrayList[E]
+            def clear() = jl.clear()
+            def result() = jl
+            def += (e: E) = { jl.add(e); this }
+        }
+
+        def apply(from: Nothing) = apply()
+    }
+
+    /** `CanBuildFrom` for `java.util.Map` */
+    def canBuildJavaMap[K, V] = new CanBuildFrom[Nothing, (K, V), java.util.Map[K, V]] {
+        def apply() = new mutable.Builder[(K, V), java.util.Map[K, V]] {
+            val jm = new java.util.HashMap[K, V]
+            def clear() = jm.clear()
+            def result() = jm
+            def += (p: (K, V)) = { jm.put(p._1, p._2); this }
+        }
+
+        def apply(from: Nothing) = apply()
+    }
+
+    /** `CanBuildFrom` for `java.util.SortedMap` */
+    def canBuildJavaSortedMap[K <: Comparable[K], V] = new CanBuildFrom[Nothing, (K, V), java.util.SortedMap[K, V]] {
+        def apply() = new mutable.Builder[(K, V), java.util.SortedMap[K, V]] {
+            val jm = new java.util.TreeMap[K, V]
+            def clear() = jm.clear()
+            def result() = jm
+            def += (p: (K, V)) = { jm.put(p._1, p._2); this }
+        }
+
+        def apply(from: Nothing) = apply()
+    }
 }

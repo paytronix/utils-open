@@ -18,8 +18,8 @@ package com.paytronix.utils.interchange.format.avro
 
 import java.util.Arrays
 import scala.annotation.tailrec
-import scala.collection.generic.CanBuildFrom
 import scala.collection.JavaConverters.{asScalaBufferConverter, mapAsScalaMapConverter}
+import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
 
 import org.apache.avro.{Schema, io}
@@ -28,6 +28,7 @@ import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 import scalaz.syntax.apply.^
 
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InterchangeClassLoader, InsecureContext, Receiver, atIndex, atProperty, atTerminal, terminal}
+import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSortedMap}
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.result.{FailedG, FailedParameterDefault, Okay, ResultG, iterableResultOps, tryCatch}
@@ -399,12 +400,15 @@ trait container extends containerLPI {
         }
     }
 
+    /** Coder for values that should not be coded when in an insecure context and instead encode/decode as a substitute value */
     def insecureAvroCoder[A](valueCoder: AvroCoder[A], substitute: A): AvroCoder[A] =
         insecureAvroCoder(substitute)(valueCoder.encode, valueCoder.decode)
 
+    /** Coder for values that should not be coded when in an insecure context and instead encode/decode as a substitute value */
     def insecureAvroCoder[A](substitute: A)(implicit valueEncoder: AvroEncoder[A], valueDecoder: AvroDecoder[A]): AvroCoder[A] =
         AvroCoder.make(insecureAvroEncoder(substitute), insecureAvroDecoder(substitute))
 
+    /** Encoder for values that should not be encoded when in an insecure context and instead encode a substitute value */
     def insecureAvroEncoder[A](substitute: A)(implicit valueEncoder: AvroEncoder[A]) =
         new AvroEncoder[A] {
             val schema = valueEncoder.schema
@@ -417,6 +421,7 @@ trait container extends containerLPI {
                 valueEncoder.run(if (InsecureContext.get) substitute else in, out)
         }
 
+    /** Decoder for values that should not be decoded when in an insecure context and instead use a substitute value */
     def insecureAvroDecoder[A](substitute: A)(implicit valueDecoder: AvroDecoder[A]) =
         new AvroDecoder[A] {
             val schema = valueDecoder.schema
@@ -433,35 +438,30 @@ trait container extends containerLPI {
                 }
         }
 
+    /** Coder for `java.util.List`. Encodes as an Avro array */
     def javaListAvroCoder[E](elemCoder: AvroCoder[E]): AvroCoder[java.util.List[E]] =
         javaListAvroCoder(elemCoder.encode, elemCoder.decode)
 
+    /** Coder for `java.util.List`. Encodes as an Avro array */
     implicit def javaListAvroCoder[E](implicit elemEncoder: AvroEncoder[E], elemDecoder: AvroDecoder[E]): AvroCoder[java.util.List[E]] =
         AvroCoder.make(javaListAvroEncoder(elemEncoder), javaListAvroDecoder(elemDecoder))
 
+    /** Encoder for `java.util.List`. Encodes as an Avro array */
     def javaListAvroEncoder[E](implicit elemEncoder: AvroEncoder[E]): AvroEncoder[java.util.List[E]] =
         avroArrayEncoder[E, java.util.List[E]](_.asScala, elemEncoder)
 
-    private def canBuildJavaList[E] = new CanBuildFrom[Nothing, E, java.util.List[E]] {
-        def apply() = new mutable.Builder[E, java.util.List[E]] {
-            val jl = new java.util.ArrayList[E]
-            def clear() = jl.clear()
-            def result() = jl
-            def += (e: E) = { jl.add(e); this }
-        }
-
-        def apply(from: Nothing) = apply()
-    }
-
+    /** Decoder for `java.util.List`. Decodes from an Avro array */
     def javaListAvroDecoder[E](implicit elemDecoder: AvroDecoder[E]): AvroDecoder[java.util.List[E]] =
         avroArrayDecoder[E, java.util.List[E]](canBuildJavaList, elemDecoder)
 
-    implicit def avroMapCoder[K, V, M]
+    /** Coder for any map with keys that can be coded as strings, expressed as a collection of key/value pairs. Encodes as an Avro map */
+    def avroMapCoder[K, V, M]
         (keyCoder: StringCoder[K], valueCoder: AvroCoder[V])
         (implicit asIterable: M => Iterable[(K, V)], canBuildFrom: CanBuildFrom[Nothing, (K, V), M])
         : AvroCoder[M] =
         avroMapCoder(asIterable, canBuildFrom, keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
 
+    /** Coder for any map with keys that can be coded as strings, expressed as a collection of key/value pairs. Encodes as an Avro map */
     implicit def avroMapCoder[K, V, M] (
         implicit asIterable:   M => Iterable[(K, V)],
                  canBuildFrom: CanBuildFrom[Nothing, (K, V), M],
@@ -472,6 +472,7 @@ trait container extends containerLPI {
     ): AvroCoder[M] =
         AvroCoder.make(avroMapEncoder(asIterable, keyEncoder, valueEncoder), avroMapDecoder(canBuildFrom, keyDecoder, valueDecoder))
 
+    /** Encoder for any map with keys that can be coded as strings, expressed as a collection of key/value pairs. Encodes as an Avro map */
     def avroMapEncoder[K, V, M](implicit asIterable: M => Iterable[(K, V)], keyEncoder: StringEncoder[K], valueEncoder: AvroEncoder[V]) =
         new AvroEncoder[M] {
             val schema = Schema.createMap(valueEncoder.schema)
@@ -507,6 +508,7 @@ trait container extends containerLPI {
             }
         }
 
+    /** Decoder for any map with keys that can be coded as strings, expressed as a collection of key/value pairs. Decodes as an Avro map */
     def avroMapDecoder[K, V, M](implicit canBuildFrom: CanBuildFrom[Nothing, (K, V), M], keyDecoder: StringDecoder[K], valueDecoder: AvroDecoder[V]) =
         new AvroDecoder[M] {
             val schema = Schema.createMap(valueDecoder.schema)
@@ -545,9 +547,11 @@ trait container extends containerLPI {
             }
         }
 
+    /** Coder for `java.util.Map` with keys that can be coded as strings. Encodes as an Avro map */
     def javaStringKeyedMapAvroCoder[K, V](keyCoder: StringCoder[K], valueCoder: AvroCoder[V]): AvroCoder[java.util.Map[K, V]] =
         javaStringKeyedMapAvroCoder(keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
 
+    /** Coder for `java.util.Map` with keys that can be coded as strings. Encodes as an Avro map */
     implicit def javaStringKeyedMapAvroCoder[K, V] (
         implicit keyEncoder: StringEncoder[K],
                  valueEncoder: AvroEncoder[V],
@@ -556,20 +560,24 @@ trait container extends containerLPI {
     ): AvroCoder[java.util.Map[K, V]] =
         AvroCoder.make(javaStringKeyedMapAvroEncoder(keyEncoder, valueEncoder), javaStringKeyedMapAvroDecoder(keyDecoder, valueDecoder))
 
+    /** Encoder for `java.util.Map` with keys that can be encoded as strings. Encodes as an Avro map */
     def javaStringKeyedMapAvroEncoder[K, V](implicit keyEncoder: StringEncoder[K], valueEncoder: AvroEncoder[V]) =
         avroMapEncoder[K, V, java.util.Map[K, V]](_.asScala, keyEncoder, valueEncoder)
 
+    /** Decoder for `java.util.Map` with keys that can be decoded from strings. Decodes as an Avro map */
     def javaStringKeyedMapAvroDecoder[K, V](implicit keyDecoder: StringDecoder[K], valueDecoder: AvroDecoder[V]) =
         avroMapDecoder[K, V, java.util.Map[K, V]](canBuildJavaMap, keyDecoder, valueDecoder)
 }
 
 trait containerLPI extends containerLPI2 {
+    /** Coder for map-like collections where the key is complex and cannot be coded as a String. Encodes as an Avro array of pairs */
     def avroAssocArrayCoder[K, V, M]
         (keyCoder: AvroCoder[K], valueCoder: AvroCoder[V])
         (implicit asIterable: M => Iterable[(K, V)], canBuildFrom: CanBuildFrom[Nothing, (K, V), M])
         : AvroCoder[M] =
         avroAssocArrayCoder(asIterable, canBuildFrom, keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
 
+    /** Coder for map-like collections where the key is complex and cannot be coded as a String. Encodes as an Avro array of pairs */
     implicit def avroAssocArrayCoder[K, V, M] (
         implicit asIterable:   M => Iterable[(K, V)],
                  canBuildFrom: CanBuildFrom[Nothing, (K, V), M],
@@ -592,6 +600,7 @@ trait containerLPI extends containerLPI2 {
             pairSchema
         }
 
+    /** Encoder for map-like collections where the key is complex and cannot be encoded as a String. Encodes as an Avro array of pairs */
     def avroAssocArrayEncoder[K, V, M](implicit asIterable: M => Iterable[(K, V)], keyEncoder: AvroEncoder[K], valueEncoder: AvroEncoder[V]) =
         new AvroEncoder[M] {
             val schema = assocArraySchema(keyEncoder, valueEncoder)
@@ -628,6 +637,7 @@ trait containerLPI extends containerLPI2 {
             }
         }
 
+    /** Decoder for map-like collections where the key is complex and cannot be decoded from a String. Decodes from an Avro array of pairs */
     def avroAssocArrayDecoder[K, V, M](implicit canBuildFrom: CanBuildFrom[Nothing, (K, V), M], keyDecoder: AvroDecoder[K], valueDecoder: AvroDecoder[V]) =
         new AvroDecoder[M] {
             val schema = assocArraySchema(keyDecoder, valueDecoder)
@@ -668,20 +678,11 @@ trait containerLPI extends containerLPI2 {
             }
         }
 
-    protected final def canBuildJavaMap[K, V] = new CanBuildFrom[Nothing, (K, V), java.util.Map[K, V]] {
-        def apply() = new mutable.Builder[(K, V), java.util.Map[K, V]] {
-            val jm = new java.util.HashMap[K, V]
-            def clear() = jm.clear()
-            def result() = jm
-            def += (p: (K, V)) = { jm.put(p._1, p._2); this }
-        }
-
-        def apply(from: Nothing) = apply()
-    }
-
+    /** Coder for `java.util.Map` with keys that cannot be coded as Strings. Encodes as an Avro array of pairs */
     def javaMapAvroCoder[K, V](keyCoder: AvroCoder[K], valueCoder: AvroCoder[V]): AvroCoder[java.util.Map[K, V]] =
         javaMapAvroCoder(keyCoder.encode, valueCoder.encode, keyCoder.decode, valueCoder.decode)
 
+    /** Coder for `java.util.Map` with keys that cannot be coded as Strings. Encodes as an Avro array of pairs */
     implicit def javaMapAvroCoder[K, V] (
         implicit keyEncoder: AvroEncoder[K],
                  valueEncoder: AvroEncoder[V],
@@ -690,31 +691,24 @@ trait containerLPI extends containerLPI2 {
     ): AvroCoder[java.util.Map[K, V]] =
         AvroCoder.make(javaMapAvroEncoder(keyEncoder, valueEncoder), javaMapAvroDecoder(keyDecoder, valueDecoder))
 
+    /** Encoder for `java.util.Map` with keys that cannot be encoded as Strings. Encodes as an Avro array of pairs */
     def javaMapAvroEncoder[K, V](implicit keyEncoder: AvroEncoder[K], valueEncoder: AvroEncoder[V]) =
         avroAssocArrayEncoder[K, V, java.util.Map[K, V]](_.asScala, keyEncoder, valueEncoder)
 
+    /** Decoder for `java.util.Map` with keys that cannot be decoded from Strings. Decodes from an Avro array of pairs */
     def javaMapAvroDecoder[K, V](implicit keyDecoder: AvroDecoder[K], valueDecoder: AvroDecoder[V]) =
         avroAssocArrayDecoder[K, V, java.util.Map[K, V]](canBuildJavaMap, keyDecoder, valueDecoder)
-
-    protected final def canBuildJavaSortedMap[K <: Comparable[K], V] = new CanBuildFrom[Nothing, (K, V), java.util.SortedMap[K, V]] {
-        def apply() = new mutable.Builder[(K, V), java.util.SortedMap[K, V]] {
-            val jm = new java.util.TreeMap[K, V]
-            def clear() = jm.clear()
-            def result() = jm
-            def += (p: (K, V)) = { jm.put(p._1, p._2); this }
-        }
-
-        def apply(from: Nothing) = apply()
-    }
 }
 
 trait containerLPI2 {
+    /** Coder for sequence type `S` comprised of element `E` coding as an Avro array */
     def avroArrayCoder[E, S]
         (elemCoder: AvroCoder[E])
         (implicit asIterable: S => Iterable[E], canBuildFrom: CanBuildFrom[Nothing, E, S])
         : AvroCoder[S] =
         avroArrayCoder(asIterable, canBuildFrom, elemCoder.encode, elemCoder.decode)
 
+    /** Coder for sequence type `S` comprised of element `E` coding as an Avro array */
     implicit def avroArrayCoder[E, S] (
         implicit asIterable: S => Iterable[E],
                  canBuildFrom: CanBuildFrom[Nothing, E, S],
@@ -723,6 +717,7 @@ trait containerLPI2 {
      ): AvroCoder[S] =
         AvroCoder.make(avroArrayEncoder(asIterable, elemEncoder), avroArrayDecoder(canBuildFrom, elemDecoder))
 
+    /** Encoder for sequence type `S` comprised of element `E` encoding as an Avro array */
     def avroArrayEncoder[E, S](implicit asIterable: S => Iterable[E], elemEncoder: AvroEncoder[E]) =
         new AvroEncoder[S] {
             val schema = Schema.createArray(elemEncoder.schema)
@@ -754,6 +749,7 @@ trait containerLPI2 {
                 }
         }
 
+    /** Decoder for sequence type `S` comprised of element `E` decoding from an Avro array */
     def avroArrayDecoder[E, S](implicit canBuildFrom: CanBuildFrom[Nothing, E, S], elemDecoder: AvroDecoder[E]) =
         new AvroDecoder[S] {
             val schema = Schema.createArray(elemDecoder.schema)

@@ -89,15 +89,6 @@ trait DeriveCoderMacros {
     /** Generate methods for implementing the decoder type of a wrapper, given a wrapping function and the single property of the wrapper */
     def wrapperDecoderMethods(c: Context)(targetType: c.universe.Type, property: Property[c.universe.type], wrap: c.universe.Tree => c.universe.Tree): List[c.universe.Tree]
 
-    /** Tree which evaluates to the front end of the macro package, for implicit union coder pair implementation */
-    def makeUnionCoder(c: Context)(target: c.universe.Tree, alts: Seq[c.universe.Tree]): c.universe.Tree
-
-    /** Generate methods for implementing the decoder type of a union, given a set of subtypes along with names of decoders */
-    def unionEncoderMethods(c: Context)(targetType: c.universe.Type, targetSubtypes: NonEmptyList[c.universe.Type], encoderFor: c.universe.Type => c.universe.Tree): List[c.universe.Tree]
-
-    /** Generate methods for implementing the encoder type of a union, given a set of subtypes along with names of encoders */
-    def unionDecoderMethods(c: Context)(targetType: c.universe.Type, targetSubtypes: NonEmptyList[c.universe.Type], decoderFor: c.universe.Type => c.universe.Tree): List[c.universe.Tree]
-
     /** Wrap a core expression which materializes or constructs a coder with additional wrapping based on annotations, used for implementing materialize* */
     def wrapCoderForAnnotations(c: Context) (
         coder: c.universe.Tree,
@@ -432,7 +423,7 @@ trait DeriveCoderMacros {
         null
     }
 
-    private def parseUnionAlternatives(c: Context)(alternativeTrees: Seq[c.universe.Tree]): NonEmptyList[(c.universe.Type, String)] = {
+    def parseUnionAlternatives(c: Context)(alternativeTrees: Seq[c.universe.Tree]): NonEmptyList[(c.universe.Type, String)] = {
         import c.universe.{Quasiquote, TreeTag}
 
         val targets = alternativeTrees.toList.map {
@@ -446,125 +437,5 @@ trait DeriveCoderMacros {
             case Nil => sys.error("union cannot be made with no alternatives!")
             case hd :: tl => nel(hd, tl)
         }
-    }
-
-    /**
-     * Implement the deriveCoder annotation for wrappers, attaching an automatically derived wrapper
-     * coder pair to the companion of the annotated class
-     */
-    def deriveImplicitUnionCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] =
-        addToCompanion(c)(annottees) { (targetName, annotations) =>
-            import c.universe.{Ident, IdentTag, Name, NameTag, Quasiquote, TermName, TermNameTag, Tree, TreeTag}
-
-            def isUnionAnno(t: Tree): Boolean =
-                t match {
-                    case Ident(n: Name) => n.decodedName.toString == "union" // the tree isn't yet typechecked and resolved so uhh, this is spotty
-                    case _ => false
-                }
-
-            val alts =
-                annotations.collectFirst { case q"new $anno(..$alts)" if isUnionAnno(anno) => alts }
-                    .getOrElse(sys.error("couldn't find union annotation among " + annotations))
-
-            List(q"implicit val ${implicitCoderName(c)}: ${coderType(c)(Ident(targetName))} = ${makeUnionCoder(c)(Ident(targetName), alts)}")
-        }
-
-    /** Def macro implementation which derives a coder for a union type */
-    def unionCoderDefImpl[A: c.WeakTypeTag](c: Context)(alternatives: c.Expr[base.union.Alternative[A]]*): c.Expr[Coder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName}
-
-        val targetType = c.universe.weakTypeTag[A].tpe
-        val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Coder")
-        val targetSubtypes = parseUnionAlternatives(c)(alternatives.map(_.tree)).map(_._1)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
-
-        val declareCoders = (targetSubtypes zip (subtypeEncoderNames zip subtypeDecoderNames)).flatMap { case (tpe, (encoderName, decoderName)) =>
-            nels (
-                q"lazy val $decoderName = ${materializeDecoder(c)(tpe, Nil)}",
-                q"lazy val $encoderName = ${materializeEncoder(c)(tpe, Nil)}"
-            )
-        }.list
-
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
-
-        c.Expr[Coder[A]](q"""
-            {
-                object $name extends ${coderType(c)(tq"$targetType")} {
-                    ..$declareCoders
-                    object decode extends ${decoderType(c)(tq"$targetType")} {
-                        ..${unionDecoderMethods(c)(targetType, targetSubtypes, subtypeDecoderNamesByType.mapValues(n => Ident(n)))}
-                    }
-                    object encode extends ${encoderType(c)(tq"$targetType")} {
-                        ..${unionEncoderMethods(c)(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
-                    }
-                }
-                $name
-            }
-        """)
-    } catch { case e: Exception =>
-        System.err.println("uhoh, macro explosion!")
-        e.printStackTrace(System.err)
-        null
-    }
-
-    /** Def macro implementation which derives a decoder for a union type */
-    def unionDecoderDefImpl[A: c.WeakTypeTag](c: Context)(alternatives: c.Expr[base.union.Alternative[A]]*): c.Expr[Decoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
-
-        val targetType = c.universe.weakTypeTag[A].tpe
-        val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
-        val targetSubtypes = parseUnionAlternatives(c)(alternatives.map(_.tree)).map(_._1)
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
-
-        val declareDecoders = (targetSubtypes zip subtypeDecoderNames).map { case (tpe, decoderName) =>
-            q"lazy val $decoderName = ${materializeDecoder(c)(tpe, Nil)}"
-        }.list
-
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
-
-        c.Expr[Decoder[A]](q"""
-            {
-                object $name extends ${decoderType(c)(tq"$targetType")} {
-                    ..$declareDecoders
-                    ..${unionDecoderMethods(c)(targetType, targetSubtypes, subtypeDecoderNamesByType.mapValues(n => Ident(n)))}
-                }
-                $name
-            }
-        """)
-    } catch { case e: Exception =>
-        System.err.println("uhoh, macro explosion!")
-        e.printStackTrace(System.err)
-        null
-    }
-
-    /** Def macro implementation which derives an encoder for a union type */
-    def unionEncoderDefImpl[A: c.WeakTypeTag](c: Context)(alternatives: c.Expr[base.union.Alternative[A]]*): c.Expr[Encoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
-        val targetType = c.universe.weakTypeTag[A].tpe
-        val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Encoder")
-        val targetSubtypes = parseUnionAlternatives(c)(alternatives.map(_.tree)).map(_._1)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
-
-        val declareEncoders = (targetSubtypes zip subtypeEncoderNames).map { case (tpe, encoderName) =>
-            q"lazy val $encoderName = ${materializeEncoder(c)(tpe, Nil)}"
-        }.list
-
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
-
-        c.Expr[Encoder[A]](q"""
-            {
-                object $name extends ${encoderType(c)(tq"$targetType")} {
-                    ..$declareEncoders
-                    ..${unionEncoderMethods(c)(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
-                }
-                $name
-            }
-        """)
-    } catch { case e: Exception =>
-        System.err.println("uhoh, macro explosion!")
-        e.printStackTrace(System.err)
-        null
     }
 }

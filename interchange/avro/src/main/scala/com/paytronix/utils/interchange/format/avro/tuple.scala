@@ -36,12 +36,18 @@ trait tuple {
         s
     }
 
+    /** Coder for `Tuple1`, the rarely used single-element tuple type. Codes as an Avro record with one field, `_1` */
+    def tuple1AvroCoder[A](coderA: AvroCoder[A]): AvroCoder[Tuple1[A]] =
+        tuple1AvroCoder(coderA.encode, coderA.decode)
+
+    /** Coder for `Tuple1`, the rarely used single-element tuple type. Codes as an Avro record with one field, `_1` */
     implicit def tuple1AvroCoder[A] (
         implicit encoderA: AvroEncoder[A],
                  decoderA: AvroDecoder[A]
     ): AvroCoder[Tuple1[A]] =
         AvroCoder.make(tuple1AvroEncoder(encoderA), tuple1AvroDecoder(decoderA))
 
+    /** Encoder for `Tuple1`, the rarely used single-element tuple type. Encodes as an Avro record with one field, `_1` */
     def tuple1AvroEncoder[A](implicit encoderA: AvroEncoder[A]): AvroEncoder[Tuple1[A]] = new AvroEncoder[Tuple1[A]] {
         val schema = tupleSchema((encoderA.schema, encoderA.defaultJson))
         val defaultJson = None
@@ -61,6 +67,7 @@ trait tuple {
             }
     }
 
+    /** Decoder for `Tuple1`, the rarely used single-element tuple type. Decodes from an Avro record with one field, `_1` */
     def tuple1AvroDecoder[A](implicit decoderA: AvroDecoder[A]): AvroDecoder[Tuple1[A]] = new AvroDecoder[Tuple1[A]] {
         val schema = tupleSchema((decoderA.schema, decoderA.defaultJson))
         val defaultJson = None
@@ -73,6 +80,11 @@ trait tuple {
             }
     }
 
+    /** Coder for 2-tuples. Codes as an Avro record with two fields, `_1` and `_2` */
+    def tuple2AvroCoder[A, B](coderA: AvroCoder[A], coderB: AvroCoder[B]): AvroCoder[(A, B)] =
+        tuple2AvroCoder(coderA.encode, coderA.decode, coderB.encode, coderB.decode)
+
+    /** Coder for 2-tuples. Codes as an Avro record with two fields, `_1` and `_2` */
     implicit def tuple2AvroCoder[A, B] (
         implicit encoderA: AvroEncoder[A],
                  decoderA: AvroDecoder[A],
@@ -81,6 +93,7 @@ trait tuple {
     ): AvroCoder[(A, B)] =
         AvroCoder.make(tuple2AvroEncoder(encoderA, encoderB), tuple2AvroDecoder(decoderA, decoderB))
 
+    /** Encoder for 2-tuples. Encodes as an Avro record with two fields, `_1` and `_2` */
     implicit def tuple2AvroEncoder[A, B](implicit encoderA: AvroEncoder[A], encoderB: AvroEncoder[B]): AvroEncoder[(A, B)] = new AvroEncoder[(A, B)] {
         val schema = tupleSchema((encoderA.schema, encoderA.defaultJson), (encoderB.schema, encoderB.defaultJson))
         val defaultJson = None
@@ -103,6 +116,7 @@ trait tuple {
             }
     }
 
+    /** Decoder for 2-tuples. Decodes from an Avro record with two fields, `_1` and `_2` */
     implicit def tuple2AvroDecoder[A, B](implicit decoderA: AvroDecoder[A], decoderB: AvroDecoder[B]): AvroDecoder[(A, B)] = new AvroDecoder[(A, B)] {
         val schema = tupleSchema((decoderA.schema, decoderA.defaultJson), (decoderB.schema, decoderB.defaultJson))
         val defaultJson = None
@@ -117,6 +131,11 @@ trait tuple {
             }
     }
 
+    /** Coder for 3-tuples. Codes as an Avro record with three fields: `_1`, `_2`, and `_3` */
+    def tuple3AvroCoder[A, B, C](coderA: AvroCoder[A], coderB: AvroCoder[B], coderC: AvroCoder[C]): AvroCoder[(A, B, C)] =
+        tuple3AvroCoder(coderA.encode, coderA.decode, coderB.encode, coderB.decode, coderC.encode, coderC.decode)
+
+    /** Coder for 3-tuples. Codes as an Avro record with three fields: `_1`, `_2`, and `_3` */
     implicit def tuple3AvroCoder[A, B, C] (
         implicit encoderA: AvroEncoder[A],
                  decoderA: AvroDecoder[A],
@@ -127,6 +146,7 @@ trait tuple {
     ): AvroCoder[(A, B, C)] =
         AvroCoder.make(tuple3AvroEncoder(encoderA, encoderB, encoderC), tuple3AvroDecoder(decoderA, decoderB, decoderC))
 
+    /** Encoder for 3-tuples. Encodes as an Avro record with three fields: `_1`, `_2`, and `_3` */
     implicit def tuple3AvroEncoder[A, B, C](implicit encoderA: AvroEncoder[A], encoderB: AvroEncoder[B], encoderC: AvroEncoder[C]): AvroEncoder[(A, B, C)] = new AvroEncoder[(A, B, C)] {
         val schema = tupleSchema((encoderA.schema, encoderA.defaultJson), (encoderB.schema, encoderB.defaultJson), (encoderC.schema, encoderC.defaultJson))
         val defaultJson = None
@@ -152,6 +172,7 @@ trait tuple {
             }
     }
 
+    /** Decoder for 3-tuples. Decodes from an Avro record with three fields: `_1`, `_2`, and `_3` */
     implicit def tuple3AvroDecoder[A, B, C](implicit decoderA: AvroDecoder[A], decoderB: AvroDecoder[B], decoderC: AvroDecoder[C]): AvroDecoder[(A, B, C)] = new AvroDecoder[(A, B, C)] {
         val schema = tupleSchema((decoderA.schema, decoderA.defaultJson), (decoderB.schema, decoderB.defaultJson), (decoderC.schema, decoderC.defaultJson))
         val defaultJson = None
@@ -168,6 +189,11 @@ trait tuple {
             }
     }
 
+    /** Coder for 4-tuples. Codes as an Avro record with four fields: `_1`, `_2`, `_3`, and `_4` */
+    def tuple4AvroCoder[A, B, C, D](coderA: AvroCoder[A], coderB: AvroCoder[B], coderC: AvroCoder[C], coderD: AvroCoder[D]): AvroCoder[(A, B, C, D)] =
+        tuple4AvroCoder(coderA.encode, coderA.decode, coderB.encode, coderB.decode, coderC.encode, coderC.decode, coderD.encode, coderD.decode)
+
+    /** Coder for 4-tuples. Codes as an Avro record with four fields: `_1`, `_2`, `_3`, and `_4` */
     implicit def tuple4AvroCoder[A, B, C, D] (
         implicit encoderA: AvroEncoder[A],
                  decoderA: AvroDecoder[A],
@@ -180,6 +206,7 @@ trait tuple {
     ): AvroCoder[(A, B, C, D)] =
         AvroCoder.make(tuple4AvroEncoder(encoderA, encoderB, encoderC, encoderD), tuple4AvroDecoder(decoderA, decoderB, decoderC, decoderD))
 
+    /** Encoder for 4-tuples. Encodes as an Avro record with four fields: `_1`, `_2`, `_3`, and `_4` */
     implicit def tuple4AvroEncoder[A, B, C, D](implicit encoderA: AvroEncoder[A], encoderB: AvroEncoder[B], encoderC: AvroEncoder[C], encoderD: AvroEncoder[D]): AvroEncoder[(A, B, C, D)] = new AvroEncoder[(A, B, C, D)] {
         val schema = tupleSchema((encoderA.schema, encoderA.defaultJson), (encoderB.schema, encoderB.defaultJson), (encoderC.schema, encoderC.defaultJson), (encoderD.schema, encoderD.defaultJson))
         val defaultJson = None
@@ -208,6 +235,7 @@ trait tuple {
             }
     }
 
+    /** Decoder for 4-tuples. Decodes from an Avro record with four fields: `_1`, `_2`, `_3`, and `_4` */
     implicit def tuple4AvroDecoder[A, B, C, D](implicit decoderA: AvroDecoder[A], decoderB: AvroDecoder[B], decoderC: AvroDecoder[C], decoderD: AvroDecoder[D]): AvroDecoder[(A, B, C, D)] = new AvroDecoder[(A, B, C, D)] {
         val schema = tupleSchema((decoderA.schema, decoderA.defaultJson), (decoderB.schema, decoderB.defaultJson), (decoderC.schema, decoderC.defaultJson), (decoderD.schema, decoderD.defaultJson))
         val defaultJson = None
@@ -226,6 +254,11 @@ trait tuple {
             }
     }
 
+    /** Coder for 5-tuples. Codes as an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, and `_5` */
+    def tuple5AvroCoder[A, B, C, D, E](coderA: AvroCoder[A], coderB: AvroCoder[B], coderC: AvroCoder[C], coderD: AvroCoder[D], coderE: AvroCoder[E]): AvroCoder[(A, B, C, D, E)] =
+        tuple5AvroCoder(coderA.encode, coderA.decode, coderB.encode, coderB.decode, coderC.encode, coderC.decode, coderD.encode, coderD.decode, coderE.encode, coderE.decode)
+
+    /** Coder for 5-tuples. Codes as an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, and `_5` */
     implicit def tuple5AvroCoder[A, B, C, D, E] (
         implicit encoderA: AvroEncoder[A],
                  decoderA: AvroDecoder[A],
@@ -240,6 +273,7 @@ trait tuple {
     ): AvroCoder[(A, B, C, D, E)] =
         AvroCoder.make(tuple5AvroEncoder(encoderA, encoderB, encoderC, encoderD, encoderE), tuple5AvroDecoder(decoderA, decoderB, decoderC, decoderD, decoderE))
 
+    /** Encoder for 5-tuples. Encodes as an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, and `_5` */
     implicit def tuple5AvroEncoder[A, B, C, D, E](implicit encoderA: AvroEncoder[A], encoderB: AvroEncoder[B], encoderC: AvroEncoder[C], encoderD: AvroEncoder[D], encoderE: AvroEncoder[E]): AvroEncoder[(A, B, C, D, E)] = new AvroEncoder[(A, B, C, D, E)] {
         val schema = tupleSchema((encoderA.schema, encoderA.defaultJson), (encoderB.schema, encoderB.defaultJson), (encoderC.schema, encoderC.defaultJson), (encoderD.schema, encoderD.defaultJson), (encoderE.schema, encoderE.defaultJson))
         val defaultJson = None
@@ -271,6 +305,7 @@ trait tuple {
             }
     }
 
+    /** Decoder for 5-tuples. Decodes from an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, and `_5` */
     implicit def tuple5AvroDecoder[A, B, C, D, E](implicit decoderA: AvroDecoder[A], decoderB: AvroDecoder[B], decoderC: AvroDecoder[C], decoderD: AvroDecoder[D], decoderE: AvroDecoder[E]): AvroDecoder[(A, B, C, D, E)] = new AvroDecoder[(A, B, C, D, E)] {
         val schema = tupleSchema((decoderA.schema, decoderA.defaultJson), (decoderB.schema, decoderB.defaultJson), (decoderC.schema, decoderC.defaultJson), (decoderD.schema, decoderD.defaultJson), (decoderE.schema, decoderE.defaultJson))
         val defaultJson = None
@@ -291,6 +326,11 @@ trait tuple {
             }
     }
 
+    /** Coder for 6-tuples. Codes as an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, `_5`, and `_6` */
+    def tuple6AvroCoder[A, B, C, D, E, F](coderA: AvroCoder[A], coderB: AvroCoder[B], coderC: AvroCoder[C], coderD: AvroCoder[D], coderE: AvroCoder[E], coderF: AvroCoder[F]): AvroCoder[(A, B, C, D, E, F)] =
+        tuple6AvroCoder(coderA.encode, coderA.decode, coderB.encode, coderB.decode, coderC.encode, coderC.decode, coderD.encode, coderD.decode, coderE.encode, coderE.decode, coderF.encode, coderF.decode)
+
+    /** Coder for 6-tuples. Codes as an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, `_5`, and `_6` */
     implicit def tuple6AvroCoder[A, B, C, D, E, F] (
         implicit encoderA: AvroEncoder[A],
                  decoderA: AvroDecoder[A],
@@ -308,6 +348,7 @@ trait tuple {
         AvroCoder.make(tuple6AvroEncoder(encoderA, encoderB, encoderC, encoderD, encoderE, encoderF),
                        tuple6AvroDecoder(decoderA, decoderB, decoderC, decoderD, decoderE, decoderF))
 
+    /** Encoder for 6-tuples. Encodes as an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, `_5`, and `_6` */
     implicit def tuple6AvroEncoder[A, B, C, D, E, F](implicit encoderA: AvroEncoder[A], encoderB: AvroEncoder[B], encoderC: AvroEncoder[C], encoderD: AvroEncoder[D], encoderE: AvroEncoder[E], encoderF: AvroEncoder[F]): AvroEncoder[(A, B, C, D, E, F)] = new AvroEncoder[(A, B, C, D, E, F)] {
         val schema = tupleSchema((encoderA.schema, encoderA.defaultJson), (encoderB.schema, encoderB.defaultJson), (encoderC.schema, encoderC.defaultJson), (encoderD.schema, encoderD.defaultJson), (encoderE.schema, encoderE.defaultJson), (encoderF.schema, encoderF.defaultJson))
         val defaultJson = None
@@ -342,6 +383,7 @@ trait tuple {
             }
     }
 
+    /** Decoder for 6-tuples. Decodes from an Avro record with five fields: `_1`, `_2`, `_3`, `_4`, `_5`, and `_6` */
     implicit def tuple6AvroDecoder[A, B, C, D, E, F](implicit decoderA: AvroDecoder[A], decoderB: AvroDecoder[B], decoderC: AvroDecoder[C], decoderD: AvroDecoder[D], decoderE: AvroDecoder[E], decoderF: AvroDecoder[F]): AvroDecoder[(A, B, C, D, E, F)] = new AvroDecoder[(A, B, C, D, E, F)] {
         val schema = tupleSchema((decoderA.schema, decoderA.defaultJson), (decoderB.schema, decoderB.defaultJson), (decoderC.schema, decoderC.defaultJson), (decoderD.schema, decoderD.defaultJson), (decoderE.schema, decoderE.defaultJson), (decoderF.schema, decoderF.defaultJson))
         val defaultJson = None

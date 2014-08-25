@@ -523,7 +523,7 @@ class scalaMapStringCodingTest extends avroMapCoderSpecBase[Map[Int, String]] wi
         coder.decode.fromBytes(coder.schema)(encode(m, blockSize)) ==== Okay(m)
     }
     def edefault = prop { (m: Map[Int, String]) => decodeDefault(coder.default(m)) ==== Okay(m) }
-    def eimplicit = { import coders._; AvroCoder[Map[Int, Unit]].encode.getClass must_== coder.encode.getClass }
+    def eimplicit = { import coders._; import string.coders._; AvroCoder[Map[Int, Unit]].encode.getClass must_== coder.encode.getClass }
 }
 
 class javaMapStringCodingTest extends avroMapCoderSpecBase[java.util.Map[Int, String]] with ScalaCheck {
@@ -552,5 +552,5 @@ class javaMapStringCodingTest extends avroMapCoderSpecBase[java.util.Map[Int, St
         coder.decode.fromBytes(coder.schema)(encode(m, blockSize)) ==== Okay(m)
     }
     def edefault = prop { (m: java.util.Map[Int, String]) => decodeDefault(coder.default(m)) ==== Okay(m) }
-    def eimplicit = { import coders._; AvroCoder[java.util.Map[Int, Unit]].encode.getClass must_== coder.encode.getClass }
+    def eimplicit = { import coders._; import string.coders._; AvroCoder[java.util.Map[Int, Unit]].encode.getClass must_== coder.encode.getClass }
 }
