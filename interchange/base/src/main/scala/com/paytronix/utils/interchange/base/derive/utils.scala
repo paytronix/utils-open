@@ -323,7 +323,7 @@ Type: $tpe
     def structureOf(c: Context)(A: c.Type): Structure[c.universe.type] = {
         import c.universe.{
             EmptyTree, Flag, Ident, Modifiers, NoPrefix, Quasiquote, Tree,
-            MethodSymbol, MethodType, MethodTypeTag, Type, typeOf,
+            MethodSymbol, MethodType, MethodTypeTag, SingleType, SingleTypeTag, Type, typeOf,
             TermName, TypeName
         }
 
@@ -418,16 +418,22 @@ Type: $tpe
             }
 
         val constructAndAssign: (Property[c.universe.type] => Tree) => Tree =
-            valueOfProperty => {
-                val instance = Ident(TermName(c.freshName()))
+            A match {
+                case SingleType(_, obj) =>
+                    _ => q"$obj"
 
-                q"""
-                    {
-                        val $instance = ${construct(valueOfProperty)}
-                        ..${mutablePropertyAssignments(instance, valueOfProperty)}
-                        $instance
+                case _ => // presume it's a class
+                    valueOfProperty => {
+                        val instance = Ident(TermName(c.freshName()))
+
+                        q"""
+                            {
+                                val $instance = ${construct(valueOfProperty)}
+                                ..${mutablePropertyAssignments(instance, valueOfProperty)}
+                                $instance
+                            }
+                        """
                     }
-                """
             }
 
         Structure[c.universe.type] (
