@@ -115,6 +115,8 @@ class jsonStructureCoderPOJOClassTest extends SpecificationWithJUnit with ScalaC
     }
 }
 
+/* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                   it doesn't error at runtime.
 object jsonStructureImplicitTestFixture {
     import scalar.intJsonCoder
 
@@ -151,6 +153,7 @@ class jsonStructureImplicitTest extends SpecificationWithJUnit with JsonMatchers
         (coder.encode.toString(ics) >>= decode(coder.decode)) ==== Okay(ics)
     }
 }
+*/
 
 object jsonStructureCustomizedCoderTestFixture {
     import scalar.charJsonCoder // implicitly the default for Char
@@ -244,21 +247,21 @@ class jsonStructureCustomizedDecoderTest extends SpecificationWithJUnit with Jso
 object jsonStructureDefaultingFixture {
     import scalar.intJsonCoder
 
-    @derive.structure.implicitCoder
     case class DefaultingStructure1(a: Int, @default(5 + 2) b: Int)
     object DefaultingStructure1 {
+        implicit val jsonCoder: JsonCoder[DefaultingStructure1] = derive.structure.coder[DefaultingStructure1]
         implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure1(i, j))
     }
 
-    @derive.structure.implicitCoder
     case class DefaultingStructure2(a: Int, b: Int = 5 + 2)
     object DefaultingStructure2 {
+        implicit val jsonCoder: JsonCoder[DefaultingStructure2] = derive.structure.coder[DefaultingStructure2]
         implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure2(i, j))
     }
 
-    @derive.structure.implicitCoder
     case class DefaultingStructure3(a: Int, @default(5 + 2) b: Int = 2)
     object DefaultingStructure3 {
+        implicit val jsonCoder: JsonCoder[DefaultingStructure3] = derive.structure.coder[DefaultingStructure3]
         implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure3(i, j))
     }
 }
@@ -311,15 +314,15 @@ class jsonStructureDefaultingTest extends SpecificationWithJUnit with ScalaCheck
 object jsonStructureFlatteningTest {
     import scalar.{intJsonCoder, stringJsonCoder}
 
-    @derive.structure.implicitCoder
     final case class InnerStructure(a: Int, b: String)
     object InnerStructure {
+        implicit val jsonCoder: JsonCoder[InnerStructure] = derive.structure.coder[InnerStructure]
         implicit val arb = Arbitrary(for { a <- arbitrary[Int]; b <- arbitrary[String] } yield InnerStructure(a, b))
     }
 
-    @derive.structure.implicitCoder
     final case class StructureWithFlattening(o: Int, @flatten f: InnerStructure, p: String)
     object StructureWithFlattening {
+        implicit val jsonCoder: JsonCoder[StructureWithFlattening] = derive.structure.coder[StructureWithFlattening]
         implicit val arb = Arbitrary(for { o <- arbitrary[Int]; f <- arbitrary[InnerStructure]; p <- arbitrary[String] }
                                      yield StructureWithFlattening(o, f, p))
     }

@@ -20,12 +20,11 @@ import scala.language.higherKinds
 
 import org.scalacheck.{Arbitrary, Gen}
 
-import com.paytronix.utils.interchange.base.{name, coded, notCoded, nullable, union}
+import com.paytronix.utils.interchange.base.{name, coded, notCoded, nullable}
 import com.paytronix.utils.scala.result.{Failed, Okay}
 import com.paytronix.utils.scala.types.Identity
 
 import Arbitrary.arbitrary
-import union.alt
 
 case class CaseClass(foo: Int, @nullable bar: String, zip: Option[String])
 
@@ -194,7 +193,6 @@ class ClassWithMultipleConstructors(val a: Int, val b: String, c: Double) /* thi
     }
 }
 
-@union(alt[UntaggedUnionFirst], alt[UntaggedUnionSecond])
 sealed abstract class UntaggedUnionBase
 object UntaggedUnionBase {
     implicit val arb = Arbitrary[UntaggedUnionBase](Gen.oneOf(arbitrary[UntaggedUnionFirst], arbitrary[UntaggedUnionSecond]))
@@ -215,10 +213,6 @@ object AutoUnionBaseCoding extends AutomaticUnionCoding[AutoUnionBase] {
     alternative[AutoUnionSecond]
 }
 */
-@union(alt[TaggedUnionFirst].tag("first"),
-       alt[TaggedUnionSecond].tag("second"),
-       alt[TaggedUnionSingleton.type].tag("singleton"),
-       alt[TaggedUnionSingletonWithProperties.type].tag("singletonWithProperties"))
 sealed abstract class TaggedUnionBase
 object TaggedUnionBase {
     implicit val arb = Arbitrary[TaggedUnionBase](Gen.oneOf(arbitrary[TaggedUnionFirst], arbitrary[TaggedUnionSecond]))

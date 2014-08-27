@@ -28,7 +28,7 @@ import com.paytronix.utils.interchange.base
 import NonEmptyList.{nel, nels}
 import utils.{
     Property, SimplifiedDeriveAnnotation, Structure,
-    addToCompanion, augmentImpl, sequenceResultBindings, simplifyDeriveAnnotation, structureOf
+    augmentImpl, sequenceResultBindings, simplifyDeriveAnnotation, structureOf
 }
 
 /**
@@ -45,7 +45,7 @@ trait DeriveCoderMacros {
      * The name to use when attaching implicitly derived coders to companion objects, e.g. `avroCoder` or `jacksonCoder`.
      * To avoid confusion and madness this should always return some constant name, but has to be a function because macros.
      */
-    def implicitCoderName(c: Context): c.universe.TermName
+    //def implicitCoderName(c: Context): c.universe.TermName
 
     /** Type tree of coder pairs of the given type name */
     def coderType(c: Context)(tpe: c.universe.Tree): c.universe.Tree
@@ -115,11 +115,14 @@ trait DeriveCoderMacros {
      * Implement the deriveCoder annotation for structures, attaching an automatically derived structure
      * coder pair to the companion of the annotated class
      */
+    /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                       it doesn't error at runtime.
     def deriveImplicitStructureCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] =
         addToCompanion(c)(annottees) { (targetName, _) =>
             import c.universe.{Ident, Quasiquote}
             List(q"implicit val ${implicitCoderName(c)}: ${coderType(c)(Ident(targetName))} = ${makeStructureCoder(c)(Ident(targetName))}")
         }
+    */
 
     /** Def macro implementation which derives a coder pair for a structure */
     def structureCoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Coder[A]] = try {
@@ -146,7 +149,7 @@ trait DeriveCoderMacros {
                         ..${structureEncoderMethods(c)(tpe, p => Ident(p.encoderName), model)}
                     }
                 }
-                $name
+                $name: ${coderType(c)(tq"$tpe")}
             }
         """)
     } catch { case e: Exception =>
@@ -172,7 +175,7 @@ trait DeriveCoderMacros {
                     ..$declareDecoders
                     ..${structureDecoderMethods(c)(tpe, p => Ident(p.decoderName), model)}
                 }
-                $name
+                $name: ${decoderType(c)(tq"$tpe")}
             }
         """)
     } catch { case e: Exception =>
@@ -198,7 +201,7 @@ trait DeriveCoderMacros {
                     ..$declareEncoders
                     ..${structureEncoderMethods(c)(tpe, p => Ident(p.encoderName), model)}
                 }
-                $name
+                $name: ${encoderType(c)(tq"$tpe")}
             }
         """)
     } catch { case e: Exception =>
@@ -312,11 +315,14 @@ trait DeriveCoderMacros {
      * Implement the deriveCoder annotation for wrappers, attaching an automatically derived wrapper
      * coder pair to the companion of the annotated class
      */
+    /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                       it doesn't error at runtime.
     def deriveImplicitWrapperCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] =
         addToCompanion(c)(annottees) { (targetName, _) =>
             import c.universe.{Ident, Quasiquote}
             List(q"implicit val ${implicitCoderName(c)}: ${coderType(c)(Ident(targetName))} = ${makeWrapperCoder(c)(Ident(targetName))}")
         }
+    */
 
     /** Def macro implementation which derives a coder pair for a wrapper */
     def wrapperCoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Coder[A]] = try {
@@ -345,7 +351,7 @@ trait DeriveCoderMacros {
                                 ..${wrapperEncoderMethods(c)(targetType, prop, prop.read)}
                             }
                         }
-                        $name
+                        $name: ${coderType(c)(tq"$targetType")}
                     }
                 """)
 
@@ -377,7 +383,7 @@ trait DeriveCoderMacros {
                             $declareEncoder
                             ..${wrapperEncoderMethods(c)(targetType, prop, prop.read)}
                         }
-                        $name
+                        $name: ${encoderType(c)(tq"$targetType")}
                     }
                 """)
 
@@ -409,7 +415,7 @@ trait DeriveCoderMacros {
                             $declareDecoder
                             ..${wrapperDecoderMethods(c)(targetType, prop, a => model.constructAndAssign(_ => a))}
                         }
-                        $name
+                        $name: ${decoderType(c)(tq"$targetType")}
                     }
                 """)
 
@@ -421,21 +427,5 @@ trait DeriveCoderMacros {
         System.err.println("uhoh, macro explosion!")
         e.printStackTrace(System.err)
         null
-    }
-
-    def parseUnionAlternatives(c: Context)(alternativeTrees: Seq[c.universe.Tree]): NonEmptyList[(c.universe.Type, String)] = {
-        import c.universe.{Quasiquote, TreeTag}
-
-        val targets = alternativeTrees.toList.map {
-            case q"$f[$tpeTree].tag($tag)" => (tpeTree.tpe, c.eval(c.Expr[String](c.untypecheck(tag.duplicate))))
-            case q"$f[$tpeTree]"           => (tpeTree.tpe, tpeTree.tpe.typeSymbol.name.decodedName.toString)
-            case tree =>
-                sys.error("unrecognized union alternative syntax: " + tree + ". expected either alt[Type] or alt[Type].tag(\"Tag\")")
-        }
-
-        targets match {
-            case Nil => sys.error("union cannot be made with no alternatives!")
-            case hd :: tl => nel(hd, tl)
-        }
     }
 }

@@ -541,6 +541,8 @@ Type: $tpe
     }
 
     /** Add some definitions to the companion object of an annotated class, creating that companion if it doesn't already exist */
+    /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                       it doesn't error at runtime.
     def addToCompanion(c: Context)(annottees: Seq[c.Expr[Any]]) (
         f: (c.universe.TypeName, List[c.universe.Tree]) => List[c.universe.Tree]
     ): c.Expr[Any] = {
@@ -591,6 +593,7 @@ Type: $tpe
                 sys.error(s"expected implicitly to annotate a class to which a companion coder pair should be attached")
         }
     }
+    */
 
     /** Augment some `ImplDef` with additional statements and parents */
     def augmentImpl(c: Context)(implDef: c.universe.ImplDef, newParents: List[c.universe.Tree], stats: List[c.universe.Tree]): c.universe.ImplDef = {

@@ -179,6 +179,8 @@ class avroStructureCoderPOJOClassTest extends SpecificationWithJUnit with ScalaC
     }
 }
 
+/* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                   it doesn't error at runtime.
 object avroStructureImplicitTestFixture {
     import scalar.intAvroCoder
 
@@ -215,6 +217,7 @@ class avroStructureImplicitTest extends SpecificationWithJUnit {
         (coder.encode.toBytes(ics) >>= coder.decode.fromBytes(coder.schema)) ==== Okay(ics)
     }
 }
+*/
 
 object avroStructureCustomizedCoderTestFixture {
     import scalar.charAvroCoderFixed // implicitly the default for Char
@@ -405,21 +408,21 @@ class avroStructureNotCodedTest extends SpecificationWithJUnit with StructureAvr
 object avroStructureDefaultingFixture {
     import scalar.intAvroCoder
 
-    @derive.structure.implicitCoder
     case class DefaultingStructure1(a: Int, @default(5 + 2) b: Int)
     object DefaultingStructure1 {
+        implicit val avroCoder: AvroCoder[DefaultingStructure1] = derive.structure.coder[DefaultingStructure1]
         implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure1(i, j))
     }
 
-    @derive.structure.implicitCoder
     case class DefaultingStructure2(a: Int, b: Int = 5 + 2)
     object DefaultingStructure2 {
+        implicit val avroCoder: AvroCoder[DefaultingStructure2] = derive.structure.coder[DefaultingStructure2]
         implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure2(i, j))
     }
 
-    @derive.structure.implicitCoder
     case class DefaultingStructure3(a: Int, @default(5 + 2) b: Int = 2)
     object DefaultingStructure3 {
+        implicit val avroCoder: AvroCoder[DefaultingStructure3] = derive.structure.coder[DefaultingStructure3]
         implicit val arb = Arbitrary(for { i <- arbitrary[Int]; j <- arbitrary[Int] } yield DefaultingStructure3(i, j))
     }
 }

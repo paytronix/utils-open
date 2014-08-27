@@ -44,9 +44,12 @@ object derive {
          *     }
          *     final case class MyStruct(a: Int, b: String)
          */
+        /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                           it doesn't error at runtime.
         class implicitCoder extends StaticAnnotation {
             def macroTransform(annottees: Any*): Any = macro deriveImpl.deriveImplicitStructureCoderAnnotation
         }
+        */
 
         /**
          * Make the annotated class or object a complete `AvroCoder` for the given type allowing for individual field codings to be altered.
@@ -110,15 +113,20 @@ object derive {
      *
      * For example:
      *
-     *     @derive.wrapper.implicitCoder
      *     final case class Meters(m: Int) extends AnyVal
+     *     object Meters {
+     *         implicit val avroCoder: AvroCoder[Meters] = derive.wrapper.coder[Meters]
+     *     }
      *
      * In this example, a value of type `Meters` would be encoded as an integer, but is a distinct type in Scala.
      */
     object wrapper {
+        /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                           it doesn't error at runtime.
         class implicitCoder extends StaticAnnotation {
             def macroTransform(annottees: Any*): Any = macro deriveImpl.deriveImplicitWrapperCoderAnnotation
         }
+        */
 
         /**
          * Generate an `AvroCoder` for the given wrapping type, using a coder from the implicit scope for the single field decoding.
@@ -142,7 +150,7 @@ object derive {
     /** Annotation and macro to derive union (sum type) coders. */
     object union {
         /**
-         * Automatically generate an `AvroCoder` for a union type whose alternatives have been enumerated with
+         * Automatically generate an `AvroCoder` for a union type whose alternates have been enumerated with
          * a `com.paytronix.utils.interchange.base.union` annotation.
          *
          * For example:
@@ -163,26 +171,34 @@ object derive {
          *     final case class First extends MyUnion
          *     final case class Second extends MyUnion
          */
+        /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                           it doesn't error at runtime.
         class implicitCoder extends StaticAnnotation {
             def macroTransform(annottees: Any*): Any = macro deriveImpl.deriveImplicitUnionCoderAnnotation
         }
+        */
+
+        private[union] sealed trait Alternate[A]
+
+        /** Declare a single alternate of a union. Intended only for use as syntax in a @derive.union.* annotation */
+        def alternate[A]: Alternate[A] = new Alternate[A] { }
 
         /**
          * Derive an `AvroCoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates may be tagged,
          * but the tag will be ignored as Avro uses a discriminator to choose among union alternates.
          */
-        def coder[A](alternatives: base.union.Alternative[A]*): AvroCoder[A] = macro deriveImpl.unionCoderDef[A]
+        def coder[A](alternates: Alternate[_ <: A]*): AvroCoder[A] = macro deriveImpl.unionCoderDef[A]
 
         /**
          * Derive an `AvroEncoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates may be tagged,
          * but the tag will be ignored as Avro uses a discriminator to choose among union alternates.
          */
-        def encoder[A](alternatives: base.union.Alternative[A]*): AvroEncoder[A] = macro deriveImpl.unionEncoderDef[A]
+        def encoder[A](alternates: Alternate[_ <: A]*): AvroEncoder[A] = macro deriveImpl.unionEncoderDef[A]
 
         /**
          * Derive an `AvroDecoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates may be tagged,
          * but the tag will be ignored as Avro uses a discriminator to choose among union alternates.
          */
-        def decoder[A](alternatives: base.union.Alternative[A]*): AvroDecoder[A] = macro deriveImpl.unionDecoderDef[A]
+        def decoder[A](alternates: Alternate[_ <: A]*): AvroDecoder[A] = macro deriveImpl.unionDecoderDef[A]
     }
 }

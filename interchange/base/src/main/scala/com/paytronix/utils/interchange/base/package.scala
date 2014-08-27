@@ -144,27 +144,6 @@ package base {
     /** Annotation indicating the default value a property should have when not present in the input */
     class default(value: Any) extends StaticAnnotation
 
-    /**
-     * Annotation that indicates some type is the base type of a union.
-     *
-     * Alternatives are identified by type using `alt[A]` and can be given an explicit string tag with `.tag`, for example:
-     *
-     *    union(alt[First].tag("explicit tag"), alt[Second])
-     *
-     * Some formats will use the tag and some will have some other way of identifying the union alternatives. In the case where the
-     * tag is used but no explicit tag is given, the base name of the type (in the example, `"Second"`) will be used.
-     */
-    class union(alternatives: union.Alternative[Any]*) extends StaticAnnotation
-
-    object union {
-        class Alternative[+A] {
-            def tag(tag: String) = this
-        }
-
-        def alt[A]: Alternative[A] = new Alternative[A]
-    }
-
-
     /** Single component of a path through the data model for error reporting */
     sealed abstract class Segment
 

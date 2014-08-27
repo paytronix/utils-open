@@ -44,9 +44,12 @@ object derive {
          *     }
          *     final case class MyStruct(a: Int, b: String)
          */
+        /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                           it doesn't error at runtime.
         class implicitCoder extends StaticAnnotation {
             def macroTransform(annottees: Any*): Any = macro deriveImpl.deriveImplicitStructureCoderAnnotation
         }
+        */
 
         /**
          * Make the annotated class or object a complete `JsonCoder` for the given type allowing for individual field codings to be altered.
@@ -119,9 +122,12 @@ object derive {
      * In this example, a value of type `Meters` would be encoded as an integer, but is a distinct type in Scala.
      */
     object wrapper {
+        /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                           it doesn't error at runtime.
         class implicitCoder extends StaticAnnotation {
             def macroTransform(annottees: Any*): Any = macro deriveImpl.deriveImplicitWrapperCoderAnnotation
         }
+        */
 
         /**
          * Generate an `JsonCoder` for the given wrapping type, using a coder from the implicit scope for the single field decoding.
@@ -145,7 +151,7 @@ object derive {
     /** Annotation and macro to derive union (sum type) coders that use an explicit intensional field to discriminate among alternates. */
     object taggedUnion {
         /**
-         * Automatically generate an `JsonCoder` for a union type whose alternatives have been enumerated with
+         * Automatically generate an `JsonCoder` for a union type whose alternates have been enumerated with
          * a `com.paytronix.utils.interchange.base.union` annotation.
          *
          * For example:
@@ -166,33 +172,41 @@ object derive {
          *     final case class First extends MyUnion
          *     final case class Second extends MyUnion
          */
+        /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                           it doesn't error at runtime.
         class implicitCoder(determinant: String) extends StaticAnnotation {
             def macroTransform(annottees: Any*): Any = macro deriveImpl.deriveImplicitTaggedUnionCoderAnnotation
         }
+        */
+
+        private[taggedUnion] sealed trait Alternate[A]
+
+        /** Declare a single alternate of a union. Intended only for use as syntax in a @derive.taggedUnion.* annotation */
+        def alternate[A](tag: String): Alternate[A] = new Alternate[A] { }
 
         /**
          * Derive an `JsonCoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates should be tagged,
          * but if they are not a tag based on the type name will be used.
          */
-        def coder[A](determinant: String, alternatives: base.union.Alternative[A]*): JsonCoder[A] = macro deriveImpl.taggedUnionCoderDef[A]
+        def coder[A](determinant: String, alternates: Alternate[_ <: A]*): JsonCoder[A] = macro deriveImpl.taggedUnionCoderDef[A]
 
         /**
          * Derive an `JsonEncoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates should be tagged,
          * but if they are not a tag based on the type name will be used.
          */
-        def encoder[A](determinant: String, alternatives: base.union.Alternative[A]*): JsonEncoder[A] = macro deriveImpl.taggedUnionEncoderDef[A]
+        def encoder[A](determinant: String, alternates: Alternate[_ <: A]*): JsonEncoder[A] = macro deriveImpl.taggedUnionEncoderDef[A]
 
         /**
          * Derive an `JsonDecoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates should be tagged,
          * but if they are not a tag based on the type name will be used.
          */
-        def decoder[A](determinant: String, alternatives: base.union.Alternative[A]*): JsonDecoder[A] = macro deriveImpl.taggedUnionDecoderDef[A]
+        def decoder[A](determinant: String, alternates: Alternate[_ <: A]*): JsonDecoder[A] = macro deriveImpl.taggedUnionDecoderDef[A]
     }
 
     /** Annotation and macro to derive union (sum type) coders that assume the various alternates follow distinct formats and tries each format in turn. */
     object adHocUnion {
         /**
-         * Automatically generate an `JsonCoder` for a union type whose alternatives have been enumerated with
+         * Automatically generate an `JsonCoder` for a union type whose alternates have been enumerated with
          * a `com.paytronix.utils.interchange.base.union` annotation.
          *
          * For example:
@@ -216,26 +230,34 @@ object derive {
          * <strong>NOTE:</strong> take care with the order of union alternates since it will try each in turn so if one is a subset of the other
          * then the wrong one might be picked.
          */
-        class implicitCoder(noApplicableAlternatives: String) extends StaticAnnotation {
+        /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                           it doesn't error at runtime.
+        class implicitCoder(noApplicableAlternates: String) extends StaticAnnotation {
             def macroTransform(annottees: Any*): Any = macro deriveImpl.deriveImplicitAdHocUnionCoderAnnotation
         }
+        */
+
+        private[adHocUnion] sealed trait Alternate[A]
+
+        /** Declare a single alternate of a union. Intended only for use as syntax in a @derive.adHocUnion.* annotation */
+        def alternate[A]: Alternate[A] = new Alternate[A] { }
 
         /**
          * Derive an `JsonCoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates may be tagged,
          * but the tag will be ignored as this type of union just tries each alternate in turn.
          */
-        def coder[A](noApplicableAlternatives: String, alternatives: base.union.Alternative[A]*): JsonCoder[A] = macro deriveImpl.adHocUnionCoderDef[A]
+        def coder[A](noApplicableAlternates: String, alternates: Alternate[_ <: A]*): JsonCoder[A] = macro deriveImpl.adHocUnionCoderDef[A]
 
         /**
          * Derive an `JsonEncoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates may be tagged,
          * but the tag will be ignored as this type of union just tries each alternate in turn.
          */
-        def encoder[A](noApplicableAlternatives: String, alternatives: base.union.Alternative[A]*): JsonEncoder[A] = macro deriveImpl.adHocUnionEncoderDef[A]
+        def encoder[A](noApplicableAlternates: String, alternates: Alternate[_ <: A]*): JsonEncoder[A] = macro deriveImpl.adHocUnionEncoderDef[A]
 
         /**
          * Derive an `JsonDecoder` for a union (sum type), given explicitly named subtypes as alternates. The alternates may be tagged,
          * but the tag will be ignored as this type of union just tries each alternate in turn.
          */
-        def decoder[A](noApplicableAlternatives: String, alternatives: base.union.Alternative[A]*): JsonDecoder[A] = macro deriveImpl.adHocUnionDecoderDef[A]
+        def decoder[A](noApplicableAlternates: String, alternates: Alternate[_ <: A]*): JsonDecoder[A] = macro deriveImpl.adHocUnionDecoderDef[A]
     }
 }

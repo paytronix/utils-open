@@ -21,7 +21,6 @@ import scala.collection.JavaConverters.asScalaBufferConverter
 import org.scalacheck.{Arbitrary, Gen}
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 
-import com.paytronix.utils.interchange.base.union
 import com.paytronix.utils.interchange.test.fixtures.{
     UntaggedUnionBase, UntaggedUnionFirst, UntaggedUnionSecond, UntaggedUnionInvalid,
     TaggedUnionBase, TaggedUnionFirst, TaggedUnionSecond, TaggedUnionSingleton, TaggedUnionSingletonWithProperties, TaggedUnionInvalid
@@ -53,10 +52,10 @@ class deriveTaggedUnionCoderTest extends SpecificationWithJUnit with ScalaCheck 
 
     lazy val coder = derive.taggedUnion.coder[TaggedUnionBase] (
         "tag",
-        union.alt[TaggedUnionFirst].tag("first"),
-        union.alt[TaggedUnionSecond].tag("second"),
-        union.alt[TaggedUnionSingleton.type].tag("singleton"),
-        union.alt[TaggedUnionSingletonWithProperties.type].tag("singletonWithProperties")
+        derive.taggedUnion.alternate[TaggedUnionFirst]("first"),
+        derive.taggedUnion.alternate[TaggedUnionSecond]("second"),
+        derive.taggedUnion.alternate[TaggedUnionSingleton.type]("singleton"),
+        derive.taggedUnion.alternate[TaggedUnionSingletonWithProperties.type]("singletonWithProperties")
     )
 
     def encodeFirstCase =
@@ -83,38 +82,6 @@ class deriveTaggedUnionCoderTest extends SpecificationWithJUnit with ScalaCheck 
         decode(coder.decode)(""" {"a":1} """.trim) must beLike { case FailedG(_, _) => ok }
 }
 
-object deriveTaggedUnionImplicitCoderFixture {
-    import scalar.{intJsonCoder, stringJsonCoder}
-
-    @derive.taggedUnion.implicitCoder("tag")
-    @union(union.alt[A].tag("tag a"), union.alt[B].tag("tag b"))
-    sealed abstract class ImplicitlyCodedUnion
-    object ImplicitlyCodedUnion {
-        implicit val arb: Arbitrary[ImplicitlyCodedUnion] = Arbitrary(Gen.oneOf(arbitrary[A], arbitrary[B]))
-    }
-
-    @derive.structure.implicitCoder final case class A(i: Int) extends ImplicitlyCodedUnion
-    object A { implicit val arb: Arbitrary[A] = Arbitrary(arbitrary[Int].map(A.apply)) }
-    @derive.structure.implicitCoder final case class B(s: String) extends ImplicitlyCodedUnion
-    object B { implicit val arb: Arbitrary[B] = Arbitrary(arbitrary[String].map(B.apply)) }
-}
-
-
-class deriveTaggedUnionImplicitCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
-    import deriveTaggedUnionImplicitCoderFixture.ImplicitlyCodedUnion
-
-    def is = s2"""
-        Derived implicit coders for unions
-            trivially roundup values $trivialCase
-    """
-
-    lazy val coder = ImplicitlyCodedUnion.jsonCoder
-
-    def trivialCase = prop { (icu: ImplicitlyCodedUnion) =>
-        (coder.encode.toString(icu) >>= decode(coder.decode)) ==== Okay(icu)
-    }
-}
-
 // FIXME derive encoder
 // FIXME derive decoder
 
@@ -132,7 +99,11 @@ class deriveAdHocUnionCoderTest extends SpecificationWithJUnit with ScalaCheck w
     import scalar.{intJsonCoder, stringJsonCoder}
     implicit val firstCoder = derive.structure.coder[UntaggedUnionFirst]
     implicit val secondCoder = derive.structure.coder[UntaggedUnionSecond]
-    lazy val coder = derive.adHocUnion.coder[UntaggedUnionBase]("NAA", union.alt[UntaggedUnionFirst], union.alt[UntaggedUnionSecond])
+    lazy val coder = derive.adHocUnion.coder[UntaggedUnionBase] (
+        "NAA",
+        derive.adHocUnion.alternate[UntaggedUnionFirst],
+        derive.adHocUnion.alternate[UntaggedUnionSecond]
+    )
 
     def encodeFirstCase =
         coder.encode.toString(UntaggedUnionFirst(1)) ==== Okay(""" {"a":1} """.trim)
@@ -153,17 +124,26 @@ class deriveAdHocUnionCoderTest extends SpecificationWithJUnit with ScalaCheck w
 object deriveAdHocUnionImplicitCoderFixture {
     import scalar.{intJsonCoder, stringJsonCoder}
 
-    @derive.adHocUnion.implicitCoder("NAA")
-    @union(union.alt[A], union.alt[B].tag("B"))
     sealed abstract class ImplicitlyCodedUnion
     object ImplicitlyCodedUnion {
+        implicit val jsonCoder: JsonCoder[ImplicitlyCodedUnion] = derive.adHocUnion.coder[ImplicitlyCodedUnion] (
+            "NAA",
+            derive.adHocUnion.alternate[A],
+            derive.adHocUnion.alternate[B]
+        )
         implicit val arb: Arbitrary[ImplicitlyCodedUnion] = Arbitrary(Gen.oneOf(arbitrary[A], arbitrary[B]))
     }
 
-    @derive.structure.implicitCoder final case class A(i: Int) extends ImplicitlyCodedUnion
-    object A { implicit val arb: Arbitrary[A] = Arbitrary(arbitrary[Int].map(A.apply)) }
-    @derive.structure.implicitCoder final case class B(s: String) extends ImplicitlyCodedUnion
-    object B { implicit val arb: Arbitrary[B] = Arbitrary(arbitrary[String].map(B.apply)) }
+    final case class A(i: Int) extends ImplicitlyCodedUnion
+    object A {
+        implicit val jsonCoder: JsonCoder[A] = derive.structure.coder[A]
+        implicit val arb: Arbitrary[A] = Arbitrary(arbitrary[Int].map(A.apply))
+    }
+    final case class B(s: String) extends ImplicitlyCodedUnion
+    object B {
+        implicit val jsonCoder: JsonCoder[B] = derive.structure.coder[B]
+        implicit val arb: Arbitrary[B] = Arbitrary(arbitrary[String].map(B.apply))
+    }
 }
 
 

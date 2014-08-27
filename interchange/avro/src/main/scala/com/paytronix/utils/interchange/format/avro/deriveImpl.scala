@@ -23,14 +23,14 @@ import scalaz.NonEmptyList
 import com.paytronix.utils.interchange.base
 
 import base.derive.DeriveCoderMacros
-import base.derive.utils.{Property, Structure, addToCompanion, sequenceResultBindings}
+import base.derive.utils.{Property, Structure, sequenceResultBindings}
 import utils.sanitizeSchemaName
-import NonEmptyList.nels
+import NonEmptyList.{nel, nels}
 
 private[avro] object deriveImpl extends DeriveCoderMacros {
     type Coder[A] = AvroCoder[A]
 
-    def implicitCoderName(c: Context) = c.universe.TermName("avroCoder")
+    //def implicitCoderName(c: Context) = c.universe.TermName("avroCoder")
 
     def coderType(c: Context)(tpe: c.universe.Tree) = {
         import c.universe.Quasiquote
@@ -377,7 +377,8 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
 
     }
 
-
+    /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
+                       it doesn't error at runtime.
     def deriveImplicitUnionCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] =
         addToCompanion(c)(annottees) { (targetName, annotations) =>
             import c.universe.{Ident, IdentTag, Name, NameTag, Quasiquote, TermName, TermNameTag, Tree, TreeTag}
@@ -397,13 +398,30 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                     com.paytronix.utils.interchange.format.avro.derive.union.coder[$targetName](..$alts)
              """)
         }
+    */
 
-    def unionCoderDef[A: c.WeakTypeTag](c: Context)(alternatives: c.Expr[base.union.Alternative[A]]*): c.Expr[AvroCoder[A]] = try {
+    private def parseUnionAlternates(c: Context)(alternateTrees: Seq[c.universe.Tree]): NonEmptyList[c.universe.Type] = {
+        import c.universe.{Quasiquote, TreeTag}
+
+        val targets = alternateTrees.toList.map {
+            // FIXME? probably this should really typecheck the tree and get the type out from there rather than pattern matching the apply
+            case q"$_[$tpeTree]" => tpeTree.tpe
+            case tree =>
+                sys.error("unrecognized union alternative syntax: " + tree + ". expected alternate[Type]")
+        }
+
+        targets match {
+            case Nil => sys.error("union cannot be made with no alternates!")
+            case hd :: tl => nel(hd, tl)
+        }
+    }
+
+    def unionCoderDef[A: c.WeakTypeTag](c: Context)(alternates: c.Tree*): c.Expr[AvroCoder[A]] = try {
         import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName}
 
         val targetType = c.universe.weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Coder")
-        val targetSubtypes = parseUnionAlternatives(c)(alternatives.map(_.tree)).map(_._1)
+        val targetSubtypes = parseUnionAlternates(c)(alternates)
         val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
         val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
 
@@ -428,7 +446,7 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                         ..${unionEncoderMethods(c)(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
                     }
                 }
-                $name
+                $name: ${coderType(c)(tq"$targetType")}
             }
         """)
     } catch { case e: Exception =>
@@ -438,12 +456,12 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
     }
 
 
-    def unionDecoderDef[A: c.WeakTypeTag](c: Context)(alternatives: c.Expr[base.union.Alternative[A]]*): c.Expr[AvroDecoder[A]] = try {
+    def unionDecoderDef[A: c.WeakTypeTag](c: Context)(alternates: c.Tree*): c.Expr[AvroDecoder[A]] = try {
         import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
 
         val targetType = c.universe.weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
-        val targetSubtypes = parseUnionAlternatives(c)(alternatives.map(_.tree)).map(_._1)
+        val targetSubtypes = parseUnionAlternates(c)(alternates)
         val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
 
         val declareDecoders = (targetSubtypes zip subtypeDecoderNames).map { case (tpe, decoderName) =>
@@ -458,7 +476,7 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                     ..$declareDecoders
                     ..${unionDecoderMethods(c)(targetType, targetSubtypes, subtypeDecoderNamesByType.mapValues(n => Ident(n)))}
                 }
-                $name
+                $name: ${decoderType(c)(tq"$targetType")}
             }
         """)
     } catch { case e: Exception =>
@@ -467,11 +485,11 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         null
     }
 
-    def unionEncoderDef[A: c.WeakTypeTag](c: Context)(alternatives: c.Expr[base.union.Alternative[A]]*): c.Expr[AvroEncoder[A]] = try {
+    def unionEncoderDef[A: c.WeakTypeTag](c: Context)(alternates: c.Tree*): c.Expr[AvroEncoder[A]] = try {
         import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
         val targetType = c.universe.weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Encoder")
-        val targetSubtypes = parseUnionAlternatives(c)(alternatives.map(_.tree)).map(_._1)
+        val targetSubtypes = parseUnionAlternates(c)(alternates)
         val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
 
         val declareEncoders = (targetSubtypes zip subtypeEncoderNames).map { case (tpe, encoderName) =>
@@ -486,7 +504,7 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                     ..$declareEncoders
                     ..${unionEncoderMethods(c)(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
                 }
-                $name
+                $name: ${encoderType(c)(tq"$targetType")}
             }
         """)
     } catch { case e: Exception =>
