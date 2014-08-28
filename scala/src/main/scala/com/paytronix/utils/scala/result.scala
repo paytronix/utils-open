@@ -17,6 +17,7 @@
 package com.paytronix.utils.scala
 
 import language.{higherKinds, implicitConversions}
+import language.experimental.macros
 
 import _root_.scala.annotation.implicitNotFound
 import _root_.scala.collection.Iterator
@@ -142,48 +143,56 @@ object result {
         def filterNotG[F >: E](otherwise: FailedG[F])(p: A => Boolean): ResultG[F, A]
 
         /** If Okay, applies function to value and yields its result. Equivalent to `>>=` */
-        def flatMap[F >: E, B](f: A => ResultG[F, B]): ResultG[F, B]
+        final def flatMap[F >: E, B](f: A => ResultG[F, B]): ResultG[F, B] =
+            if (this.isOkay) f(this.orThrow)
+            else this.asFailed
 
         /** If Okay, applies function to value and yields its result. Equivalent to `flatMap` */
-        def >>= [F >: E, B](f: A => ResultG[F, B]): ResultG[F, B]
+        final def >>= [F >: E, B](f: A => ResultG[F, B]): ResultG[F, B] =
+            macro resultMacros.bind
 
         /** If Okay, applies function to value and yields Unit */
-        def foreach(f: A => Unit): Unit
+        final def foreach(f: A => Unit): Unit =
+            if (this.isOkay) f(this.orThrow)
 
         /** If Okay, yields the value, otherwise the given default */
-        def getOrElse[B >: A](default: => B): B
+        final def getOrElse[B >: A](default: => B): B =
+            if (this.isOkay) this.orThrow
+            else default
 
         /** Yields true iff Okay */
-        def isOkay: Boolean
+        final def isOkay: Boolean =
+            this.isInstanceOf[Okay[_]]
 
         /** Yields this cast as an Okay if it is one, throws exception otherwise. Intended for use by Java. */
-        def asOkay: Okay[A] =
-            this match {
-                case o@Okay(_) => o
-                case _ => this.orThrow; null
-            }
+        final def asOkay: Okay[A] =
+            if (this.isOkay) this.asInstanceOf[Okay[A]]
+            else this.orThrow.asInstanceOf[Okay[A]]
 
         /** Yields true iff failed */
-        def isFailed: Boolean
+        final def isFailed: Boolean =
+            this.isInstanceOf[FailedG[_]]
 
         /** Yields this cast as a Failed if it is one, throws exception otherwise. Intended for use by Java. */
-        def asFailed: FailedG[E] =
-            this match {
-                case f@FailedG(_, _) => f
-                case _ => sys.error("expected " + this + " to be Failed")
-            }
+        final def asFailed: FailedG[E] =
+            if (this.isFailed) this.asInstanceOf[FailedG[E]]
+            else sys.error("expected " + this + " to be Failed")
 
         /** Yields an Iterator of the value if Okay, an empty Iterator otherwise */
         def iterator: Iterator[A]
 
         /** If Okay, applies function to value and yields Okay with its result */
-        def map[B](f: A => B): ResultG[E, B]
+        final def map[B](f: A => B): ResultG[E, B] =
+            if (this.isOkay) Okay(f(this.orThrow))
+            else this.asFailed
 
         /** If `FailedG`, applies function to the parameter in the `FailedG` */
-        def mapFailure[F](f: E => F): ResultG[F, A]
+        final def mapFailure[F](f: E => F): ResultG[F, A] =
+            if (this.isFailed) FailedG(this.asFailed.throwable, f(this.asFailed.parameter))
+            else this.asOkay
 
         /** Replace any `Okay` value with `()` (`Unit`). Equivalent to `result.map(_ => ())` */
-        def unit: ResultG[E, Unit] = map(_ => ())
+        final def unit: ResultG[E, Unit] = map(_ => ())
 
         /**
          * If Failed, then either modify the Failed somehow or replace with another Result.
@@ -202,10 +211,14 @@ object result {
         def orElse[F, B >: A] (f: FailedG[E] => ResultG[F, B]): ResultG[F, B] = this | f
 
         /** If Failed, yield null, otherwise yields the Okay value */
-        def orNull[B >: A](implicit ev: Null <:< B): B
+        final def orNull[B >: A](implicit ev: Null <:< B): B =
+            if (this.isOkay) this.asOkay.result.asInstanceOf[B]
+            else null.asInstanceOf[B]
 
         /** If Failed, throw the enclosed exception, otherwise yield the Okay value */
-        def orThrow: A
+        final def orThrow: A =
+            if (this.isOkay) this.asOkay.result
+            else throw this.asFailed.throwable
 
         /** Same as iterator */
         override def productIterator: Iterator[Any] = iterator
@@ -238,8 +251,9 @@ object result {
             def withFilter(q: A => Boolean): WithFilter[F] = new WithFilter(x => p(x) && q(x))
         }
 
-        /** If Okay, replace the value with the given alternative. Equivalent to flatMap(_ => alternative) */
-        def >> [F >: E, B](consequent: => ResultG[F, B]): ResultG[F, B]
+        /** If Okay, replace the value with the given alternative. Equivalent to >>= { _ => alternative } */
+        final def >> [F >: E, B](consequent: => ResultG[F, B]): ResultG[F, B] =
+            macro resultMacros.chain
 
         /**
          * Yield true iff Okay and the value's head type conforms to the given type.
@@ -404,41 +418,11 @@ object result {
                 clazz.cast(result).asInstanceOf[B]
             } orElse otherwise
 
-        def flatMap[E, B](f: A => ResultG[E, B]): ResultG[E, B] =
-            f(result)
-
-        def >>= [E, B](f: A => ResultG[E, B]): ResultG[E, B] =
-            f(result)
-
-        def foreach(f: A => Unit): Unit =
-            { f(result); () }
-
-        def getOrElse[B >: A](default: => B): B =
-            result
-
-        def isOkay: Boolean =
-            true
-
-        def isFailed: Boolean =
-            false
-
         def iterator: Iterator[A] =
             Iterator.single(result)
 
-        def map[B](f: A => B): Okay[B] =
-            Okay(f(result))
-
-        def mapFailure[F](f: Nothing => F): Okay[A] =
-            this
-
         def | [F, B >: A] (f: FailedG[Nothing] => ResultG[F, B]): ResultG[F, B] =
             this
-
-        def orNull[B >: A](implicit ev: Null <:< B): B =
-            result
-
-        def orThrow: A =
-            result
 
         override def productPrefix: String =
             "Okay"
@@ -457,9 +441,6 @@ object result {
 
         def toTry: scala.util.Try[A] =
             scala.util.Success(result)
-
-        def >> [E, B](alternative: => ResultG[E, B]): ResultG[E, B] =
-            alternative
 
         def isA[B: ClassTag]: Boolean =
             classTag[B].runtimeClass.isInstance(result)
@@ -498,38 +479,11 @@ object result {
         def filterNotG[F >: E](otherwise: FailedG[F])(p: Nothing => Boolean): FailedG[F] =
             this
 
-        def flatMap[F >: E, B](f: Nothing => ResultG[F, B]): FailedG[F] =
-            this
-
-        def >>= [F >: E, B](f: Nothing => ResultG[F, B]): FailedG[F] =
-            this
-
-        def foreach(f: Nothing => Unit): Unit =
-            ()
-
-        def getOrElse[B](default: => B): B =
-            default
-
-        def isOkay: Boolean =
-            false
-
-        def isFailed: Boolean =
-            true
-
         def iterator: Iterator[Nothing] =
             Iterator.empty
 
-        def map[B](f: Nothing => B): FailedG[E] =
-            this
-
-        def mapFailure[F](f: E => F): FailedG[F] =
-            FailedG(throwable, f(parameter))
-
         def | [F, B] (f: FailedG[E] => ResultG[F, B]): ResultG[F, B] =
             f(this)
-
-        def orNull[B](implicit ev: Null <:< B): B =
-            ev(null)
 
         def toList: List[Nothing] =
             Nil
@@ -545,12 +499,6 @@ object result {
 
         def toTry: scala.util.Try[Nothing] =
             scala.util.Failure(throwable)
-
-        def orThrow: Nothing =
-            throw throwable
-
-        def >> [F >: E, B](alternative: => ResultG[F, B]): FailedG[F] =
-            this
 
         def isA[B: ClassTag]: Boolean =
             false
@@ -886,7 +834,10 @@ object result {
         def mapResult[E, B, That](f: A => ResultG[E, B])(implicit cb: CanBuild[B, That]): ResultG[E, That] = {
             val builder = cb()
             foreachResult { a =>
-                f(a) >>= { b => builder += b; Okay.unit }
+                f(a) match {
+                    case Okay(b) => builder += b; Okay.unit
+                    case failed@FailedG(_, _) => failed
+                }
             }.map(_ => builder.result())
         }
 

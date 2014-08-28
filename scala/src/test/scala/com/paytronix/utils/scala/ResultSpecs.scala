@@ -381,3 +381,44 @@ class CatchingSpecTest extends SpecificationWithJUnit {
     def tryCatching2bc = tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionB("foo") } must beFailedWith("foo")
     def tryCatching2p = tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new UnsupportedOperationException("foo") } must throwA[UnsupportedOperationException]
 }
+
+class BindAndChainTest extends SpecificationWithJUnit {
+    def is = s2"""
+        ResultG macros
+            okay >> okay             $chainOkayOkayCase
+            okay >> failed           $chainOkayFailedCase
+            failed >> okay           $chainFailedOkayCase
+            failed >> failed         $chainFailedFailedCase
+            failed >> error          $chainFailedLazyCase
+            okay >>= { _ => okay }   $bindWildcardOkayCase
+            failed >>= { _ => okay } $bindWildcardFailedCase
+            okay >>= { a => rhs }    $bindIdentOkayCase
+            failed >>= { a => rhs }  $bindIdentFailedCase
+            okay >>= { case … }      $bindPFOkayCase
+            failed >>= { case … }    $bindPFFailedCase
+    """
+
+    def chainOkayOkayCase =
+        (Okay(1) >> Okay(2)) ==== Okay(2)
+    def chainOkayFailedCase =
+        (Okay(1) >> FailedG("foo", 1)) must beFailedWith("foo", 1)
+    def chainFailedOkayCase =
+        (FailedG("foo", 1) >> Okay(2)) must beFailedWith("foo", 1)
+    def chainFailedFailedCase =
+        (FailedG("foo", 1) >> FailedG("bar", 2)) must beFailedWith("foo", 1)
+    def chainFailedLazyCase =
+        (FailedG("foo", 1) >> sys.error("boom")) must beFailedWith("foo", 1)
+
+    def bindWildcardOkayCase =
+        ((Okay(1): ResultG[Int, Int]) >>= { _ => Okay(2) }) ==== Okay(2)
+    def bindWildcardFailedCase =
+        ((FailedG("foo", 1): ResultG[Int, Int]) >>= { _ => Okay(2) }) must beFailedWith("foo", 1)
+    def bindIdentOkayCase =
+        ((Okay(1): ResultG[Int, Int]) >>= { a => Okay(a+1) }) ==== Okay(2)
+    def bindIdentFailedCase =
+        ((FailedG("foo", 1): ResultG[Int, Int]) >>= { (a: Int) => Okay(a+1) }) must beFailedWith("foo", 1)
+    def bindPFOkayCase =
+        ((Okay(1): ResultG[Int, Int]) >>= { case 0 => Okay(2); case 1 => Okay(3); case _ => FailedG("nope", 999) }) ==== Okay(3)
+    def bindPFFailedCase =
+        ((FailedG("foo", 1): ResultG[Int, Int]) >>= { case 0 => Okay(2); case 1 => Okay(3); case _ => FailedG("nope", 999) }) must beFailedWith("foo", 1)
+}

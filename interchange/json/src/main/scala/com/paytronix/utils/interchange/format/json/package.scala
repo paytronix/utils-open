@@ -628,7 +628,7 @@ final class InterchangeJsonParser(parser: JsonParser) {
 
     /** An `orElse` failure processing function which sets the source location appropriately for the location of the parser */
     def noteSourceLocation: FailedG[CoderFailure] => FailedG[CoderFailure] =
-        _.mapFailure(_.copy(sourceLocation=this.sourceLocation))
+        { case FailedG(t, p) => FailedG(t, p.copy(sourceLocation=this.sourceLocation)) }
 
     /** A terminal `CoderFailure` at the current parsing location */
     def terminal: CoderFailure =
