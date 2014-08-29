@@ -26,10 +26,6 @@ import scalaz.NonEmptyList
 import com.paytronix.utils.interchange.base
 
 import NonEmptyList.{nel, nels}
-import utils.{
-    Property, SimplifiedDeriveAnnotation, Structure,
-    augmentImpl, sequenceResultBindings, simplifyDeriveAnnotation, structureOf
-}
 
 /**
  * Trait which implements a family of macros used to generate various coders for some format.
@@ -37,7 +33,11 @@ import utils.{
  * Each format implements an object extending this trait and so gets appropriate macros at a lower
  * implementation cost.
  */
-trait DeriveCoderMacros {
+trait DeriveCoderMacros extends DeriveUtils {
+    val c: Context
+
+    import c.universe.{Annotation, DefDef, DefDefTag, Ident, Quasiquote, TermName, Tree, Type, ValDef, ValDefTag, typeOf, weakTypeTag}
+
     /** Type of coders for the given type */
     type Coder[A]
 
@@ -45,59 +45,57 @@ trait DeriveCoderMacros {
      * The name to use when attaching implicitly derived coders to companion objects, e.g. `avroCoder` or `jacksonCoder`.
      * To avoid confusion and madness this should always return some constant name, but has to be a function because macros.
      */
-    //def implicitCoderName(c: Context): c.universe.TermName
+    //def implicitCoderName: c.universe.TermName
 
     /** Type tree of coder pairs of the given type name */
-    def coderType(c: Context)(tpe: c.universe.Tree): c.universe.Tree
+    def coderType(tpe: Tree): Tree
 
     /** Materializer for coder pairs of the given type */
-    def materializeCoder(c: Context)(tpe: c.universe.Type, annotations: List[c.universe.Annotation]): c.universe.Tree
+    def materializeCoder(tpe: Type, annotations: List[Annotation]): Tree
 
     /** Type of encoders of the given type */
     type Encoder[A]
 
     /** Type tree of encoders of the given type name */
-    def encoderType(c: Context)(tpe: c.universe.Tree): c.universe.Tree
+    def encoderType(tpe: Tree): Tree
 
     /** Materializer for encoders of the given type */
-    def materializeEncoder(c: Context)(tpe: c.universe.Type, annotations: List[c.universe.Annotation]): c.universe.Tree
+    def materializeEncoder(tpe: Type, annotations: List[Annotation]): Tree
 
     /** Type of decoders of the given type */
     type Decoder[A]
 
     /** Type tree of decoders of the given type name */
-    def decoderType(c: Context)(tpe: c.universe.Tree): c.universe.Tree
+    def decoderType(tpe: Tree): Tree
 
     /** Materializer of decoders of the given type */
-    def materializeDecoder(c: Context)(tpe: c.universe.Type, annotations: List[c.universe.Annotation]): c.universe.Tree
+    def materializeDecoder(tpe: Type, annotations: List[Annotation]): Tree
 
     /** Tree which evaluates to the front end of the macro package, for implicit structure coder pair implementation */
-    def makeStructureCoder(c: Context)(target: c.universe.Tree): c.universe.Tree
+    def makeStructureCoder(target: Tree): Tree
 
     /** Generate methods for implementing the encoder type of a structure, giving the model and references to the subsidiary encoders to use */
-    def structureEncoderMethods(c: Context)(tpe: c.universe.Type, encoderFor: Property[c.universe.type] => c.universe.Tree, model: Structure[c.universe.type]): List[c.universe.Tree]
+    def structureEncoderMethods(tpe: Type, encoderFor: Property => Tree, model: Structure): List[Tree]
 
     /** Generate methods for implementing the decoder type of a structure, giving the model and references to the subsidiary decoders to use */
-    def structureDecoderMethods(c: Context)(tpe: c.universe.Type, decoderFor: Property[c.universe.type] => c.universe.Tree, model: Structure[c.universe.type]): List[c.universe.Tree]
+    def structureDecoderMethods(tpe: Type, decoderFor: Property => Tree, model: Structure): List[Tree]
 
     /** Tree which evaluates to the front end of the macro package, for implicit wrapper coder pair implementation */
-    def makeWrapperCoder(c: Context)(target: c.universe.Tree): c.universe.Tree
+    def makeWrapperCoder(target: Tree): Tree
 
     /** Generate methods for implementing the decoder type of a wrapper, given an unwrapping function and the single property of the wrapper */
-    def wrapperEncoderMethods(c: Context)(targetType: c.universe.Type, property: Property[c.universe.type], unwrap: c.universe.Tree => c.universe.Tree): List[c.universe.Tree]
+    def wrapperEncoderMethods(targetType: Type, property: Property, unwrap: Tree => Tree): List[Tree]
 
     /** Generate methods for implementing the decoder type of a wrapper, given a wrapping function and the single property of the wrapper */
-    def wrapperDecoderMethods(c: Context)(targetType: c.universe.Type, property: Property[c.universe.type], wrap: c.universe.Tree => c.universe.Tree): List[c.universe.Tree]
+    def wrapperDecoderMethods(targetType: Type, property: Property, wrap: Tree => Tree): List[Tree]
 
     /** Wrap a core expression which materializes or constructs a coder with additional wrapping based on annotations, used for implementing materialize* */
-    def wrapCoderForAnnotations(c: Context) (
-        coder: c.universe.Tree,
-        annotations: List[c.universe.Annotation],
-        nullable: c.universe.Tree => c.universe.Tree,
-        default: c.universe.Tree => c.universe.Tree => c.universe.Tree
-    ): c.universe.Tree = {
-        import c.universe.{Annotation, typeOf}
-
+    def wrapCoderForAnnotations (
+        coder: Tree,
+        annotations: List[Annotation],
+        nullable: Tree => Tree,
+        default: Tree => Tree => Tree
+    ): Tree = {
         val nullableTpe = typeOf[com.paytronix.utils.interchange.base.nullable]
         val defaultTpe = typeOf[com.paytronix.utils.interchange.base.default]
         List (
@@ -117,39 +115,37 @@ trait DeriveCoderMacros {
      */
     /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
                        it doesn't error at runtime.
-    def deriveImplicitStructureCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] =
-        addToCompanion(c)(annottees) { (targetName, _) =>
-            import c.universe.{Ident, Quasiquote}
-            List(q"implicit val ${implicitCoderName(c)}: ${coderType(c)(Ident(targetName))} = ${makeStructureCoder(c)(Ident(targetName))}")
+    def deriveImplicitStructureCoderAnnotation(annottees: c.Expr[Any]*): c.Expr[Any] =
+        addToCompanion(annottees) { (targetName, _) =>
+            List(q"implicit val ${implicitCoderName}: ${coderType(Ident(targetName))} = ${makeStructureCoder(Ident(targetName))}")
         }
     */
 
     /** Def macro implementation which derives a coder pair for a structure */
-    def structureCoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Coder[A]] = try {
-        import c.universe.{Ident, Quasiquote, TermName, weakTypeTag}
+    def structureCoderDefImpl[A: c.WeakTypeTag]: c.Expr[Coder[A]] = try {
         val tpe = weakTypeTag[A].tpe
         val name = TermName(tpe.typeSymbol.name.decodedName.toString + "Coder")
-        val model = structureOf(c)(tpe)
+        val model = structureOf(tpe)
 
         val declareCoders = model.properties.flatMap { prop =>
             List (
-                q"lazy val ${prop.decoderName} = ${materializeDecoder(c)(prop.tpe, prop.annotations)}",
-                q"lazy val ${prop.encoderName} = ${materializeEncoder(c)(prop.tpe, prop.annotations)}"
+                q"lazy val ${prop.decoderName} = ${materializeDecoder(prop.tpe, prop.annotations)}",
+                q"lazy val ${prop.encoderName} = ${materializeEncoder(prop.tpe, prop.annotations)}"
             )
         }
 
         c.Expr[Coder[A]](q"""
             {
-                object $name extends ${coderType(c)(tq"$tpe")} {
+                object $name extends ${coderType(tq"$tpe")} {
                     ..$declareCoders
-                    object decode extends ${decoderType(c)(tq"$tpe")} {
-                        ..${structureDecoderMethods(c)(tpe, p => Ident(p.decoderName), model)}
+                    object decode extends ${decoderType(tq"$tpe")} {
+                        ..${structureDecoderMethods(tpe, p => Ident(p.decoderName), model)}
                     }
-                    object encode extends ${encoderType(c)(tq"$tpe")} {
-                        ..${structureEncoderMethods(c)(tpe, p => Ident(p.encoderName), model)}
+                    object encode extends ${encoderType(tq"$tpe")} {
+                        ..${structureEncoderMethods(tpe, p => Ident(p.encoderName), model)}
                     }
                 }
-                $name: ${coderType(c)(tq"$tpe")}
+                $name: ${coderType(tq"$tpe")}
             }
         """)
     } catch { case e: Exception =>
@@ -159,23 +155,22 @@ trait DeriveCoderMacros {
     }
 
     /** Def macro implementation which derives a decoder for a structure */
-    def structureDecoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Decoder[A]] = try {
-        import c.universe.{Ident, Quasiquote, TermName, weakTypeTag}
+    def structureDecoderDefImpl[A: c.WeakTypeTag]: c.Expr[Decoder[A]] = try {
         val tpe = weakTypeTag[A].tpe
         val name = TermName(tpe.typeSymbol.name.decodedName.toString + "Decoder")
-        val model = structureOf(c)(tpe)
+        val model = structureOf(tpe)
 
         val declareDecoders = model.properties.map { prop =>
-            q"lazy val ${prop.decoderName} = ${materializeDecoder(c)(prop.tpe, prop.annotations)}"
+            q"lazy val ${prop.decoderName} = ${materializeDecoder(prop.tpe, prop.annotations)}"
         }
 
         c.Expr[Decoder[A]](q"""
             {
-                object $name extends ${decoderType(c)(tq"$tpe")} {
+                object $name extends ${decoderType(tq"$tpe")} {
                     ..$declareDecoders
-                    ..${structureDecoderMethods(c)(tpe, p => Ident(p.decoderName), model)}
+                    ..${structureDecoderMethods(tpe, p => Ident(p.decoderName), model)}
                 }
-                $name: ${decoderType(c)(tq"$tpe")}
+                $name: ${decoderType(tq"$tpe")}
             }
         """)
     } catch { case e: Exception =>
@@ -185,23 +180,22 @@ trait DeriveCoderMacros {
     }
 
     /** Def macro implementation which derives a encoder for a structure */
-    def structureEncoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Encoder[A]] = try {
-        import c.universe.{Ident, Quasiquote, TermName, weakTypeTag}
+    def structureEncoderDefImpl[A: c.WeakTypeTag]: c.Expr[Encoder[A]] = try {
         val tpe = weakTypeTag[A].tpe
         val name = TermName(tpe.typeSymbol.name.decodedName.toString + "Encoder")
-        val model = structureOf(c)(tpe)
+        val model = structureOf(tpe)
 
         val declareEncoders = model.properties.map { prop =>
-            q"lazy val ${prop.encoderName} = ${materializeEncoder(c)(prop.tpe, prop.annotations)}"
+            q"lazy val ${prop.encoderName} = ${materializeEncoder(prop.tpe, prop.annotations)}"
         }
 
         c.Expr[Encoder[A]](q"""
             {
-                object $name extends ${encoderType(c)(tq"$tpe")} {
+                object $name extends ${encoderType(tq"$tpe")} {
                     ..$declareEncoders
-                    ..${structureEncoderMethods(c)(tpe, p => Ident(p.encoderName), model)}
+                    ..${structureEncoderMethods(tpe, p => Ident(p.encoderName), model)}
                 }
-                $name: ${encoderType(c)(tq"$tpe")}
+                $name: ${encoderType(tq"$tpe")}
             }
         """)
     } catch { case e: Exception =>
@@ -214,11 +208,9 @@ trait DeriveCoderMacros {
      * Annotation macro implementation which implements a coder pair for a structure where some fields can
      * use an explicit coder pair rather than one from implicit scope
      */
-    def structureCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = try {
-        import c.universe.{DefDef, DefDefTag, Ident, Quasiquote, TermName, ValDef, ValDefTag}
-
-        val SimplifiedDeriveAnnotation(targetType, _, _, implDef) = simplifyDeriveAnnotation(c)(annottees: _*)
-        val model = structureOf(c)(targetType)
+    def structureCoderAnnotation(annottees: c.Expr[Any]*): c.Expr[Any] = try {
+        val SimplifiedDeriveAnnotation(targetType, _, _, implDef) = simplifyDeriveAnnotation(annottees: _*)
+        val model = structureOf(targetType)
 
         val overridden = implDef.impl.body.collect {
             case ValDef(_, n, _, _)       if n.decodedName.toString.endsWith("Coder") => n.decodedName.toString.stripSuffix("Coder")
@@ -227,24 +219,24 @@ trait DeriveCoderMacros {
 
         val declareDefaultCoders = model.properties.filterNot(overridden contains _.internalName).map { prop =>
             q"""
-                lazy val ${prop.coderName} = ${materializeCoder(c)(prop.tpe, prop.annotations)}
+                lazy val ${prop.coderName} = ${materializeCoder(prop.tpe, prop.annotations)}
             """
         }
 
         val newStats = declareDefaultCoders ++ List (
             q"""
-                object encode extends ${encoderType(c)(tq"$targetType")} {
-                    ..${structureEncoderMethods(c)(targetType, p => q"${p.coderName}.encode", model)}
+                object encode extends ${encoderType(tq"$targetType")} {
+                    ..${structureEncoderMethods(targetType, p => q"${p.coderName}.encode", model)}
                 }
             """,
             q"""
-                object decode extends ${decoderType(c)(tq"$targetType")} {
-                    ..${structureDecoderMethods(c)(targetType, p => q"${p.coderName}.decode", model)}
+                object decode extends ${decoderType(tq"$targetType")} {
+                    ..${structureDecoderMethods(targetType, p => q"${p.coderName}.decode", model)}
                 }
             """
         )
 
-        c.Expr[Any](augmentImpl(c)(implDef, List(coderType(c)(tq"$targetType")), newStats))
+        c.Expr[Any](augmentImpl(implDef, List(coderType(tq"$targetType")), newStats))
     } catch { case e: Exception =>
         System.err.println("uhoh, macro explosion!")
         e.printStackTrace(System.err)
@@ -255,11 +247,9 @@ trait DeriveCoderMacros {
      * Annotation macro implementation which implements an encoder for a structure where some fields can
      * use an explicit encoder rather than one from implicit scope
      */
-    def structureEncoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = try {
-        import c.universe.{DefDef, DefDefTag, Ident, Quasiquote, TermName, ValDef, ValDefTag}
-
-        val SimplifiedDeriveAnnotation(targetType, _, _, implDef) = simplifyDeriveAnnotation(c)(annottees: _*)
-        val model = structureOf(c)(targetType)
+    def structureEncoderAnnotation(annottees: c.Expr[Any]*): c.Expr[Any] = try {
+        val SimplifiedDeriveAnnotation(targetType, _, _, implDef) = simplifyDeriveAnnotation(annottees: _*)
+        val model = structureOf(targetType)
 
         val overridden = implDef.impl.body.collect {
             case ValDef(_, n, _, _)       if n.decodedName.toString.endsWith("Encoder") => n.decodedName.toString.stripSuffix("Encoder")
@@ -268,13 +258,13 @@ trait DeriveCoderMacros {
 
         val declareDefaultEncoders = model.properties.filterNot(overridden contains _.internalName).map { prop =>
             q"""
-                lazy val ${prop.encoderName} = ${materializeEncoder(c)(prop.tpe, prop.annotations)}
+                lazy val ${prop.encoderName} = ${materializeEncoder(prop.tpe, prop.annotations)}
             """
         }
 
-        val newStats = declareDefaultEncoders ++ structureEncoderMethods(c)(targetType, p => Ident(p.encoderName), model)
+        val newStats = declareDefaultEncoders ++ structureEncoderMethods(targetType, p => Ident(p.encoderName), model)
 
-        c.Expr[Any](augmentImpl(c)(implDef, List(encoderType(c)(tq"$targetType")), newStats))
+        c.Expr[Any](augmentImpl(implDef, List(encoderType(tq"$targetType")), newStats))
     } catch { case e: Exception =>
         System.err.println("uhoh, macro explosion!")
         e.printStackTrace(System.err)
@@ -285,11 +275,9 @@ trait DeriveCoderMacros {
      * Annotation macro implementation which implements a decoder for a structure where some fields can
      * use an explicit decoder rather than one from implicit scope
      */
-    def structureDecoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = try {
-        import c.universe.{DefDef, DefDefTag, Ident, Quasiquote, TermName, ValDef, ValDefTag}
-
-        val SimplifiedDeriveAnnotation(targetType, _, _, implDef) = simplifyDeriveAnnotation(c)(annottees: _*)
-        val model = structureOf(c)(targetType)
+    def structureDecoderAnnotation(annottees: c.Expr[Any]*): c.Expr[Any] = try {
+        val SimplifiedDeriveAnnotation(targetType, _, _, implDef) = simplifyDeriveAnnotation(annottees: _*)
+        val model = structureOf(targetType)
 
         val overridden = implDef.impl.body.collect {
             case ValDef(_, n, _, _)       if n.decodedName.toString.endsWith("Decoder") => n.decodedName.toString.stripSuffix("Decoder")
@@ -298,13 +286,13 @@ trait DeriveCoderMacros {
 
         val declareDefaultDecoders = model.properties.filterNot(overridden contains _.internalName).map { prop =>
             q"""
-                lazy val ${prop.decoderName} = ${materializeDecoder(c)(prop.tpe, prop.annotations)}
+                lazy val ${prop.decoderName} = ${materializeDecoder(prop.tpe, prop.annotations)}
             """
         }
 
-        val newStats = declareDefaultDecoders ++ structureDecoderMethods(c)(targetType, p => Ident(p.decoderName), model)
+        val newStats = declareDefaultDecoders ++ structureDecoderMethods(targetType, p => Ident(p.decoderName), model)
 
-        c.Expr[Any](augmentImpl(c)(implDef, List(decoderType(c)(tq"$targetType")), newStats))
+        c.Expr[Any](augmentImpl(implDef, List(decoderType(tq"$targetType")), newStats))
     } catch { case e: Exception =>
         System.err.println("uhoh, macro explosion!")
         e.printStackTrace(System.err)
@@ -317,41 +305,38 @@ trait DeriveCoderMacros {
      */
     /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
                        it doesn't error at runtime.
-    def deriveImplicitWrapperCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] =
-        addToCompanion(c)(annottees) { (targetName, _) =>
-            import c.universe.{Ident, Quasiquote}
-            List(q"implicit val ${implicitCoderName(c)}: ${coderType(c)(Ident(targetName))} = ${makeWrapperCoder(c)(Ident(targetName))}")
+    def deriveImplicitWrapperCoderAnnotation(annottees: c.Expr[Any]*): c.Expr[Any] =
+        addToCompanion(annottees) { (targetName, _) =>
+            List(q"implicit val ${implicitCoderName}: ${coderType(Ident(targetName))} = ${makeWrapperCoder(Ident(targetName))}")
         }
     */
 
     /** Def macro implementation which derives a coder pair for a wrapper */
-    def wrapperCoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Coder[A]] = try {
-        import c.universe.{Ident, Quasiquote, TermName}
-
+    def wrapperCoderDefImpl[A: c.WeakTypeTag]: c.Expr[Coder[A]] = try {
         val targetType = c.universe.weakTypeTag[A].tpe
-        val model = structureOf(c)(targetType)
+        val model = structureOf(targetType)
 
         model.constructorProperties match {
             case prop :: Nil =>
                 val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Coder")
                 val declareCoder =
                     List (
-                        q"lazy val ${prop.decoderName} = ${materializeDecoder(c)(prop.tpe, prop.annotations)}",
-                        q"lazy val ${prop.encoderName} = ${materializeEncoder(c)(prop.tpe, prop.annotations)}"
+                        q"lazy val ${prop.decoderName} = ${materializeDecoder(prop.tpe, prop.annotations)}",
+                        q"lazy val ${prop.encoderName} = ${materializeEncoder(prop.tpe, prop.annotations)}"
                     )
 
                 c.Expr[Coder[A]](q"""
                     {
-                        object $name extends ${coderType(c)(tq"$targetType")} {
+                        object $name extends ${coderType(tq"$targetType")} {
                             ..$declareCoder
-                            object decode extends ${decoderType(c)(tq"$targetType")} {
-                                ..${wrapperDecoderMethods(c)(targetType, prop, a => model.constructAndAssign(_ => a))}
+                            object decode extends ${decoderType(tq"$targetType")} {
+                                ..${wrapperDecoderMethods(targetType, prop, a => model.constructAndAssign(_ => a))}
                             }
-                            object encode extends ${encoderType(c)(tq"$targetType")} {
-                                ..${wrapperEncoderMethods(c)(targetType, prop, prop.read)}
+                            object encode extends ${encoderType(tq"$targetType")} {
+                                ..${wrapperEncoderMethods(targetType, prop, prop.read)}
                             }
                         }
-                        $name: ${coderType(c)(tq"$targetType")}
+                        $name: ${coderType(tq"$targetType")}
                     }
                 """)
 
@@ -366,24 +351,22 @@ trait DeriveCoderMacros {
     }
 
     /** Def macro implementation which derives a encoder for a wrapper */
-    def wrapperEncoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Encoder[A]] = try {
-        import c.universe.{Ident, Quasiquote, TermName}
-
+    def wrapperEncoderDefImpl[A: c.WeakTypeTag]: c.Expr[Encoder[A]] = try {
         val targetType = c.universe.weakTypeTag[A].tpe
-        val model = structureOf(c)(targetType)
+        val model = structureOf(targetType)
 
         model.constructorProperties match {
             case prop :: Nil =>
                 val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Encoder")
-                val declareEncoder = q"lazy val ${prop.encoderName} = ${materializeEncoder(c)(prop.tpe, prop.annotations)}"
+                val declareEncoder = q"lazy val ${prop.encoderName} = ${materializeEncoder(prop.tpe, prop.annotations)}"
 
                 c.Expr[Encoder[A]](q"""
                     {
-                        object $name extends ${encoderType(c)(tq"$targetType")} {
+                        object $name extends ${encoderType(tq"$targetType")} {
                             $declareEncoder
-                            ..${wrapperEncoderMethods(c)(targetType, prop, prop.read)}
+                            ..${wrapperEncoderMethods(targetType, prop, prop.read)}
                         }
-                        $name: ${encoderType(c)(tq"$targetType")}
+                        $name: ${encoderType(tq"$targetType")}
                     }
                 """)
 
@@ -398,24 +381,22 @@ trait DeriveCoderMacros {
     }
 
     /** Def macro implementation which derives a decoder for a wrapper */
-    def wrapperDecoderDefImpl[A: c.WeakTypeTag](c: Context): c.Expr[Decoder[A]] = try {
-        import c.universe.{Ident, Quasiquote, TermName}
-
+    def wrapperDecoderDefImpl[A: c.WeakTypeTag]: c.Expr[Decoder[A]] = try {
         val targetType = c.universe.weakTypeTag[A].tpe
-        val model = structureOf(c)(targetType)
+        val model = structureOf(targetType)
 
         model.constructorProperties match {
             case prop :: Nil =>
                 val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
-                val declareDecoder = q"lazy val ${prop.decoderName} = ${materializeDecoder(c)(prop.tpe, prop.annotations)}"
+                val declareDecoder = q"lazy val ${prop.decoderName} = ${materializeDecoder(prop.tpe, prop.annotations)}"
 
                 c.Expr[Decoder[A]](q"""
                     {
-                        object $name extends ${decoderType(c)(tq"$targetType")} {
+                        object $name extends ${decoderType(tq"$targetType")} {
                             $declareDecoder
-                            ..${wrapperDecoderMethods(c)(targetType, prop, a => model.constructAndAssign(_ => a))}
+                            ..${wrapperDecoderMethods(targetType, prop, a => model.constructAndAssign(_ => a))}
                         }
-                        $name: ${decoderType(c)(tq"$targetType")}
+                        $name: ${decoderType(tq"$targetType")}
                     }
                 """)
 

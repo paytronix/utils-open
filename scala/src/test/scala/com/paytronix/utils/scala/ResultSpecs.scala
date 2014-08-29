@@ -386,39 +386,80 @@ class BindAndChainTest extends SpecificationWithJUnit {
     def is = s2"""
         ResultG macros
             okay >> okay             $chainOkayOkayCase
-            okay >> failed           $chainOkayFailedCase
             failed >> okay           $chainFailedOkayCase
+            okay >> failed           $chainOkayFailedCase
             failed >> failed         $chainFailedFailedCase
             failed >> error          $chainFailedLazyCase
+            okay >> fun              $chainOkayFunCase
             okay >>= { _ => okay }   $bindWildcardOkayCase
             failed >>= { _ => okay } $bindWildcardFailedCase
             okay >>= { a => rhs }    $bindIdentOkayCase
             failed >>= { a => rhs }  $bindIdentFailedCase
             okay >>= { case … }      $bindPFOkayCase
             failed >>= { case … }    $bindPFFailedCase
+            okay >>= fun             $bindFunCase
+            okay >>= { a => … } with import renaming $bindImportRenamingCase
+            okay >>= { a => … } with dependent type $bindDepTypeCase
+            okay >>= { a => … } with shadowing $bindShadowCase
+            okay >>= { case … } with unapplication $bindPFUnapplyCase
     """
 
+    val okay1: ResultG[Int, Int] = Okay(1)
+    val failedFoo: ResultG[Int, Int] = FailedG("foo", 1)
+
+    def nullaryFun = Okay(2)
+    val unaryFun: Int => ResultG[Int, Int] = a => Okay(a+1)
+
     def chainOkayOkayCase =
-        (Okay(1) >> Okay(2)) ==== Okay(2)
+        (okay1 >> Okay(2)) ==== Okay(2)
     def chainOkayFailedCase =
-        (Okay(1) >> FailedG("foo", 1)) must beFailedWith("foo", 1)
+        (okay1 >> FailedG("foo", 1)) must beFailedWith("foo", 1)
     def chainFailedOkayCase =
-        (FailedG("foo", 1) >> Okay(2)) must beFailedWith("foo", 1)
+        (failedFoo >> Okay(2)) must beFailedWith("foo", 1)
     def chainFailedFailedCase =
-        (FailedG("foo", 1) >> FailedG("bar", 2)) must beFailedWith("foo", 1)
+        (failedFoo >> FailedG("bar", 2)) must beFailedWith("foo", 1)
     def chainFailedLazyCase =
-        (FailedG("foo", 1) >> sys.error("boom")) must beFailedWith("foo", 1)
+        (failedFoo >> sys.error("boom")) must beFailedWith("foo", 1)
+    def chainOkayFunCase =
+        (okay1 >> nullaryFun) ==== Okay(2)
 
     def bindWildcardOkayCase =
-        ((Okay(1): ResultG[Int, Int]) >>= { _ => Okay(2) }) ==== Okay(2)
+        (okay1 >>= { _ => Okay(2) }) ==== Okay(2)
     def bindWildcardFailedCase =
-        ((FailedG("foo", 1): ResultG[Int, Int]) >>= { _ => Okay(2) }) must beFailedWith("foo", 1)
+        (failedFoo >>= { _ => Okay(2) }) must beFailedWith("foo", 1)
     def bindIdentOkayCase =
-        ((Okay(1): ResultG[Int, Int]) >>= { a => Okay(a+1) }) ==== Okay(2)
+        (okay1 >>= { (a: Int) => Okay(a+1) }) ==== Okay(2)
     def bindIdentFailedCase =
-        ((FailedG("foo", 1): ResultG[Int, Int]) >>= { (a: Int) => Okay(a+1) }) must beFailedWith("foo", 1)
+        (failedFoo >>= { (a: Int) => Okay(a+1) }) must beFailedWith("foo", 1)
     def bindPFOkayCase =
-        ((Okay(1): ResultG[Int, Int]) >>= { case 0 => Okay(2); case 1 => Okay(3); case _ => FailedG("nope", 999) }) ==== Okay(3)
+        (okay1 >>= { case 0 => Okay(2); case 1 => Okay(3); case _ => FailedG("nope", 999) }) ==== Okay(3)
     def bindPFFailedCase =
-        ((FailedG("foo", 1): ResultG[Int, Int]) >>= { case 0 => Okay(2); case 1 => Okay(3); case _ => FailedG("nope", 999) }) must beFailedWith("foo", 1)
+        (failedFoo >>= { case 0 => Okay(2); case 1 => Okay(3); case _ => FailedG("nope", 999) }) must beFailedWith("foo", 1)
+    def bindFunCase =
+        (okay1 >>= unaryFun) ==== Okay(2)
+
+    import com.paytronix.utils.scala.result.Okay.{apply => zippy}
+    def bindImportRenamingCase =
+        (okay1 >>= { a => zippy(a+1) }) ==== Okay(2)
+
+
+    object enum extends Enumeration {
+        val a = Value("a")
+    }
+
+    def bindDepTypeCase =
+        ((Okay(enum): ResultG[Int, enum.type]) >>= { en =>
+            val x: en.Value = en.values.head
+            Okay(x)
+        }) ==== Okay(enum.a)
+
+    def bindShadowCase =
+        (okay1 >>= { a => val a = 2; Okay(a) }) ==== Okay(2)
+
+    def bindPFUnapplyCase =
+        ((Okay(Array(Some(1))): ResultG[Int, Array[Option[Int]]]) >>= {
+            case Array(Some(1)) => Okay(2)
+            case Array(Some(1), Some(2)) => FailedG("nooo", 999)
+            case _ => FailedG("nope", 123)
+        }) ==== Okay(2)
 }

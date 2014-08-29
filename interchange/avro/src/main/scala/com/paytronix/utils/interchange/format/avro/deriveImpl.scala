@@ -23,40 +23,37 @@ import scalaz.NonEmptyList
 import com.paytronix.utils.interchange.base
 
 import base.derive.DeriveCoderMacros
-import base.derive.utils.{Property, Structure, sequenceResultBindings}
 import utils.sanitizeSchemaName
 import NonEmptyList.{nel, nels}
 
-private[avro] object deriveImpl extends DeriveCoderMacros {
+private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
+    import c.universe.{Annotation, Block, BlockTag, Ident, Quasiquote, TermName, Tree, TreeTag, Type, weakTypeTag}
+
     type Coder[A] = AvroCoder[A]
 
-    //def implicitCoderName(c: Context) = c.universe.TermName("avroCoder")
+    //def implicitCoderName = TermName("avroCoder")
 
-    def coderType(c: Context)(tpe: c.universe.Tree) = {
-        import c.universe.Quasiquote
+    def coderType(tpe: Tree) = {
         tq"com.paytronix.utils.interchange.format.avro.AvroCoder[$tpe]"
     }
 
-    def materializeCoder(c: Context)(tpe: c.universe.Type, annotations: List[c.universe.Annotation]): c.universe.Tree = {
-        import c.universe.Quasiquote
+    def materializeCoder(tpe: Type, annotations: List[Annotation]): Tree = {
         q"""
             com.paytronix.utils.interchange.format.avro.AvroCoder.make[$tpe] (
-                ${materializeEncoder(c)(tpe, annotations)},
-                ${materializeDecoder(c)(tpe, annotations)}
+                ${materializeEncoder(tpe, annotations)},
+                ${materializeDecoder(tpe, annotations)}
             )
         """
     }
 
     type Encoder[A] = AvroEncoder[A]
 
-    def encoderType(c: Context)(tpe: c.universe.Tree): c.universe.Tree = {
-        import c.universe.Quasiquote
+    def encoderType(tpe: Tree): Tree = {
         tq"com.paytronix.utils.interchange.format.avro.AvroEncoder[$tpe]"
     }
 
-    def materializeEncoder(c: Context)(tpe: c.universe.Type, annotations: List[c.universe.Annotation]): c.universe.Tree = {
-        import c.universe.Quasiquote
-        wrapCoderForAnnotations(c) (
+    def materializeEncoder(tpe: Type, annotations: List[Annotation]): Tree = {
+        wrapCoderForAnnotations (
             coder       = q"com.paytronix.utils.interchange.format.avro.AvroEncoder[$tpe]",
             annotations = annotations,
             nullable    = inside => q"com.paytronix.utils.interchange.format.avro.container.nullableAvroEncoder($inside)",
@@ -66,14 +63,12 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
 
     type Decoder[A] = AvroDecoder[A]
 
-    def decoderType(c: Context)(tpe: c.universe.Tree): c.universe.Tree = {
-        import c.universe.Quasiquote
+    def decoderType(tpe: Tree): Tree = {
         tq"com.paytronix.utils.interchange.format.avro.AvroDecoder[$tpe]"
     }
 
-    def materializeDecoder(c: Context)(tpe: c.universe.Type, annotations: List[c.universe.Annotation]): c.universe.Tree = {
-        import c.universe.Quasiquote
-        wrapCoderForAnnotations(c) (
+    def materializeDecoder(tpe: Type, annotations: List[Annotation]): Tree = {
+        wrapCoderForAnnotations (
             coder       = q"com.paytronix.utils.interchange.format.avro.AvroDecoder[$tpe]",
             annotations = annotations,
             nullable    = inside => q"com.paytronix.utils.interchange.format.avro.container.nullableAvroDecoder($inside)",
@@ -81,17 +76,15 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         )
     }
 
-    def makeStructureCoder(c: Context)(target: c.universe.Tree): c.universe.Tree = {
-        import c.universe.Quasiquote
+    def makeStructureCoder(target: Tree): Tree = {
         q"com.paytronix.utils.interchange.format.avro.derive.structure.coder[$target]"
     }
 
-    private def makeStructureSchema(c: Context) (
-        tpe: c.universe.Type,
-        encoderOrDecoderFor: Property[c.universe.type] => c.universe.Tree,
-        model: Structure[c.universe.type]
-    ): c.universe.Tree = {
-        import c.universe.Quasiquote
+    private def makeStructureSchema (
+        tpe: Type,
+        encoderOrDecoderFor: Property => Tree,
+        model: Structure
+    ): Tree = {
 
         val namespace = tpe.typeSymbol.owner.fullName
         val name =
@@ -113,32 +106,30 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         """
     }
 
-    def structureEncoderMethods(c: Context) (
-        tpe: c.universe.Type,
-        encoderFor: Property[c.universe.type] => c.universe.Tree,
-        model: Structure[c.universe.type]
-    ): List[c.universe.Tree] = {
-        import c.universe.{Ident, TermName, Quasiquote}
-
+    def structureEncoderMethods (
+        tpe: Type,
+        encoderFor: Property => Tree,
+        model: Structure
+    ): List[Tree] = {
         val props = (model.constructorProperties ++ model.mutableProperties).sorted // avro doesn't encode read-only fields
 
         val avroEncoder = TermName(c.freshName())
         val instance = TermName(c.freshName())
-        val encode = sequenceResultBindings(c, props) (
+        val encode = sequenceResultBindings(props) (
             action = prop => q"${encoderFor(prop)}.run(${prop.read(Ident(instance))}, $avroEncoder)",
             accept = (_, _) => q"",
             body = _ => q"com.paytronix.utils.scala.result.Okay.unit"
         )
 
         val obj = TermName(c.freshName())
-        val encodeDefaultJson = sequenceResultBindings(c, props) (
+        val encodeDefaultJson = sequenceResultBindings(props) (
             action = prop => q"${encoderFor(prop)}.encodeDefaultJson(${prop.read(Ident(instance))})",
             accept = (prop, value) => q"$obj.put(${prop.externalName}, $value)",
             body = _ => q"com.paytronix.utils.scala.result.Okay($obj)"
         )
 
         List (
-            q"val schema = ${makeStructureSchema(c)(tpe, encoderFor, model)}",
+            q"val schema = ${makeStructureSchema(tpe, encoderFor, model)}",
             q"val defaultJson = scala.None",
             q"""
                 def encodeDefaultJson($instance: $tpe) = {
@@ -152,13 +143,11 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         )
     }
 
-    def structureDecoderMethods(c: Context) (
-        tpe: c.universe.Type,
-        decoderFor: Property[c.universe.type] => c.universe.Tree,
-        model: Structure[c.universe.type]
-    ): List[c.universe.Tree] = {
-        import c.universe.{Ident, TermName, Quasiquote}
-
+    def structureDecoderMethods (
+        tpe: Type,
+        decoderFor: Property => Tree,
+        model: Structure
+    ): List[Tree] = {
         val props = (model.constructorProperties ++ model.mutableProperties).sorted
         val resolvingDecoder = TermName(c.freshName())
         val receiver = TermName(c.freshName())
@@ -170,7 +159,7 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         val declarePropReceivers = (propReceiverNames zip props).map { case (receiverName, prop) =>
             q"val $receiverName = new com.paytronix.utils.interchange.base.Receiver[${prop.tpe}]()"
         }
-        val decode = sequenceResultBindings(c, 0 until props.size) (
+        val decode = sequenceResultBindings(0 until props.size) (
             action = (i: Int) => q"$decodeField($readFieldOrder($i).pos)",
             accept = (_, _) => q"",
             body = { _ =>
@@ -188,7 +177,7 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         }
 
         List (
-            q"val schema = ${makeStructureSchema(c)(tpe, decoderFor, model)}",
+            q"val schema = ${makeStructureSchema(tpe, decoderFor, model)}",
             q"val defaultJson = scala.None",
             q"""
                 def run($resolvingDecoder: org.apache.avro.io.ResolvingDecoder,
@@ -207,17 +196,15 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
 
     }
 
-    def makeWrapperCoder(c: Context)(target: c.universe.Tree): c.universe.Tree = {
-        import c.universe.Quasiquote
+    def makeWrapperCoder(target: Tree): Tree = {
         q"com.paytronix.utils.interchange.format.avro.derive.wrapper.coder[$target]"
     }
 
-    def wrapperEncoderMethods(c: Context) (
-        targetType: c.universe.Type,
-        property: Property[c.universe.type],
-        unwrap: c.universe.Tree => c.universe.Tree
-    ): List[c.universe.Tree] = {
-        import c.universe.{Ident, TermName, Quasiquote}
+    def wrapperEncoderMethods (
+        targetType: Type,
+        property: Property,
+        unwrap: Tree => Tree
+    ): List[Tree] = {
         val instance = TermName(c.freshName())
         val avroEncoder = TermName(c.freshName())
         List (
@@ -236,12 +223,11 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         )
     }
 
-    def wrapperDecoderMethods(c: Context) (
-        targetType: c.universe.Type,
-        property: Property[c.universe.type],
-        wrap: c.universe.Tree => c.universe.Tree
-    ): List[c.universe.Tree] = {
-        import c.universe.{Ident, TermName, Quasiquote}
+    def wrapperDecoderMethods (
+        targetType: Type,
+        property: Property,
+        wrap: Tree => Tree
+    ): List[Tree] = {
         val resolvingDecoder = TermName(c.freshName())
         val out = TermName(c.freshName())
         val receiver = TermName(c.freshName())
@@ -259,11 +245,10 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         )
     }
 
-    private def makeUnionSchema(c: Context) (
-        targetSubtypes: NonEmptyList[c.universe.Type],
-        encoderOrDecoderFor: c.universe.Type => c.universe.Tree
-    ): c.universe.Tree = {
-        import c.universe.Quasiquote
+    private def makeUnionSchema (
+        targetSubtypes: NonEmptyList[Type],
+        encoderOrDecoderFor: Type => Tree
+    ): Tree = {
 
         val schemas = targetSubtypes.map(encoderOrDecoderFor).map { coder =>
             q"$coder.schema"
@@ -272,13 +257,11 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         q"org.apache.avro.Schema.createUnion(java.util.Arrays.asList(..$schemas))"
     }
 
-    def unionEncoderMethods(c: Context) (
-        targetType: c.universe.Type,
-        targetSubtypes: NonEmptyList[c.universe.Type],
-        encoderFor: c.universe.Type => c.universe.Tree
-    ): List[c.universe.Tree] = {
-        import c.universe.{Ident, TermName, Quasiquote}
-
+    def unionEncoderMethods (
+        targetType: Type,
+        targetSubtypes: NonEmptyList[Type],
+        encoderFor: Type => Tree
+    ): List[Tree] = {
         val avroEncoder = TermName(c.freshName())
         val instance = TermName(c.freshName())
 
@@ -299,7 +282,7 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         val value = TermName(c.freshName())
 
         List (
-            q"val schema = ${makeUnionSchema(c)(targetSubtypes, encoderFor)}",
+            q"val schema = ${makeUnionSchema(targetSubtypes, encoderFor)}",
             q"val defaultJson = scala.None",
             q"""
                 def encodeDefaultJson($instance: $targetType) =
@@ -326,13 +309,11 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         )
     }
 
-    def unionDecoderMethods(c: Context) (
-        targetType: c.universe.Type,
-        targetSubtypes: NonEmptyList[c.universe.Type],
-        decoderFor: c.universe.Type => c.universe.Tree
-    ): List[c.universe.Tree] = {
-        import c.universe.{Ident, TermName, Quasiquote}
-
+    def unionDecoderMethods (
+        targetType: Type,
+        targetSubtypes: NonEmptyList[Type],
+        decoderFor: Type => Tree
+    ): List[Tree] = {
         val resolvingDecoder = TermName(c.freshName())
         val receiver = TermName(c.freshName())
         val invalidIndex = TermName(c.freshName())
@@ -357,7 +338,7 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         }
 
         List (
-            q"val schema = ${makeUnionSchema(c)(targetSubtypes, decoderFor)}",
+            q"val schema = ${makeUnionSchema(targetSubtypes, decoderFor)}",
             q"val defaultJson = scala.None",
             q"""
                 def run($resolvingDecoder: org.apache.avro.io.ResolvingDecoder,
@@ -379,10 +360,8 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
 
     /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
                        it doesn't error at runtime.
-    def deriveImplicitUnionCoderAnnotation(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] =
-        addToCompanion(c)(annottees) { (targetName, annotations) =>
-            import c.universe.{Ident, IdentTag, Name, NameTag, Quasiquote, TermName, TermNameTag, Tree, TreeTag}
-
+    def deriveImplicitUnionCoderAnnotation(annottees: c.Expr[Any]*): c.Expr[Any] =
+        addToCompanion(annottees) { (targetName, annotations) =>
             def isUnionAnno(t: Tree): Boolean =
                 t match {
                     case Ident(n: Name) => n.decodedName.toString == "union" // the tree isn't yet typechecked and resolved so uhh, this is spotty
@@ -394,15 +373,13 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
                     .getOrElse(sys.error("couldn't find union annotation among " + annotations))
 
             List(q"""
-                implicit val ${implicitCoderName(c)}: ${coderType(c)(Ident(targetName))} =
+                implicit val ${implicitCoderName}: ${coderType(Ident(targetName))} =
                     com.paytronix.utils.interchange.format.avro.derive.union.coder[$targetName](..$alts)
              """)
         }
     */
 
-    private def parseUnionAlternates(c: Context)(alternateTrees: Seq[c.universe.Tree]): NonEmptyList[c.universe.Type] = {
-        import c.universe.{Quasiquote, TreeTag}
-
+    private def parseUnionAlternates(alternateTrees: Seq[Tree]): NonEmptyList[Type] = {
         val targets = alternateTrees.toList.map {
             // FIXME? probably this should really typecheck the tree and get the type out from there rather than pattern matching the apply
             case q"$_[$tpeTree]" => tpeTree.tpe
@@ -416,19 +393,17 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         }
     }
 
-    def unionCoderDef[A: c.WeakTypeTag](c: Context)(alternates: c.Tree*): c.Expr[AvroCoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName}
-
-        val targetType = c.universe.weakTypeTag[A].tpe
+    def unionCoderDef[A: c.WeakTypeTag](alternates: c.Tree*): c.Expr[AvroCoder[A]] = try {
+        val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Coder")
-        val targetSubtypes = parseUnionAlternates(c)(alternates)
+        val targetSubtypes = parseUnionAlternates(alternates)
         val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
         val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
 
         val declareCoders = (targetSubtypes zip (subtypeEncoderNames zip subtypeDecoderNames)).flatMap { case (tpe, (encoderName, decoderName)) =>
             nels (
-                q"lazy val $decoderName = ${materializeDecoder(c)(tpe, Nil)}",
-                q"lazy val $encoderName = ${materializeEncoder(c)(tpe, Nil)}"
+                q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}",
+                q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
             )
         }.list
 
@@ -437,16 +412,16 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
 
         c.Expr[Coder[A]](q"""
             {
-                object $name extends ${coderType(c)(tq"$targetType")} {
+                object $name extends ${coderType(tq"$targetType")} {
                     ..$declareCoders
-                    object decode extends ${decoderType(c)(tq"$targetType")} {
-                        ..${unionDecoderMethods(c)(targetType, targetSubtypes, subtypeDecoderNamesByType.mapValues(n => Ident(n)))}
+                    object decode extends ${decoderType(tq"$targetType")} {
+                        ..${unionDecoderMethods(targetType, targetSubtypes, subtypeDecoderNamesByType.mapValues(n => Ident(n)))}
                     }
-                    object encode extends ${encoderType(c)(tq"$targetType")} {
-                        ..${unionEncoderMethods(c)(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
+                    object encode extends ${encoderType(tq"$targetType")} {
+                        ..${unionEncoderMethods(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
                     }
                 }
-                $name: ${coderType(c)(tq"$targetType")}
+                $name: ${coderType(tq"$targetType")}
             }
         """)
     } catch { case e: Exception =>
@@ -456,27 +431,25 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
     }
 
 
-    def unionDecoderDef[A: c.WeakTypeTag](c: Context)(alternates: c.Tree*): c.Expr[AvroDecoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
-
-        val targetType = c.universe.weakTypeTag[A].tpe
+    def unionDecoderDef[A: c.WeakTypeTag](alternates: c.Tree*): c.Expr[AvroDecoder[A]] = try {
+        val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
-        val targetSubtypes = parseUnionAlternates(c)(alternates)
+        val targetSubtypes = parseUnionAlternates(alternates)
         val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
 
         val declareDecoders = (targetSubtypes zip subtypeDecoderNames).map { case (tpe, decoderName) =>
-            q"lazy val $decoderName = ${materializeDecoder(c)(tpe, Nil)}"
+            q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}"
         }.list
 
         val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
 
         c.Expr[Decoder[A]](q"""
             {
-                object $name extends ${decoderType(c)(tq"$targetType")} {
+                object $name extends ${decoderType(tq"$targetType")} {
                     ..$declareDecoders
-                    ..${unionDecoderMethods(c)(targetType, targetSubtypes, subtypeDecoderNamesByType.mapValues(n => Ident(n)))}
+                    ..${unionDecoderMethods(targetType, targetSubtypes, subtypeDecoderNamesByType.mapValues(n => Ident(n)))}
                 }
-                $name: ${decoderType(c)(tq"$targetType")}
+                $name: ${decoderType(tq"$targetType")}
             }
         """)
     } catch { case e: Exception =>
@@ -485,26 +458,25 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
         null
     }
 
-    def unionEncoderDef[A: c.WeakTypeTag](c: Context)(alternates: c.Tree*): c.Expr[AvroEncoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
-        val targetType = c.universe.weakTypeTag[A].tpe
+    def unionEncoderDef[A: c.WeakTypeTag](alternates: c.Tree*): c.Expr[AvroEncoder[A]] = try {
+        val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Encoder")
-        val targetSubtypes = parseUnionAlternates(c)(alternates)
+        val targetSubtypes = parseUnionAlternates(alternates)
         val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
 
         val declareEncoders = (targetSubtypes zip subtypeEncoderNames).map { case (tpe, encoderName) =>
-            q"lazy val $encoderName = ${materializeEncoder(c)(tpe, Nil)}"
+            q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
         }.list
 
         val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
 
         c.Expr[Encoder[A]](q"""
             {
-                object $name extends ${encoderType(c)(tq"$targetType")} {
+                object $name extends ${encoderType(tq"$targetType")} {
                     ..$declareEncoders
-                    ..${unionEncoderMethods(c)(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
+                    ..${unionEncoderMethods(targetType, targetSubtypes, subtypeEncoderNamesByType.mapValues(n => Ident(n)))}
                 }
-                $name: ${encoderType(c)(tq"$targetType")}
+                $name: ${encoderType(tq"$targetType")}
             }
         """)
     } catch { case e: Exception =>
@@ -514,10 +486,10 @@ private[avro] object deriveImpl extends DeriveCoderMacros {
     }
 
     // hack to avoid macro not liking synonyms
-    def structureCoderDef[A: c.WeakTypeTag](c: Context): c.Expr[AvroCoder[A]] = structureCoderDefImpl[A](c)
-    def structureDecoderDef[A: c.WeakTypeTag](c: Context): c.Expr[AvroDecoder[A]] = structureDecoderDefImpl[A](c)
-    def structureEncoderDef[A: c.WeakTypeTag](c: Context): c.Expr[AvroEncoder[A]] = structureEncoderDefImpl[A](c)
-    def wrapperCoderDef[A: c.WeakTypeTag](c: Context): c.Expr[AvroCoder[A]] = wrapperCoderDefImpl[A](c)
-    def wrapperDecoderDef[A: c.WeakTypeTag](c: Context): c.Expr[AvroDecoder[A]] = wrapperDecoderDefImpl[A](c)
-    def wrapperEncoderDef[A: c.WeakTypeTag](c: Context): c.Expr[AvroEncoder[A]] = wrapperEncoderDefImpl[A](c)
+    def structureCoderDef[A: c.WeakTypeTag]: c.Expr[AvroCoder[A]] = structureCoderDefImpl[A]
+    def structureDecoderDef[A: c.WeakTypeTag]: c.Expr[AvroDecoder[A]] = structureDecoderDefImpl[A]
+    def structureEncoderDef[A: c.WeakTypeTag]: c.Expr[AvroEncoder[A]] = structureEncoderDefImpl[A]
+    def wrapperCoderDef[A: c.WeakTypeTag]: c.Expr[AvroCoder[A]] = wrapperCoderDefImpl[A]
+    def wrapperDecoderDef[A: c.WeakTypeTag]: c.Expr[AvroDecoder[A]] = wrapperDecoderDefImpl[A]
+    def wrapperEncoderDef[A: c.WeakTypeTag]: c.Expr[AvroEncoder[A]] = wrapperEncoderDefImpl[A]
 }

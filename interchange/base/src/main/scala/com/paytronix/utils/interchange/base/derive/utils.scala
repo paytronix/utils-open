@@ -23,21 +23,30 @@ import scalaz.syntax.std.list.ToListOpsFromList /* groupWhen */
 
 import com.paytronix.utils.interchange.base.{name, coded, notCoded}
 
-object utils {
+trait DeriveUtils {
+    val c: Context
+
+    import c.universe.{
+        Annotation, AssignOrNamedArg, AssignOrNamedArgTag,  Bind, Block, ClassDef, ClassDefTag, EmptyTree, Flag, Ident, IdentTag,
+        MethodSymbol, MethodType, MethodTypeTag, Modifiers, ModuleDef, ModuleDefTag, NoPrefix, NullaryMethodType, NullaryMethodTypeTag,
+        Quasiquote, SingleType, SingleTypeTag, Symbol, Template, TermName, TermNameTag, TermSymbol, Tree, TreeTag, Type,
+        TypeName, termNames, typeOf
+    }
+
     /** Distilled information about a single property of a structure */
-    final case class Property[U <: Universe] (
+    final case class Property (
         externalName:          String,
         internalName:          String,
-        decoderName:           U#TermName,
-        encoderName:           U#TermName,
-        coderName:             U#TermName,
-        tpe:                   U#Type,
-        annotations:           List[U#Annotation],
-        read:                  U#Tree => U#Tree,
-        write:                 Option[(U#Tree, U#Tree) => U#Tree],
-        constructorAssignment: Option[U#Tree => U#Tree]
-    ) extends Ordered[Property[U]] {
-        def compare(other: Property[U]) =
+        decoderName:           TermName,
+        encoderName:           TermName,
+        coderName:             TermName,
+        tpe:                   Type,
+        annotations:           List[Annotation],
+        read:                  Tree => Tree,
+        write:                 Option[(Tree, Tree) => Tree],
+        constructorAssignment: Option[Tree => Tree]
+    ) extends Ordered[Property] {
+        def compare(other: Property) =
             this.externalName compare other.externalName
 
         override def toString = {
@@ -53,14 +62,14 @@ object utils {
     }
 
     /** Distilled information about a structure, either object or class */
-    final case class Structure[U <: Universe] (
-        tpe:                    U#Type,
-        properties:             List[Property[U]],
-        constructorProperties:  List[Property[U]],
-        mutableProperties:      List[Property[U]],
-        encodeOnlyProperties:   List[Property[U]],
-        constructor:            U#MethodSymbol,
-        constructAndAssign:     (Property[U] => U#Tree) => U#Tree
+    final case class Structure (
+        tpe:                    Type,
+        properties:             List[Property],
+        constructorProperties:  List[Property],
+        mutableProperties:      List[Property],
+        encodeOnlyProperties:   List[Property],
+        constructor:            MethodSymbol,
+        constructAndAssign:     (Property => Tree) => Tree
     ) {
         override def toString = s"""
 Type: $tpe
@@ -75,19 +84,18 @@ Type: $tpe
     }
 
     /** Simplified information about the application of a derive style annotation */
-    final case class SimplifiedDeriveAnnotation[U <: Universe] (
-        targetType:           U#Type,
-        annotationParameters: List[List[U#Tree]],
-        implName:             U#Name,
-        implDef:              U#ImplDef
+    final case class SimplifiedDeriveAnnotation (
+        targetType:           Type,
+        annotationParameters: List[List[Tree]],
+        implName:             c.universe.Name,
+        implDef:              c.universe.ImplDef
     )
 
     /**
      * Match a `Type` which is the result type of some `MethodType` but only if it's the end of explicit parameters.
      * That is, match either an implicit parameter section or not a parameter section
      */
-    def matchEndOfExplicitParameters(c: Context)(in: c.universe.Type): Option[c.universe.Type] = {
-        import c.universe.{MethodType, MethodTypeTag}
+    def matchEndOfExplicitParameters(in: Type): Option[Type] = {
         in match {
             case MethodType(params, resultTpe) if params.forall(_.isImplicit) && params.nonEmpty
                                   => Some(resultTpe)
@@ -97,7 +105,7 @@ Type: $tpe
     }
 
     /** Filter children of the given type to only those which are public constructors */
-    def publicConstructorsOf(c: Context)(tpe: c.universe.Type): List[c.universe.MethodSymbol] =
+    def publicConstructorsOf(tpe: Type): List[MethodSymbol] =
             tpe.members.filter { sym =>
                 sym.isMethod &&
                 sym.isPublic &&
@@ -105,18 +113,16 @@ Type: $tpe
             }.map(_.asMethod).toList
 
     /** Find the primary public constructor of a type */
-    def publicPrimaryConstructorOf(c: Context)(tpe: c.universe.Type): Option[c.universe.MethodSymbol] =
-        publicConstructorsOf(c)(tpe).find(_.isPrimaryConstructor)
+    def publicPrimaryConstructorOf(tpe: Type): Option[MethodSymbol] =
+        publicConstructorsOf(tpe).find(_.isPrimaryConstructor)
 
     /** Find a constructor in the type which has no explicit parameters */
-    def publicNullaryConstructorOf(c: Context)(tpe: c.universe.Type): Option[c.universe.MethodSymbol] = {
-        import c.universe.{MethodType, MethodTypeTag, Type}
-
+    def publicNullaryConstructorOf(tpe: Type): Option[MethodSymbol] = {
         object EndOfExplicitParameters {
-            def unapply(in: Type): Option[Type] = matchEndOfExplicitParameters(c)(in)
+            def unapply(in: Type): Option[Type] = matchEndOfExplicitParameters(in)
         }
 
-        publicConstructorsOf(c)(tpe).find { ctor =>
+        publicConstructorsOf(tpe).find { ctor =>
             ctor.typeSignature match {
                 case EndOfExplicitParameters(_) => true
                 case _ => false
@@ -125,15 +131,12 @@ Type: $tpe
     }
 
     /** Find and model all properties of a type including Java and Scala style accessors, read only or mutable */
-    def propertiesOf(c: Context)(tpe: c.universe.Type): List[Property[c.universe.type]] = {
-        // really sorry. the compiler API is heinous.
-        import c.universe._
-
+    def propertiesOf(tpe: Type): List[Property] = {
         val unitTpe = typeOf[Unit]
         val nameTpe = typeOf[name]
 
         object EndOfExplicitParameters {
-            def unapply(in: Type): Option[Type] = matchEndOfExplicitParameters(c)(in)
+            def unapply(in: Type): Option[Type] = matchEndOfExplicitParameters(in)
         }
 
         /** Match a method symbol's type and yield `Some(type)` iff it is "getter shaped" - yields some value which is not `Unit` and requires no explicit parameters */
@@ -216,7 +219,7 @@ Type: $tpe
             typeOf[Any].typeSymbol
         )
 
-        val primaryConstructorOpt = publicPrimaryConstructorOf(c)(tpe)
+        val primaryConstructorOpt = publicPrimaryConstructorOf(tpe)
 
         // map of all constructor arguments for annotation discovery
         val constructorArgumentTerms: Map[String, TermSymbol] =
@@ -299,7 +302,7 @@ Type: $tpe
 
             val externalName = annotations.collectFirst { case Named(externalName) => externalName } getOrElse name
 
-            Property[c.universe.type] (
+            Property (
                 externalName  = externalName,
                 internalName  = name,
                 decoderName   = TermName(name + "Decoder"),
@@ -320,13 +323,7 @@ Type: $tpe
      * Model a structure and its properties, picking an appropriate constructor and
      * pre-building some of the trees and names used for coding
      */
-    def structureOf(c: Context)(A: c.Type): Structure[c.universe.type] = {
-        import c.universe.{
-            EmptyTree, Flag, Ident, Modifiers, NoPrefix, Quasiquote, Tree,
-            MethodSymbol, MethodType, MethodTypeTag, SingleType, SingleTypeTag, Type, typeOf,
-            TermName, TypeName
-        }
-
+    def structureOf(A: c.Type): Structure = {
         def bail[A](msg: String): A = {
             c.error (
                 pos = c.enclosingPosition,
@@ -338,7 +335,7 @@ Type: $tpe
         val codedTpe    = typeOf[coded].typeSymbol
         val notCodedTpe = typeOf[notCoded].typeSymbol
 
-        val availableProps  = propertiesOf(c)(A).filterNot(_.annotations.exists(_.tree.tpe.typeSymbol == notCodedTpe))
+        val availableProps  = propertiesOf(A).filterNot(_.annotations.exists(_.tree.tpe.typeSymbol == notCodedTpe))
         val unwritableProps = availableProps.filter { p => !(p.write.isDefined || p.constructorAssignment.isDefined) }
 
         val allConstructorProps = availableProps.filter { p => p.constructorAssignment.isDefined }
@@ -375,11 +372,11 @@ Type: $tpe
 
 
         val (chosenConstructor, constructorProps) =
-            publicPrimaryConstructorOf(c)(A) match {
+            publicPrimaryConstructorOf(A) match {
                 case Some(primaryConstructor) =>
                     val missing = missingArguments(primaryConstructor)
                     if (missing.nonEmpty) {
-                        publicNullaryConstructorOf(c)(A).map { ctor => (ctor, Nil) }.getOrElse {
+                        publicNullaryConstructorOf(A).map { ctor => (ctor, Nil) }.getOrElse {
                             val missingDescription = missing.map { case (name, tpe) => s"$name: $tpe" }.mkString(", ")
                             bail (
                                 s"cannot construct ${A} with primary constructor " +
@@ -392,7 +389,7 @@ Type: $tpe
                     }
 
                 case None =>
-                    publicNullaryConstructorOf(c)(A).map { case ctor => (ctor, Nil) }.getOrElse {
+                    publicNullaryConstructorOf(A).map { case ctor => (ctor, Nil) }.getOrElse {
                         bail (
                             s"cannot construct ${A} with primary constructor " +
                             s"because it isn't public " +
@@ -405,19 +402,19 @@ Type: $tpe
         val encodeOnlyProps = unwritableProps.filter(_.annotations.exists(_.tree.tpe.typeSymbol == codedTpe))
         val allProps        = (constructorProps ++ mutableProps ++ encodeOnlyProps).sortBy(_.externalName)
 
-        def construct(valueOfProperty: Property[c.universe.type] => Tree): Tree = {
+        def construct(valueOfProperty: Property => Tree): Tree = {
             val assignments = constructorProps.map { prop =>
                 prop.constructorAssignment.getOrElse(sys.error(prop + " should have been constructable")).apply(valueOfProperty(prop))
             }
             q"new $A(..$assignments)"
         }
 
-        def mutablePropertyAssignments(assignee: Tree, valueOfProperty: Property[c.universe.type] => Tree): List[Tree] =
+        def mutablePropertyAssignments(assignee: Tree, valueOfProperty: Property => Tree): List[Tree] =
             mutableProps.map { prop =>
                 prop.write.getOrElse(sys.error(prop + " should have been mutable")).apply(assignee, valueOfProperty(prop))
             }
 
-        val constructAndAssign: (Property[c.universe.type] => Tree) => Tree =
+        val constructAndAssign: (Property => Tree) => Tree =
             A match {
                 case SingleType(_, obj) =>
                     _ => q"$obj"
@@ -436,7 +433,7 @@ Type: $tpe
                     }
             }
 
-        Structure[c.universe.type] (
+        Structure (
             tpe                   = A,
             constructor           = chosenConstructor,
             properties            = allProps,
@@ -451,8 +448,7 @@ Type: $tpe
      * Break down an annotation with a type parameter on an object or class into it's component parts for easy
      * consumption, as a helper for deriveCoder[A], deriveDecoder[A], and derivceEncoder[A] style annotations.
      */
-    def simplifyDeriveAnnotation(c: Context)(annottees: c.Expr[Any]*): SimplifiedDeriveAnnotation[c.universe.type] = {
-        import c.universe.{ClassDef, ClassDefTag, ModuleDef, ModuleDefTag, Quasiquote, TreeTag}
+    def simplifyDeriveAnnotation(annottees: c.Expr[Any]*): SimplifiedDeriveAnnotation = {
         val q"new $annot[$a](...$annotParams).macroTransform(...$_)" = c.macroApplication
         val targetType = c.typecheck(a, mode = c.TYPEmode, silent = false).tpe
 
@@ -491,7 +487,7 @@ Type: $tpe
      *            $action(b) match {
      *                case Okay(b') =>
      *                    $accept(b')
-     *                    $action(c) match {
+     *                    $action match {
      *                        case Okay(c') =>
      *                            $accept(c')
      *                            …
@@ -510,19 +506,17 @@ Type: $tpe
      *        $accept(a')
      *        b' <- $action(b)
      *        $accept(b')
-     *        c' <- $action(c)
+     *        c' <- $action
      *        $accept(c')
      *    } yield $body(a',b',c')
      *
      * but without the `flatMap`s.
      */
-    def sequenceResultBindings[A](c: Context, input: Seq[A]) (
-        action: A => c.universe.Tree,
-        accept: (A, c.universe.Tree) => c.universe.Tree,
-        body: Seq[c.universe.Tree] => c.universe.Tree
+    def sequenceResultBindings[A](input: Seq[A]) (
+        action: A => Tree,
+        accept: (A, Tree) => Tree,
+        body: Seq[Tree] => Tree
     ): c.Tree = {
-        import c.universe.{Bind, Block, Ident, Quasiquote, TermName, termNames}
-
         val names = input.map(_ => TermName(c.freshName()))
 
         val failed = TermName(c.freshName())
@@ -543,11 +537,9 @@ Type: $tpe
     /** Add some definitions to the companion object of an annotated class, creating that companion if it doesn't already exist */
     /* 2014-08-27 RMM: having multiple annotation macros which addToCompanion causes the compiler to not emit the object class (Blah$) even though
                        it doesn't error at runtime.
-    def addToCompanion(c: Context)(annottees: Seq[c.Expr[Any]]) (
-        f: (c.universe.TypeName, List[c.universe.Tree]) => List[c.universe.Tree]
+    def addToCompanion(annottees: Seq[c.Expr[Any]]) (
+        f: (TypeName, List[Tree]) => List[Tree]
     ): c.Expr[Any] = {
-        import c.universe.{ClassDef, ClassDefTag, Modifiers, ModifiersTag, ModuleDef, ModuleDefTag, Quasiquote, Template, TreeTag}
-
         annottees.map(_.tree).toList match {
             case (moduleDef@ModuleDef(_, name, _)) :: Nil =>
                 sys.error("expected this annotation to only be used on a class")
@@ -596,9 +588,7 @@ Type: $tpe
     */
 
     /** Augment some `ImplDef` with additional statements and parents */
-    def augmentImpl(c: Context)(implDef: c.universe.ImplDef, newParents: List[c.universe.Tree], stats: List[c.universe.Tree]): c.universe.ImplDef = {
-        import c.universe.{ClassDef, ClassDefTag,  Ident, ModuleDef, ModuleDefTag, Quasiquote, Template}
-
+    def augmentImpl(implDef: c.universe.ImplDef, newParents: List[Tree], stats: List[Tree]): c.universe.ImplDef = {
         val Template(parents, self, body) = implDef.impl
         val newImpl = Template(parents ++ newParents, self, body ++ stats)
 
