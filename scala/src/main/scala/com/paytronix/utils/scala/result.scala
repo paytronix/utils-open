@@ -267,12 +267,14 @@ object result {
          */
         def asA[B](implicit tag: ClassTag[B], fpd: FailedParameterDefault[E /* haaaack */ @uncheckedVariance]): ResultG[E, B] =
             flatMap { v =>
-                tryCatching[ClassCastException].value {
-                    classTag[B].runtimeClass.cast(v).asInstanceOf[B]
-                } | FailedG("expected a " + tag + " but got a " + (v.asInstanceOf[AnyRef] match {
-                    case null => "null"
-                    case other => other.getClass.getName
-                }), fpd.default)
+                try Okay(classTag[B].runtimeClass.cast(v).asInstanceOf[B])
+                catch { case e: ClassCastException =>
+                    val what = v.asInstanceOf[AnyRef] match {
+                        case null => "null"
+                        case other => other.getClass.getName
+                    }
+                    FailedG(s"expected a $tag but got a $what", fpd.default)
+                }
             }
 
         /** Succeed with the value cast to the given type if it can be, otherwise the given result */
@@ -406,17 +408,18 @@ object result {
             if (!p(result)) Okay(result) else otherwise
 
         def asAG[F, B](clazz: Class[B], parameter: F): ResultG[F, B] =
-            tryCatching[ClassCastException].value {
-                clazz.cast(result).asInstanceOf[B]
-            } | FailedG("expected a " + clazz.getName + " but got a " + (result.asInstanceOf[AnyRef] match {
-                case null => "null"
-                case other => other.getClass.getName
-            }), parameter)
+            try Okay(clazz.cast(result).asInstanceOf[B])
+            catch { case e: ClassCastException =>
+                val what = result.asInstanceOf[AnyRef] match {
+                    case null => "null"
+                    case other => other.getClass.getName
+                }
+                FailedG(s"expected a ${clazz.getName} but got a $what", parameter)
+            }
 
         def asAG[F, B](clazz: Class[B], otherwise: ResultG[F, B]): ResultG[F, B] =
-            tryCatching[ClassCastException].value {
-                clazz.cast(result).asInstanceOf[B]
-            } orElse otherwise
+            try Okay(clazz.cast(result).asInstanceOf[B])
+            catch { case e: ClassCastException => otherwise }
 
         def iterator: Iterator[A] =
             Iterator.single(result)
@@ -666,67 +669,38 @@ object result {
     def cast[A](clazz: Class[A], in: Any): Result[A] =
         Okay(in).withFailedType[Unit].asAG(clazz, ())
 
-    /**
-     * Catch any [[java.lang.Exception]] in a block, yielding Failed when a [[java.lang.Exception]] is caught.
-     * Use `tryCatch.value` when the function yields some A which should be wrapped in Okay on success, and `tryCatch.result` if the function yields a
-     * [[com.paytronix.utils.scala.result.Result]].
-     *
-     * Examples:
-     * {{{
-     *     tryCatch.value { "foobar" }            == Okay("foobar")
-     *     tryCatch.value { Okay("foobar") }      == Okay(Okay("foobar"))
-     *     tryCatch.value { sys.error("oh no") }  == Failed(new RuntimeException("oh no"))
-     *     tryCatch.result { "foobar" }           // type error since String is not <: Result[_]
-     *     tryCatch.result { Okay("foobar") }     == Okay("foobar")
-     *     tryCatch.result { Failed("why") }      == Failed(new FailedException("why"))
-     *     tryCatch.result { sys.error("oh no") } == Failed(new RuntimeException("oh no"))
-     * }}}
-     */
-    def tryCatch: TryCatch[Unit, Nothing] =
-        tryCatching[Exception]
 
-    /**
-     * Catch throwable of type T in a block and yield Okay if no exception caught, Failed if an exception of the given type caught.
-     * Use `tryCatching[E].value` when the function yields some A which should be wrapped in Okay on success, and `tryCatching[E].result` if the function yields a
-     * [[com.paytronix.utils.scala.result.Result]].
-     *
-     * Examples:
-     * {{{
-     *     tryCatching[FailedException].value { "foobar" }                         == Okay("foobar")
-     *     tryCatching[FailedException].value { Okay("foobar") }                   == Okay(Okay("foobar"))
-     *     tryCatching[FailedException].value { throw new FailedException("why") } == Failed(new FailedException("why"))
-     *     tryCatching[FailedException].value { sys.error("oh no") }               // throws RuntimeException("oh no")
-     *     tryCatching[FailedException].result { "foobar" }                        // type error since String is not <: Result[_]
-     *     tryCatching[FailedException].result { Okay("foobar") }                  == Okay("foobar")
-     *     tryCatching[FailedException].result { Failed("why") }                   == Failed(new FailedException("why"))
-     *     tryCatching[FailedException].result { sys.error("oh no") }              // throws RuntimeException("oh no")
-     * }}}
-     * Example: tryCatching[FooException].value { do some things }
-     */
-    def tryCatching[T <: Throwable : ClassTag]: TryCatch[Unit, Nothing] =
-        TryCatch { case t if classTag[T].runtimeClass.isInstance(t) => Failed(t) }
+    /** Evaluate `body` yielding the value wrapped in `Okay` and catch any `Exception` as a `Failed` */
+    def tryCatchValue[A](body: => A): Result[A] =
+        macro resultMacros.tryCatchValue
 
-    /**
-     * Catch only throwables of the given classes in a block, yielding Okay if no exception caught, Failed if one of those exception types caught.
-     * Example: tryCatching(classOf[FooException], classOf[BarException]).value { ... }
-     */
+    /** Evaluate `body` yielding the value wrapped in `Okay` and catch any `Exception` as a `Failed`, transforming that failure with `ff` */
+    def tryCatchValueG[E, A](ff: FailedG[Unit] => ResultG[E, A])(body: => A): ResultG[E, A] =
+        macro resultMacros.tryCatchValueG
 
-    def tryCatching(throwables: Class[_ <: Throwable]*): TryCatch[Unit, Nothing] =
-        TryCatch { case t if throwables.exists(_.isInstance(t)) => Failed(t) }
+    /** Evaluate `body` yielding the value and catch any `Exception` as a `Failed` */
+    def tryCatchResult[A](body: => Result[A]): Result[A] =
+        macro resultMacros.tryCatchResult
 
-    /** Generic catcher which turns exceptions into ResultGs via a partial function */
-    final case class TryCatch[+E, +A](catchPF: PartialFunction[Throwable, ResultG[E, A]]) extends AnyVal {
-        def value[B >: A](f: => B): ResultG[E, B] =
-            try Okay(f) catch catchPF
-        def valueG[F, B >: A](ff: FailedG[E] => ResultG[F, B])(f: => B): ResultG[F, B] =
-            try Okay(f) catch { catchPF andThen { _ | ff } }
-        def result[B >: A, F >: E](f: => ResultG[F, B]): ResultG[F, B] =
-            try f catch catchPF
-        def resultG[B >: A, F](ff: FailedG[E] => ResultG[F, B])(f: => ResultG[F, B]): ResultG[F, B] =
-            try f catch { catchPF andThen { _ | ff } }
-    }
+    /** Evaluate `body` yielding the value and catch any `Exception` as a `Failed`, transforming that failure with `ff` */
+    def tryCatchResultG[E, A](ff: FailedG[Unit] => ResultG[E, A])(body: => ResultG[E, A]): ResultG[E, A] =
+        macro resultMacros.tryCatchResultG
 
-    object TryCatch extends FailedParameterImplicits
+    /** Evaluate `body` yielding the value wrapped in `Okay` and catch throwables of the given types as `Failed` */
+    def tryCatchingValue[A](throwables: Class[_ <: Throwable]*)(body: => A): Result[A] =
+        macro resultMacros.tryCatchingValue
+
+    /** Evaluate `body` yielding the value wrapped in `Okay` and catch throwables of the given types as `Failed`, transforming that failure with `ff` */
+    def tryCatchingValueG[E, A](throwables: Class[_ <: Throwable]*)(ff: FailedG[Unit] => ResultG[E, A])(body: => A): ResultG[E, A] =
+        macro resultMacros.tryCatchingValueG
+
+    /** Evaluate `body` yielding the value and catch throwables of the given types as `Failed` */
+    def tryCatchingResult[A](throwables: Class[_ <: Throwable]*)(body: => Result[A]): Result[A] =
+        macro resultMacros.tryCatchingResult
+
+    /** Evaluate `body` yielding the value and catch throwables of the given types as `Failed`, transforming that failure with `ff` */
+    def tryCatchingResultG[E, A](throwables: Class[_ <: Throwable]*)(ff: FailedG[Unit] => ResultG[E, A])(body: => ResultG[E, A]): ResultG[E, A] =
+        macro resultMacros.tryCatchingResultG
 
     /**
      * Return the first application of the given function to each item from the given {@link Iterable} that is a {@link Okay} {@link ResultG}, or the last

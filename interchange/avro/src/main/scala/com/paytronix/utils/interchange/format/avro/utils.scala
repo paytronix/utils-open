@@ -27,7 +27,7 @@ import org.codehaus.jackson.JsonNode
 import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 
 import com.paytronix.utils.scala.reflection.splitFullyQualifiedName
-import com.paytronix.utils.scala.result.{Result, tryCatch}
+import com.paytronix.utils.scala.result.Result
 
 
 object utils {

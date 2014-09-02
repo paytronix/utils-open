@@ -24,7 +24,7 @@ import org.joda.time.format.{DateTimeFormat, DateTimeFormatter, ISODateTimeForma
 import scalaz.{BijectionT, NonEmptyList}
 
 import com.paytronix.utils.interchange.base.terminal
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, firstOrLastG, tryCatch}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, firstOrLastG, tryCatchValue}
 
 import BijectionT.bijection
 
@@ -66,33 +66,33 @@ class DateTimeStringBijections (
 
     val dateTimeBijection: BijectionT[Result, Result, DateTime, String] =
         bijection (
-            dt => tryCatch.value(dateTimeFormatters.head.print(dt)): Result[String],
+            dt => tryCatchValue(dateTimeFormatters.head.print(dt)): Result[String],
             s => firstOrLastG(fail(dateTimeFormatters.head), dateTimeFormatters) { formatter =>
-                tryCatch.value(formatter.parseDateTime(s))
+                tryCatchValue(formatter.parseDateTime(s))
             }: Result[DateTime]
         )
 
     val localDateBijection: BijectionT[Result, Result, LocalDate, String] =
         bijection (
-            ld => tryCatch.value(localDateFormatters.head.print(ld)): Result[String],
+            ld => tryCatchValue(localDateFormatters.head.print(ld)): Result[String],
             s => firstOrLastG(fail(localDateFormatters.head), localDateFormatters) { formatter =>
-                tryCatch.value(formatter.parseLocalDate(s))
+                tryCatchValue(formatter.parseLocalDate(s))
             }: Result[LocalDate]
         )
 
     val localDateTimeBijection: BijectionT[Result, Result, LocalDateTime, String] =
         bijection (
-            ldt => tryCatch.value(localDateTimeFormatters.head.print(ldt)): Result[String],
+            ldt => tryCatchValue(localDateTimeFormatters.head.print(ldt)): Result[String],
             s => firstOrLastG(fail(localDateTimeFormatters.head), localDateTimeFormatters) { formatter =>
-                tryCatch.value(formatter.parseLocalDateTime(s))
+                tryCatchValue(formatter.parseLocalDateTime(s))
             }: Result[LocalDateTime]
         )
 
     val localTimeBijection: BijectionT[Result, Result, LocalTime, String] =
         bijection (
-            lt => tryCatch.value(localTimeFormatters.head.print(lt)): Result[String],
+            lt => tryCatchValue(localTimeFormatters.head.print(lt)): Result[String],
             s => firstOrLastG(fail(localTimeFormatters.head), localTimeFormatters) { formatter =>
-                tryCatch.value(formatter.parseLocalTime(s))
+                tryCatchValue(formatter.parseLocalTime(s))
             }: Result[LocalTime]
         )
 
@@ -113,25 +113,25 @@ object long {
     val dateTimeBijection: BijectionT[Result, Result, DateTime, Long] =
         bijection (
             (dt: DateTime) => Okay(dt.getMillis): Result[Long],
-            (l: Long) => tryCatch.value(new DateTime(l)): Result[DateTime]
+            (l: Long) => tryCatchValue(new DateTime(l)): Result[DateTime]
         )
 
     val localDateBijection: BijectionT[Result, Result, LocalDate, Long] =
         bijection (
             (ld: LocalDate) => Okay(ld.toDateTimeAtStartOfDay(DateTimeZone.UTC).getMillis): Result[Long],
-            (l: Long) => tryCatch.value(new DateTime(l).toLocalDate): Result[LocalDate]
+            (l: Long) => tryCatchValue(new DateTime(l).toLocalDate): Result[LocalDate]
         )
 
     val localDateTimeBijection: BijectionT[Result, Result, LocalDateTime, Long] =
         bijection (
             (ldt: LocalDateTime) => Okay(ldt.toDateTime(DateTimeZone.UTC).getMillis): Result[Long],
-            (l: Long) => tryCatch.value(new DateTime(l).toLocalDateTime): Result[LocalDateTime]
+            (l: Long) => tryCatchValue(new DateTime(l).toLocalDateTime): Result[LocalDateTime]
         )
 
     val localTimeBijection: BijectionT[Result, Result, LocalTime, Long] =
         bijection (
             (lt: LocalTime) => Okay(lt.toDateTime(constants.epoch.toDateTimeAtStartOfDay).getMillis): Result[Long],
-            (l: Long) => tryCatch.value(new DateTime(l).toLocalTime): Result[LocalTime]
+            (l: Long) => tryCatchValue(new DateTime(l).toLocalTime): Result[LocalTime]
         )
 
     val javaDateBijection: BijectionT[Result, Result, JavaDate, Long] =

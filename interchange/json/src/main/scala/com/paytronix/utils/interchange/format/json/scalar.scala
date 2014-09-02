@@ -33,7 +33,7 @@ import scalaz.BijectionT.bijection
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
 import com.paytronix.utils.interchange.format.string.coders._
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatch, tryCatching}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValueG, tryCatchResultG, tryCatchingResultG}
 
 object scalar extends scalar
 
@@ -45,7 +45,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Unit, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeNothingOrNull()
                     Okay.unit
                 }
@@ -67,7 +67,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Boolean, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeBoolean(in)
                     Okay.unit
                 }
@@ -96,7 +96,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Byte, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeNumber(in)
                     Okay.unit
                 }
@@ -128,7 +128,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Short, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeNumber(in)
                     Okay.unit
                 }
@@ -160,7 +160,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Int, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeNumber(in)
                     Okay.unit
                 }
@@ -192,7 +192,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Long, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeNumber(in)
                     Okay.unit
                 }
@@ -224,7 +224,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Float, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeNumber(in)
                     Okay.unit
                 }
@@ -256,7 +256,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Double, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeNumber(in)
                     Okay.unit
                 }
@@ -288,7 +288,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: java.math.BigInteger, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeString(in.toString)
                     Okay.unit
                 }
@@ -326,7 +326,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: java.math.BigDecimal, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeString(in.toString)
                     Okay.unit
                 }
@@ -369,7 +369,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: Char, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeString(in.toString)
                     Okay.unit
                 }
@@ -396,7 +396,7 @@ trait scalar {
             val codesAsObject = false
 
             def run(in: String, out: InterchangeJsonGenerator) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeString(in)
                     Okay.unit
                 }
@@ -424,7 +424,7 @@ trait scalar {
 
             def run(in: ByteBuffer, out: InterchangeJsonGenerator) = {
                 val r = new Receiver[String]
-                byteBufferStringCoder.encode.run(in, r) >> tryCatch.resultG(terminal) {
+                byteBufferStringCoder.encode.run(in, r) >> tryCatchResultG(terminal) {
                     out.writeString(r.value)
                     Okay.unit
                 }
@@ -453,7 +453,7 @@ trait scalar {
 
             def run(in: Array[Byte], out: InterchangeJsonGenerator) = {
                 val r = new Receiver[String]
-                byteArrayStringCoder.encode.run(in, r) >> tryCatch.resultG(terminal) {
+                byteArrayStringCoder.encode.run(in, r) >> tryCatchResultG(terminal) {
                     out.writeString(r.value)
                     Okay.unit
                 }
@@ -485,7 +485,7 @@ trait scalar {
                 val codesAsObject = false
 
                 def run(in: A, out: InterchangeJsonGenerator) =
-                    tryCatch.resultG(terminal) {
+                    tryCatchResultG(terminal) {
                         out.writeString(in.toString)
                         Okay.unit
                     }
@@ -499,7 +499,7 @@ trait scalar {
                         in.currentToken match {
                             case JsonToken.VALUE_NULL   => in.unexpectedMissingValue
                             case JsonToken.VALUE_STRING =>
-                                tryCatching[IllegalArgumentException].resultG(in.terminal) {
+                                tryCatchingResultG(classOf[IllegalArgumentException])(in.terminal) {
                                     out(Enum.valueOf(enumClass, in.stringValue))
                                 } | s""""${in.stringValue}" is not a valid enumeration value (valid values: ${enumValues.map(_.toString).mkString(", ")})"""
                             case _ => in.unexpectedToken(s"a string with one of the following values: ${enumValues.map(_.toString).mkString(", ")}")
@@ -521,7 +521,7 @@ trait scalar {
                 val codesAsObject = false
 
                 def run(in: A#Value, out: InterchangeJsonGenerator) =
-                    tryCatch.resultG(terminal) {
+                    tryCatchResultG(terminal) {
                         out.writeString(in.toString)
                         Okay.unit
                     }
@@ -535,7 +535,7 @@ trait scalar {
                         in.currentToken match {
                             case JsonToken.VALUE_NULL   => in.unexpectedMissingValue
                             case JsonToken.VALUE_STRING =>
-                                tryCatch.valueG(in.terminal)(in.stringValue) >>= { s =>
+                                tryCatchValueG(in.terminal)(in.stringValue) >>= { s =>
                                     enumeration.values.find(_.toString == s) match {
                                         case Some(a) => out(a)
                                         case None =>

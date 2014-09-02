@@ -298,6 +298,7 @@
                                 <arg>-Ywarn-unused</arg>
                                 <arg>-Ywarn-unused-import</arg>
                                 <arg>-deprecation</arg>
+                                <!--<arg>-Ymacro-debug-lite</arg>-->
                             </args>
                         </configuration>
                     </execution>

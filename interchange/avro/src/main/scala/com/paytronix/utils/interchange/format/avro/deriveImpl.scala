@@ -271,7 +271,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
             cq"""
                 $value: $subtype =>
                     com.paytronix.utils.interchange.base.atIndex($index) {
-                        com.paytronix.utils.scala.result.tryCatch.resultG(com.paytronix.utils.interchange.base.terminal) {
+                        com.paytronix.utils.scala.result.tryCatchResultG(com.paytronix.utils.interchange.base.terminal) {
                             $avroEncoder.writeIndex($index)
                             $encoder.run($value, $avroEncoder)
                         }
@@ -325,7 +325,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
             cq"""
                 $index =>
                     com.paytronix.utils.interchange.base.atIndex($index) {
-                        com.paytronix.utils.scala.result.tryCatch.resultG(com.paytronix.utils.interchange.base.terminal) {
+                        com.paytronix.utils.scala.result.tryCatchResultG(com.paytronix.utils.interchange.base.terminal) {
                             val $subReceiver = new com.paytronix.utils.interchange.base.Receiver[$subtype]
                             $decoder.run($resolvingDecoder, $subReceiver) match {
                                 case _: com.paytronix.utils.scala.result.Okay[_] =>
@@ -343,7 +343,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
             q"""
                 def run($resolvingDecoder: org.apache.avro.io.ResolvingDecoder,
                         $receiver: com.paytronix.utils.interchange.base.Receiver[$targetType]) =
-                    com.paytronix.utils.scala.result.tryCatch.resultG(com.paytronix.utils.interchange.base.terminal) {
+                    com.paytronix.utils.scala.result.tryCatchResultG(com.paytronix.utils.interchange.base.terminal) {
                         $resolvingDecoder.readIndex() match {
                             case ..$decodeAlts
                             case $invalidIndex =>

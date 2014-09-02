@@ -11,6 +11,30 @@ Miscellaneous Scala Utilities
    resultG.isDefined
       ==> resultG.isOkay
 
+.. code:: scala
+
+   tryCatch.value { b }
+      ==> tryCatchValue { b }
+   tryCatch.valueG(f) { b }
+      ==> tryCatchValueG(f) { b }
+   tryCatch.result { b }
+      ==> tryCatchResult { b }
+   tryCatch.resultG(f) { b }
+      ==> tryCatchResultG(f) { b }
+
+   tryCatching[A].value { b }
+      ==> tryCatchingValue(classOf[A]) { b }
+   tryCatching[A].valueG(f) { b }
+      ==> tryCatchingValueG(classOf[A])(f) { b }
+   tryCatching[A].result { b }
+      ==> tryCatchingResult(classOf[A]) { b }
+   tryCatching[A].resultG(f) { b }
+      ==> tryCatchingResultG(classOf[A])(f) { b }
+
+The partial function version of `TryCatch` has been removed entirely, and the `Exception` and list of throwable type versions have been renamed.
+
+The new versions are also macros, so carry no performance cost beyond the use of `ResultG`.
+
 ``collection`` was removed in its entirety since the functions within are now subsumed by Scala and scalaz:
 
 .. code:: scala

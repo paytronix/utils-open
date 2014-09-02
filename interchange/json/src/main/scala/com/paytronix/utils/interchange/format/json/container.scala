@@ -27,7 +27,7 @@ import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJ
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.concurrent.ThreadLocal
-import com.paytronix.utils.scala.result.{FailedG, FailedParameterDefault, Okay, ResultG, iterableResultOps, tryCatch}
+import com.paytronix.utils.scala.result.{FailedG, FailedParameterDefault, Okay, ResultG, iterableResultOps}
 
 object container extends container
 

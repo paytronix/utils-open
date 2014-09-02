@@ -26,7 +26,7 @@ import scalaz.BijectionT
 import com.paytronix.utils.interchange.base.{
     Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, atTerminal, formatFailedPath, terminal
 }
-import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatch}
+import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchValue, tryCatchResult}
 
 /** Format which consumes and produces streams of binary data using Avro */
 object AvroFormat extends Format {
@@ -99,9 +99,9 @@ trait AvroEncoder[A] extends Encoder[A, AvroFormat.type] with AvroEncoderOrDecod
     /** Attempt encoding of a value to a given output stream */
     def toOutputStream(in: A, out: OutputStream): Result[Unit] =
         for {
-            encoder   <- tryCatch.value(avro.io.EncoderFactory.get.binaryEncoder(out, null)) | "Failed to create Avro encoder"
+            encoder   <- tryCatchValue(avro.io.EncoderFactory.get.binaryEncoder(out, null)) | "Failed to create Avro encoder"
             encodedOk <- formatFailedPath(run(in, encoder))
-            flushedOk <- tryCatch.value(encoder.flush) | "Failed to flush Avro encoder"
+            flushedOk <- tryCatchValue(encoder.flush) | "Failed to flush Avro encoder"
         } yield ()
 
     /** Produce a DatumWriter that writes whatever this Coder codes to some Avro encoder */
@@ -173,20 +173,20 @@ trait AvroDecoder[A] extends Decoder[A, AvroFormat.type] with AvroEncoderOrDecod
     /** Attempt conversion of a byte array to a value of the mapped type */
     def fromBytesRange(writerSchema: avro.Schema)(in: Array[Byte], offset: Int, length: Int): Result[A] =
         for {
-            decoder <- tryCatch.value(avro.io.DecoderFactory.get.binaryDecoder(in, offset, length, null)) | "Failed to create Avro decoder"
+            decoder <- tryCatchValue(avro.io.DecoderFactory.get.binaryDecoder(in, offset, length, null)) | "Failed to create Avro decoder"
             result  <- fromDecoder(writerSchema)(decoder)
         } yield result
 
     /** Attempt conversion of an input stream to a value of the mapped type  */
     def fromInputStream(writerSchema: avro.Schema)(in: InputStream): Result[A] =
         for {
-            decoder <- tryCatch.value(avro.io.DecoderFactory.get.binaryDecoder(in, null)) | "Failed to create Avro decoder"
+            decoder <- tryCatchValue(avro.io.DecoderFactory.get.binaryDecoder(in, null)) | "Failed to create Avro decoder"
             result  <- fromDecoder(writerSchema)(decoder)
         } yield result
 
     /** Attempt decoding from some Avro decoder */
     def fromDecoder(writerSchema: avro.Schema)(in: avro.io.Decoder): Result[A] =
-        tryCatch.result {
+        tryCatchResult {
             val resolver = utils.ResolvingDecoderCache(schema, writerSchema)
             resolver.configure(in)
             val receiver = new Receiver[A]

@@ -29,7 +29,7 @@ import scalaz.BijectionT.bijection
 
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
-import com.paytronix.utils.scala.result.{FailedG, Okay, Result, parameter, tryCatch, tryCatching}
+import com.paytronix.utils.scala.result.{FailedG, Okay, Result, parameter, tryCatchResultG, tryCatchingResultG}
 
 object scalar extends scalar
 
@@ -46,7 +46,7 @@ trait scalar {
 
     implicit object booleanStringCoder extends StringCoder[Boolean] {
         object encode extends StringEncoder[Boolean] {
-            def run(in: Boolean, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Boolean, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[Boolean] {
@@ -61,70 +61,70 @@ trait scalar {
 
     implicit object byteStringCoder extends StringCoder[Byte] {
         object encode extends StringEncoder[Byte] {
-            def run(in: Byte, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Byte, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[Byte] {
-            def run(in: String, out: Receiver[Byte]) = tryCatch.resultG(terminal)(out(java.lang.Byte.parseByte(in)))
+            def run(in: String, out: Receiver[Byte]) = tryCatchResultG(terminal)(out(java.lang.Byte.parseByte(in)))
         }
     }
 
     implicit object shortStringCoder extends StringCoder[Short] {
         object encode extends StringEncoder[Short] {
-            def run(in: Short, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Short, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[Short] {
-            def run(in: String, out: Receiver[Short]) = tryCatch.resultG(terminal)(out(java.lang.Short.parseShort(in)))
+            def run(in: String, out: Receiver[Short]) = tryCatchResultG(terminal)(out(java.lang.Short.parseShort(in)))
         }
     }
 
     implicit object intStringCoder extends StringCoder[Int] {
         object encode extends StringEncoder[Int] {
-            def run(in: Int, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Int, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[Int] {
-            def run(in: String, out: Receiver[Int]) = tryCatch.resultG(terminal)(out(java.lang.Integer.parseInt(in)))
+            def run(in: String, out: Receiver[Int]) = tryCatchResultG(terminal)(out(java.lang.Integer.parseInt(in)))
         }
     }
 
     implicit object longStringCoder extends StringCoder[Long] {
         object encode extends StringEncoder[Long] {
-            def run(in: Long, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Long, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
         object decode extends StringDecoder[Long] {
-            def run(in: String, out: Receiver[Long]) = tryCatch.resultG(terminal)(out(java.lang.Long.parseLong(in)))
+            def run(in: String, out: Receiver[Long]) = tryCatchResultG(terminal)(out(java.lang.Long.parseLong(in)))
         }
     }
 
     implicit object floatStringCoder extends StringCoder[Float] {
         object encode extends StringEncoder[Float] {
-            def run(in: Float, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Float, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[Float] {
-            def run(in: String, out: Receiver[Float]) = tryCatch.resultG(terminal)(out(java.lang.Float.parseFloat(in)))
+            def run(in: String, out: Receiver[Float]) = tryCatchResultG(terminal)(out(java.lang.Float.parseFloat(in)))
         }
     }
 
     implicit object doubleStringCoder extends StringCoder[Double] {
         object encode extends StringEncoder[Double] {
-            def run(in: Double, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Double, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[Double] {
-            def run(in: String, out: Receiver[Double]) = tryCatch.resultG(terminal)(out(java.lang.Double.parseDouble(in)))
+            def run(in: String, out: Receiver[Double]) = tryCatchResultG(terminal)(out(java.lang.Double.parseDouble(in)))
         }
     }
 
     implicit object javaBigIntegerStringCoder extends StringCoder[JavaBigInteger] {
         object encode extends StringEncoder[JavaBigInteger] {
-            def run(in: JavaBigInteger, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: JavaBigInteger, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[JavaBigInteger] {
-            def run(in: String, out: Receiver[JavaBigInteger]) = tryCatch.resultG(terminal)(out(new JavaBigInteger(in)))
+            def run(in: String, out: Receiver[JavaBigInteger]) = tryCatchResultG(terminal)(out(new JavaBigInteger(in)))
         }
     }
 
@@ -138,7 +138,7 @@ trait scalar {
             def run(in: JavaBigDecimal, out: Receiver[String]) = out(in.toString)
         }
         object decode extends StringDecoder[JavaBigDecimal] {
-            def run(in: String, out: Receiver[JavaBigDecimal]) = tryCatch.resultG(terminal)(out(new JavaBigDecimal(in)))
+            def run(in: String, out: Receiver[JavaBigDecimal]) = tryCatchResultG(terminal)(out(new JavaBigDecimal(in)))
         }
     }
 
@@ -149,7 +149,7 @@ trait scalar {
 
     implicit object charStringCoder extends StringCoder[Char] {
         object encode extends StringEncoder[Char] {
-            def run(in: Char, out: Receiver[String]) = tryCatch.resultG(terminal)(out(in.toString))
+            def run(in: Char, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
         }
 
         object decode extends StringDecoder[Char] {
@@ -171,7 +171,7 @@ trait scalar {
     implicit object byteBufferStringCoder extends StringCoder[ByteBuffer] {
         object encode extends StringEncoder[ByteBuffer] {
             def run(in: ByteBuffer, out: Receiver[String]) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     if (in.hasArray && in.capacity == in.limit && in.position == 0)
                         out(DatatypeConverter.printBase64Binary(in.array))
                     else {
@@ -184,7 +184,7 @@ trait scalar {
         }
         object decode extends StringDecoder[ByteBuffer] {
             def run(in: String, out: Receiver[ByteBuffer]) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out(ByteBuffer.wrap(DatatypeConverter.parseBase64Binary(in)))
                 }
         }
@@ -203,7 +203,7 @@ trait scalar {
         object decode extends StringDecoder[A] {
             def run(in: String, out: Receiver[A]) = {
                 val errorMessage = FailedG(s""""$in" is not a valid enumeration value""", CoderFailure.terminal)
-                tryCatching[IllegalArgumentException].resultG(errorMessage) {
+                tryCatchingResultG(classOf[IllegalArgumentException])(errorMessage) {
                     out(Enum.valueOf(classTag[A].runtimeClass.asInstanceOf[Class[A]], in))
                 }
             }

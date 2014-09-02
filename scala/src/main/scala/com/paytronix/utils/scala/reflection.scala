@@ -19,7 +19,7 @@ package com.paytronix.utils.scala
 import scala.reflect.{ClassTag, classTag}
 import scala.reflect.runtime.{universe => runtimeUniverse}
 
-import result.{Failed, Result, tryCatch, tryCatching}
+import result.{Failed, Okay, Result}
 
 package object reflection {
     /** Split a fully qualified class name into (package name, class name) */
@@ -31,18 +31,21 @@ package object reflection {
 
     /** Given the encoded name of an object (including the trailing $), reflectively obtain an instance to it */
     def findObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] =
-        tryCatch.value {
+        try {
             val runtimeMirror = runtimeUniverse.runtimeMirror(loader)
-            runtimeMirror.reflectModule(runtimeMirror.staticModule(name)).instance.asInstanceOf[AnyRef]
-        }
+            Okay(runtimeMirror.reflectModule(runtimeMirror.staticModule(name)).instance.asInstanceOf[AnyRef])
+        } catch { case e: Exception => Failed(e) }
 
     /** Look up a class by name, failing if the class is not found or does not conform at least to the given type */
     def classByName[A: ClassTag](classLoader: ClassLoader, name: String): Result[Class[A]] =
-        tryCatch.value(Class.forName(name, true, classLoader).asSubclass(classTag[A].runtimeClass).asInstanceOf[Class[A]])
+        try {
+            Okay(Class.forName(name, true, classLoader).asSubclass(classTag[A].runtimeClass).asInstanceOf[Class[A]])
+        } catch { case e: Exception => Failed(e) }
 
     /** Instantiate a Class with its no-arg constructor, capturing exceptions */
     def instantiate[A](clazz: Class[A]): Result[A] =
-        tryCatch.value(clazz.newInstance())
+        try Okay(clazz.newInstance())
+        catch { case e: Exception => Failed(e) }
 
     /** Instantiate a class by name with its no-arg constructor, capturing exceptions */
     def instantiate(classLoader: ClassLoader, name: String): Result[AnyRef] =

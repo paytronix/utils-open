@@ -18,11 +18,11 @@ package com.paytronix.utils.interchange.base
 
 import scala.reflect.runtime.universe.{TypeTag, typeTag}
 
-import com.paytronix.utils.scala.result.{FailedG, Result, tryCatch}
+import com.paytronix.utils.scala.result.{FailedG, Result, tryCatchValue}
 
 object enum {
     def enumerationInstance[A <: Enumeration: TypeTag]: Result[A] =
-        tryCatch.value {
+        tryCatchValue {
             typeTag[A].mirror
                 .reflectModule(typeTag[A].tpe.termSymbol.asModule)
                 .instance.asInstanceOf[A]

@@ -23,10 +23,16 @@ import scala.reflect.macros.whitebox.Context
  * but also does not require the optimiser to be turned on, which is pretty buggy (as of 2.11.1) and causes NoClassDefFoundErrors
  */
 class resultMacros(val c: Context) {
-    import c.universe.{EmptyTree, FunctionTag, NoSymbol, Quasiquote, TermName, Transformer, Tree, TreeTag, TypeNameTag, TypeTree, TypeTreeTag, ValDef}
+    import c.universe.{
+        ConstantType, ConstantTypeTag, EmptyTree, FunctionTag, NoSymbol, Quasiquote, TermName,
+        Tree, TreeTag, TypeNameTag, TypeRef, TypeRefTag, TypeTree, TypeTreeTag, ValDef, WeakTypeTag
+    }
+
+    val okay = q"com.paytronix.utils.scala.result.Okay"
+    val failedG = q"com.paytronix.utils.scala.result.FailedG"
 
     /** Macro implementation of >>= (bind) which avoids allocation of the closure etc. since the Scala optimizer cannot be trusted */
-    def bind(f: c.Tree): c.Tree = {
+    def bind(f: Tree): Tree = {
         val res = TermName(c.freshName())
 
         c.macroApplication match {
@@ -120,5 +126,142 @@ class resultMacros(val c: Context) {
             case _ =>
                 sys.error(s"did not recognize ${c.macroApplication} as a binding, maybe try flatMap { _ => … }?")
         }
+    }
+
+    def tryCatchValue(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        q"""
+            try $okay($body)
+            catch { case $e: java.lang.Exception => $failedG($e, ()) }
+        """
+    }
+
+    def tryCatchValueG(ff: Tree)(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        q"""
+            try $okay($body)
+            catch { case $e: java.lang.Exception => $ff($failedG($e, ())) }
+        """
+    }
+
+    def tryCatchResult(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        q"""
+            try $body
+            catch { case $e: java.lang.Exception => $failedG($e, ()) }
+        """
+    }
+
+    def tryCatchResultG(ff: Tree)(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        q"""
+            try $body
+            catch { case $e: java.lang.Exception => $ff($failedG($e, ())) }
+        """
+    }
+
+    def tryCatchingValue(throwables: Tree*)(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        val cases = throwables.map { tree =>
+            val deconsted = tree.tpe match {
+                case ConstantType(const) => const.tpe
+                case other               => other
+            }
+
+            deconsted match {
+                case TypeRef(_, _, List(tpe)) =>
+                    cq"$e: $tpe => $failedG($e, ())"
+                case TypeRef(_, _, tpeArgs) =>
+                    sys.error(s"expected type of $tree to be Class[_] but was TypeRef(_, _, $tpeArgs)")
+                case other =>
+                    sys.error(s"expected type of $tree to be Class[_] but was $other (a ${other.getClass})")
+            }
+        }
+
+        q"""
+            try $okay($body)
+            catch {
+                case ..$cases
+            }
+        """
+    }
+
+
+    def tryCatchingValueG(throwables: Tree*)(ff: Tree)(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        val cases = throwables.map { tree =>
+            val deconsted = tree.tpe match {
+                case ConstantType(const) => const.tpe
+                case other               => other
+            }
+
+            deconsted match {
+                case TypeRef(_, _, List(tpe)) =>
+                    cq"$e: $tpe => $ff($failedG($e, ()))"
+                case TypeRef(_, _, tpeArgs) =>
+                    sys.error(s"expected type of $tree to be Class[_] but was TypeRef(_, _, $tpeArgs)")
+                case other =>
+                    sys.error(s"expected type of $tree to be Class[_] but was $other (a ${other.getClass})")
+            }
+        }
+
+        q"""
+            try $okay($body)
+            catch {
+                case ..$cases
+            }
+        """
+    }
+
+    def tryCatchingResult(throwables: Tree*)(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        val cases = throwables.map { tree =>
+            val deconsted = tree.tpe match {
+                case ConstantType(const) => const.tpe
+                case other               => other
+            }
+
+            deconsted match {
+                case TypeRef(_, _, List(tpe)) =>
+                    cq"$e: $tpe => $failedG($e, ())"
+                case TypeRef(_, _, tpeArgs) =>
+                    sys.error(s"expected type of $tree to be Class[_] but was TypeRef(_, _, $tpeArgs)")
+                case other =>
+                    sys.error(s"expected type of $tree to be Class[_] but was $other (a ${other.getClass})")
+            }
+        }
+
+        q"""
+            try $body
+            catch {
+                case ..$cases
+            }
+        """
+    }
+
+    def tryCatchingResultG(throwables: Tree*)(ff: Tree)(body: Tree): Tree = {
+        val e = TermName(c.freshName())
+        val cases = throwables.map { tree =>
+            val deconsted = tree.tpe match {
+                case ConstantType(const) => const.tpe
+                case other               => other
+            }
+
+            deconsted match {
+                case TypeRef(_, _, List(tpe)) =>
+                    cq"$e: $tpe => $ff($failedG($e, ()))"
+                case TypeRef(_, _, tpeArgs) =>
+                    sys.error(s"expected type of $tree to be Class[_] but was TypeRef(_, _, $tpeArgs)")
+                case other =>
+                    sys.error(s"expected type of $tree to be Class[_] but was $other (a ${other.getClass})")
+            }
+        }
+
+        q"""
+            try $body
+            catch {
+                case ..$cases
+            }
+        """
     }
 }

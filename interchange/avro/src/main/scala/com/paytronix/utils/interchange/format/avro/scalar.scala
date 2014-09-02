@@ -33,7 +33,7 @@ import scalaz.BijectionT.bijection
 
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatch}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue, tryCatchValueG, tryCatchResultG}
 
 import utils.nameAndNamespaceFromClass
 
@@ -54,10 +54,10 @@ trait scalar extends scalarLPI {
         }
         object encode extends AvroEncoder[Unit] with UnitEncoderOrDecoder {
             def encodeDefaultJson(in: Unit) = Okay(jsonNodeFactory.objectNode)
-            def run(in: Unit, out: io.Encoder) = tryCatch.resultG(terminal) { Okay.unit }
+            def run(in: Unit, out: io.Encoder) = tryCatchResultG(terminal) { Okay.unit }
         }
         object decode extends AvroDecoder[Unit] with UnitEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Unit]) = tryCatch.resultG(terminal) { val _ = in.readFieldOrder(); out(()) }
+            def run(in: io.ResolvingDecoder, out: Receiver[Unit]) = tryCatchResultG(terminal) { val _ = in.readFieldOrder(); out(()) }
         }
     }
 
@@ -69,10 +69,10 @@ trait scalar extends scalarLPI {
         }
         object encode extends AvroEncoder[Boolean] with BooleanEncoderOrDecoder {
             def encodeDefaultJson(in: Boolean) = Okay(jsonNodeFactory.booleanNode(in))
-            def run(in: Boolean, out: io.Encoder) = tryCatch.resultG(terminal) { out.writeBoolean(in); Okay.unit }
+            def run(in: Boolean, out: io.Encoder) = tryCatchResultG(terminal) { out.writeBoolean(in); Okay.unit }
         }
         object decode extends AvroDecoder[Boolean] with BooleanEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Boolean]) = tryCatch.resultG(terminal) { out(in.readBoolean()) }
+            def run(in: io.ResolvingDecoder, out: Receiver[Boolean]) = tryCatchResultG(terminal) { out(in.readBoolean()) }
         }
     }
 
@@ -84,7 +84,7 @@ trait scalar extends scalarLPI {
         }
         object encode extends AvroEncoder[Byte] with ByteEncoderOrDecoder {
             def encodeDefaultJson(in: Byte) = Okay(jsonNodeFactory.textNode(new String(Array(in), "ISO-8859-1")))
-            def run(in: Byte, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: Byte, out: io.Encoder) = tryCatchResultG(terminal) {
                 val bytes = Array.ofDim[Byte](1)
                 bytes(0) = in
                 out.writeFixed(bytes, 0, 1)
@@ -92,7 +92,7 @@ trait scalar extends scalarLPI {
             }
         }
         object decode extends AvroDecoder[Byte] with ByteEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Byte]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[Byte]) = tryCatchResultG(terminal) {
                 val bytes = Array.ofDim[Byte](1)
                 in.readFixed(bytes, 0, 1)
                 out(bytes(0))
@@ -114,13 +114,13 @@ trait scalar extends scalarLPI {
                 bytes
             }
             def encodeDefaultJson(in: Short) = Okay(jsonNodeFactory.textNode(new String(encodeBytes(in), "ISO-8859-1")))
-            def run(in: Short, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: Short, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeFixed(encodeBytes(in), 0, 2)
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[Short] with ShortEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Short]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[Short]) = tryCatchResultG(terminal) {
                 val bytes = Array.ofDim[Byte](2)
                 in.readFixed(bytes, 0, 2)
                 out((
@@ -139,13 +139,13 @@ trait scalar extends scalarLPI {
         }
         object encode extends AvroEncoder[Int] with IntEncoderOrDecoder {
             def encodeDefaultJson(in: Int) = Okay(jsonNodeFactory.numberNode(in))
-            def run(in: Int, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: Int, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeInt(in)
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[Int] with IntEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Int]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[Int]) = tryCatchResultG(terminal) {
                 out(in.readInt())
             }
         }
@@ -159,13 +159,13 @@ trait scalar extends scalarLPI {
         }
         object encode extends AvroEncoder[Long] with LongEncoderOrDecoder {
             def encodeDefaultJson(in: Long) = Okay(jsonNodeFactory.numberNode(in))
-            def run(in: Long, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: Long, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeLong(in)
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[Long] with LongEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Long]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[Long]) = tryCatchResultG(terminal) {
                 out(in.readLong())
             }
         }
@@ -179,13 +179,13 @@ trait scalar extends scalarLPI {
         }
         object encode extends AvroEncoder[Float] with FloatEncoderOrDecoder {
             def encodeDefaultJson(in: Float) = Okay(jsonNodeFactory.numberNode(in))
-            def run(in: Float, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: Float, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeFloat(in)
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[Float] with FloatEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Float]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[Float]) = tryCatchResultG(terminal) {
                 out(in.readFloat())
             }
         }
@@ -199,13 +199,13 @@ trait scalar extends scalarLPI {
         }
         object encode extends AvroEncoder[Double] with DoubleEncoderOrDecoder {
             def encodeDefaultJson(in: Double) = Okay(jsonNodeFactory.numberNode(in))
-            def run(in: Double, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: Double, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeDouble(in)
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[Double] with DoubleEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Double]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[Double]) = tryCatchResultG(terminal) {
                 out(in.readDouble())
             }
         }
@@ -218,17 +218,17 @@ trait scalar extends scalarLPI {
             val defaultJson = None
         }
         object encode extends AvroEncoder[JavaBigInteger] with JavaBigIntegerEncoderOrDecoder {
-            def encodeDefaultJson(in: JavaBigInteger) = tryCatch.valueG(terminal) {
+            def encodeDefaultJson(in: JavaBigInteger) = tryCatchValueG(terminal) {
                 jsonNodeFactory.textNode(new String(in.toByteArray, "ISO-8859-1"))
             }
-            def run(in: JavaBigInteger, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: JavaBigInteger, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeBytes(ByteBuffer.wrap(in.toByteArray))
                 Okay.unit
             }
         }
 
         object decode extends AvroDecoder[JavaBigInteger] with JavaBigIntegerEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[JavaBigInteger]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[JavaBigInteger]) = tryCatchResultG(terminal) {
                 val byteBuffer = in.readBytes(null)
                 if (byteBuffer.remaining < 1)
                     FailedG("insufficient number of bytes to represent a BigInteger - got " +
@@ -264,14 +264,14 @@ trait scalar extends scalarLPI {
                 byteBuffer
             }
             def encodeDefaultJson(in: JavaBigDecimal) =
-                tryCatch.valueG(terminal)(jsonNodeFactory.textNode(new String(encodeByteBuffer(in).array, "ISO-8859-1")))
-            def run(in: JavaBigDecimal, out: io.Encoder) = tryCatch.resultG(terminal) {
+                tryCatchValueG(terminal)(jsonNodeFactory.textNode(new String(encodeByteBuffer(in).array, "ISO-8859-1")))
+            def run(in: JavaBigDecimal, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeBytes(encodeByteBuffer(in))
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[JavaBigDecimal] with JavaBigDecimalEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[JavaBigDecimal]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[JavaBigDecimal]) = tryCatchResultG(terminal) {
                 val byteBuffer = in.readBytes(null)
                 if (byteBuffer.remaining < 5)
                     FailedG("insufficient number of bytes to represent a BigDecimal - got " +
@@ -307,13 +307,13 @@ trait scalar extends scalarLPI {
             }
 
             def encodeDefaultJson(in: Char) = Okay(jsonNodeFactory.textNode(new String(encodeBytes(in), "ISO-8859-1")))
-            def run(in: Char, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: Char, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeFixed(encodeBytes(in), 0, 2)
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[Char] with CharEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[Char]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[Char]) = tryCatchResultG(terminal) {
                 val bytes = Array.ofDim[Byte](2)
                 in.readFixed(bytes, 0, 2)
                 out((((bytes(0) << 8) & 0xff00)| ((bytes(1) << 0) & 0x00ff)).asInstanceOf[Char])
@@ -331,13 +331,13 @@ trait scalar extends scalarLPI {
             def encodeDefaultJson(in: String) = Okay(jsonNodeFactory.textNode(in))
             def run(in: String, out: io.Encoder) =
                 if (in == null) FailedG("cannot encode null string", CoderFailure.terminal)
-                else tryCatch.resultG(terminal) {
+                else tryCatchResultG(terminal) {
                     out.writeString(in)
                     Okay.unit
                 }
         }
         object decode extends AvroDecoder[String] with StringEncoderOrDecoder {
-            def run(in: io.ResolvingDecoder, out: Receiver[String]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[String]) = tryCatchResultG(terminal) {
                 out(in.readString(null).toString)
             }
         }
@@ -350,7 +350,7 @@ trait scalar extends scalarLPI {
             val defaultJson = None
         }
         object encode extends AvroEncoder[ByteBuffer] with ByteBufferEncoderOrDecoder {
-            def encodeDefaultJson(in: ByteBuffer) = tryCatch.valueG(terminal) {
+            def encodeDefaultJson(in: ByteBuffer) = tryCatchValueG(terminal) {
                 val bytes = Array.ofDim[Byte](in.remaining)
                 in.mark()
                 in.get(bytes)
@@ -358,14 +358,14 @@ trait scalar extends scalarLPI {
                 jsonNodeFactory.textNode(new String(bytes, "ISO-8859-1"))
             }
 
-            def run(in: ByteBuffer, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: ByteBuffer, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeBytes(in)
                 Okay.unit
             }
         }
         object decode extends AvroDecoder[ByteBuffer] with ByteBufferEncoderOrDecoder {
             def run(in: io.ResolvingDecoder, out: Receiver[ByteBuffer]) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out(in.readBytes(null))
                 }
         }
@@ -396,13 +396,13 @@ trait scalar extends scalarLPI {
             }
             object encode extends AvroEncoder[A] with JavaEnumEncoderOrDecoder {
                 def encodeDefaultJson(in: A) = Okay(jsonNodeFactory.textNode(in.toString))
-                def run(in: A, out: io.Encoder) = tryCatch.resultG(terminal) {
+                def run(in: A, out: io.Encoder) = tryCatchResultG(terminal) {
                     out.writeEnum(ordinalsByEnum(in))
                     Okay.unit
                 }
             }
             object decode extends AvroDecoder[A] with JavaEnumEncoderOrDecoder {
-                def run(in: io.ResolvingDecoder, out: Receiver[A]) = tryCatch.resultG(terminal) {
+                def run(in: io.ResolvingDecoder, out: Receiver[A]) = tryCatchResultG(terminal) {
                     in.readEnum() match {
                         case i if i < 0                  => FailedG("read negative enum index " + i + " from Avro", CoderFailure.terminal)
                         case i if i >= enumValues.length => FailedG("read overflow enum index " + i + " from Avro", CoderFailure.terminal)
@@ -432,13 +432,13 @@ trait scalar extends scalarLPI {
             }
             object encode extends AvroEncoder[A#Value] with ScalaEnumEncoderOrDecoder {
                 def encodeDefaultJson(in: A#Value) = Okay(jsonNodeFactory.textNode(in.toString.replaceAll("[^_a-zA-Z0-9]", "")))
-                def run(in: A#Value, out: io.Encoder) = tryCatch.resultG(terminal) {
+                def run(in: A#Value, out: io.Encoder) = tryCatchResultG(terminal) {
                     out.writeEnum(ordinalsByEnum(in))
                     Okay.unit
                 }
             }
             object decode extends AvroDecoder[A#Value] with ScalaEnumEncoderOrDecoder {
-                def run(in: io.ResolvingDecoder, out: Receiver[A#Value]) = tryCatch.resultG(terminal) {
+                def run(in: io.ResolvingDecoder, out: Receiver[A#Value]) = tryCatchResultG(terminal) {
                     in.readEnum() match {
                         case i if i < 0                  => FailedG("read negative enum index " + i + " from Avro", CoderFailure.terminal)
                         case i if i >= enumValues.length => FailedG("read overflow enum index " + i + " from Avro", CoderFailure.terminal)
@@ -536,7 +536,7 @@ trait scalarLPI { self: scalar =>
     /** `AvroCoder` for `java.math.BigInteger` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
     implicit lazy val javaBigIntegerAvroCoderString = stringAvroCoder.mapBijection(bijection (
         (bi: JavaBigInteger) => Okay(bi.toString): Result[String],
-        (s: String) => tryCatch.value(new JavaBigInteger(s)): Result[JavaBigInteger]
+        (s: String) => tryCatchValue(new JavaBigInteger(s)): Result[JavaBigInteger]
     ))
 
     /** `AvroCoder` for `scala.math.BigInt` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
@@ -548,7 +548,7 @@ trait scalarLPI { self: scalar =>
     /** `AvroCoder` for `java.math.BigDecimal` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
     implicit lazy val javaBigDecimalAvroCoderString = stringAvroCoder.mapBijection(bijection (
         (bd: JavaBigDecimal) => Okay(bd.toString): Result[String],
-        (s: String) => tryCatch.value(new JavaBigDecimal(s)): Result[JavaBigDecimal]
+        (s: String) => tryCatchValue(new JavaBigDecimal(s)): Result[JavaBigDecimal]
     ))
 
     /** `AvroCoder` for `scala.math.BigDecimal` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */

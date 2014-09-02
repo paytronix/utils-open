@@ -31,7 +31,7 @@ import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, Intercha
 import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSortedMap}
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
-import com.paytronix.utils.scala.result.{FailedG, FailedParameterDefault, Okay, ResultG, iterableResultOps, tryCatch}
+import com.paytronix.utils.scala.result.{FailedG, FailedParameterDefault, Okay, ResultG, iterableResultOps, tryCatchValueG, tryCatchResultG}
 
 import utils.{encodeSchemaName, makeField, nullable}
 
@@ -65,7 +65,7 @@ trait container extends containerLPI {
             else FailedG("nullable fields must default to null due to Avro restrictions", CoderFailure.terminal)
 
         def run(in: A, out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 if (in == null) {
                     out.writeIndex(0)
                     out.writeNull()
@@ -83,7 +83,7 @@ trait container extends containerLPI {
         val defaultJson = Some(jsonNodeFactory.nullNode)
 
         def run(in: io.ResolvingDecoder, out: Receiver[A]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 in.readIndex() match {
                     case 0 =>
                         in.readNull()
@@ -124,7 +124,7 @@ trait container extends containerLPI {
             }
 
         def run(in: Option[A], out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 in match {
                     case None =>
                         out.writeIndex(0)
@@ -143,7 +143,7 @@ trait container extends containerLPI {
         val defaultJson = Some(jsonNodeFactory.nullNode)
 
         def run(in: io.ResolvingDecoder, out: Receiver[Option[A]]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 in.readIndex() match {
                     case 0 =>
                         in.readNull()
@@ -202,13 +202,13 @@ trait container extends containerLPI {
         def run(in: Either[A, B], out: io.Encoder) =
             in match {
                 case Left(value) =>
-                    tryCatch.resultG(terminal) {
+                    tryCatchResultG(terminal) {
                         out.writeIndex(0)
                         leftEncoder.run(value, out)
                     }
 
                 case Right(value) =>
-                    tryCatch.resultG(terminal) {
+                    tryCatchResultG(terminal) {
                         out.writeIndex(1)
                         rightEncoder.run(value, out)
                     }
@@ -221,7 +221,7 @@ trait container extends containerLPI {
         val defaultJson = None
 
         def run(in: io.ResolvingDecoder, out: Receiver[Either[A, B]]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 in.readIndex() match {
                     case 0     => val r = new Receiver[A]; leftDecoder.run(in, r) >> { out(Left(r.value)) }
                     case 1     => val r = new Receiver[B]; rightDecoder.run(in, r) >> { out(Right(r.value)) }
@@ -316,7 +316,7 @@ trait container extends containerLPI {
                 encodeThrowable(in.throwable) >> paramEncoder.run(in.parameter, out)
 
             def encodeThrowable(in: Throwable): CoderResult[Unit] =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeString(in.getClass.getName)
                     in.getMessage match {
                         case null    => out.writeIndex(0); out.writeNull()
@@ -334,7 +334,7 @@ trait container extends containerLPI {
                     }
                 }
 
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 in match {
                     case Okay(value) =>
                         out.writeIndex(1)
@@ -370,9 +370,9 @@ trait container extends containerLPI {
 
             def decodeThrowable(): CoderResult[Throwable] =
                 for {
-                    isA      <- atProperty("isA")(tryCatch.valueG(terminal)(in.readString(null).toString))
+                    isA      <- atProperty("isA")(tryCatchValueG(terminal)(in.readString(null).toString))
                     message  <- atProperty("message") {
-                        tryCatch.valueG(terminal) {
+                        tryCatchValueG(terminal) {
                             in.readIndex() match {
                                 case 0 => in.readNull(); null
                                 case 1 => in.readString(null).toString
@@ -380,7 +380,7 @@ trait container extends containerLPI {
                         }
                     }
                     causeOpt <- atProperty("cause") {
-                        tryCatch.resultG(terminal) {
+                        tryCatchResultG(terminal) {
                             in.readIndex() match {
                                 case 0 => in.readNull(); Okay(None)
                                 case 1 => decodeThrowable() map Some.apply
@@ -392,7 +392,7 @@ trait container extends containerLPI {
                     instance <- atTerminal(instantiateThrowable(isA, message, causeOpt))
                 } yield instance
 
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 in.readIndex() match {
                     case 0     => out(FailedG("unknown failure", paramDefault.default))
                     case 1     => val receiver = new Receiver[A]
@@ -482,7 +482,7 @@ trait container extends containerLPI {
             val schema = Schema.createMap(valueEncoder.schema)
             val defaultJson = None
 
-            def encodeDefaultJson(in: M) = tryCatch.resultG(terminal) {
+            def encodeDefaultJson(in: M) = tryCatchResultG(terminal) {
                 val obj = jsonNodeFactory.objectNode
                 val keyReceiver = new Receiver[String]
                 asIterable(in).foreachResult { case (k, v) =>
@@ -495,7 +495,7 @@ trait container extends containerLPI {
                 } >> Okay(obj)
             }
 
-            def run(in: M, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: M, out: io.Encoder) = tryCatchResultG(terminal) {
                 val keyReceiver = new Receiver[String]
                 out.writeMapStart()
                 out.setItemCount(in.size)
@@ -518,7 +518,7 @@ trait container extends containerLPI {
             val schema = Schema.createMap(valueDecoder.schema)
             val defaultJson = None
 
-            def run(in: io.ResolvingDecoder, out: Receiver[M]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[M]) = tryCatchResultG(terminal) {
                 val builder = canBuildFrom()
                 val keyReceiver = new Receiver[K]
                 val valueReceiver = new Receiver[V]
@@ -610,7 +610,7 @@ trait containerLPI extends containerLPI2 {
             val schema = assocArraySchema(keyEncoder, valueEncoder)
             val defaultJson = None
 
-            def encodeDefaultJson(in: M) = tryCatch.resultG(terminal) {
+            def encodeDefaultJson(in: M) = tryCatchResultG(terminal) {
                 val array = jsonNodeFactory.arrayNode
                 asIterable(in).foreachResult { case (k, v) =>
                     keyEncoder.encodeDefaultJson(k) >>= { key =>
@@ -625,7 +625,7 @@ trait containerLPI extends containerLPI2 {
                 } >> Okay(array)
             }
 
-            def run(in: M, out: io.Encoder) = tryCatch.resultG(terminal) {
+            def run(in: M, out: io.Encoder) = tryCatchResultG(terminal) {
                 out.writeArrayStart()
                 out.setItemCount(in.size)
                 asIterable(in).foreachResult { case (k, v) =>
@@ -647,7 +647,7 @@ trait containerLPI extends containerLPI2 {
             val schema = assocArraySchema(keyDecoder, valueDecoder)
             val defaultJson = None
 
-            def run(in: io.ResolvingDecoder, out: Receiver[M]) = tryCatch.resultG(terminal) {
+            def run(in: io.ResolvingDecoder, out: Receiver[M]) = tryCatchResultG(terminal) {
                 val builder = canBuildFrom()
                 val keyReceiver = new Receiver[K]
                 val valueReceiver = new Receiver[V]
@@ -738,7 +738,7 @@ trait containerLPI2 {
             }
 
             def run(in: S, out: io.Encoder) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     out.writeArrayStart()
                     val it = asIterable(in)
                     var index = 0
@@ -760,7 +760,7 @@ trait containerLPI2 {
             val defaultJson = None
 
             def run(in: io.ResolvingDecoder, out: Receiver[S]) =
-                tryCatch.resultG(terminal) {
+                tryCatchResultG(terminal) {
                     val builder = canBuildFrom()
                     val receiver = new Receiver[E]
                     var index = 0

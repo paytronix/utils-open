@@ -22,7 +22,7 @@ import scala.annotation.implicitNotFound
 import scalaz.BijectionT
 
 import com.paytronix.utils.interchange.base.{Coder, CoderResult, Decoder, Encoder, Receiver, ReceiverFormat, atTerminal, terminal}
-import com.paytronix.utils.scala.result.{FailedG, Okay, Result, parameter, tryCatch}
+import com.paytronix.utils.scala.result.{FailedG, Okay, Result, parameter}
 
 /**
  * Format for encoding or decoding from strings, usually only for scalar values. Used for some formats like JSON to

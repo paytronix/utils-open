@@ -23,7 +23,7 @@ import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 import org.apache.avro.{Schema, io}
 
 import com.paytronix.utils.interchange.base.{Receiver, terminal}
-import com.paytronix.utils.scala.result.tryCatch
+import com.paytronix.utils.scala.result.tryCatchResultG
 
 import utils.{encodeSchemaName, makeField}
 
@@ -62,7 +62,7 @@ trait tuple {
             }
 
         def run(in: Tuple1[A], out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 encoderA.run(in._1, out)
             }
     }
@@ -73,7 +73,7 @@ trait tuple {
         val defaultJson = None
 
         def run(in: io.ResolvingDecoder, out: Receiver[Tuple1[A]]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 val receiverA = new Receiver[A]
                 decoderA.run(in, receiverA) >>
                 out(Tuple1(receiverA.value))
@@ -110,7 +110,7 @@ trait tuple {
             }
 
         def run(in: (A, B), out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 encoderA.run(in._1, out) >>
                 encoderB.run(in._2, out)
             }
@@ -122,7 +122,7 @@ trait tuple {
         val defaultJson = None
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B)]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 decoderA.run(in, receiverA) >>
@@ -165,7 +165,7 @@ trait tuple {
             }
 
         def run(in: (A, B, C), out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 encoderA.run(in._1, out) >>
                 encoderB.run(in._2, out) >>
                 encoderC.run(in._3, out)
@@ -178,7 +178,7 @@ trait tuple {
         val defaultJson = None
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C)]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]
@@ -227,7 +227,7 @@ trait tuple {
             }
 
         def run(in: (A, B, C, D), out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 encoderA.run(in._1, out) >>
                 encoderB.run(in._2, out) >>
                 encoderC.run(in._3, out) >>
@@ -241,7 +241,7 @@ trait tuple {
         val defaultJson = None
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C, D)]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]
@@ -296,7 +296,7 @@ trait tuple {
             }
 
         def run(in: (A, B, C, D, E), out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 encoderA.run(in._1, out) >>
                 encoderB.run(in._2, out) >>
                 encoderC.run(in._3, out) >>
@@ -311,7 +311,7 @@ trait tuple {
         val defaultJson = None
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C, D, E)]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]
@@ -373,7 +373,7 @@ trait tuple {
             }
 
         def run(in: (A, B, C, D, E, F), out: io.Encoder) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 encoderA.run(in._1, out) >>
                 encoderB.run(in._2, out) >>
                 encoderC.run(in._3, out) >>
@@ -389,7 +389,7 @@ trait tuple {
         val defaultJson = None
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C, D, E, F)]) =
-            tryCatch.resultG(terminal) {
+            tryCatchResultG(terminal) {
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]

@@ -30,7 +30,7 @@ import com.paytronix.utils.interchange.base.{
     Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, atTerminal, formatFailedPath, terminal
 }
 import com.paytronix.utils.scala.resource.{Closeable, withResource}
-import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatch}
+import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchValue, tryCatchResult, tryCatchResultG}
 
 object closeables {
     implicit object JsonGeneratorCloseable extends Closeable[JsonGenerator] {
@@ -111,7 +111,7 @@ final class InterchangeJsonGenerator(generator: JsonGenerator) {
 
     def writeFieldName(name: String): CoderResult[Unit] = { _fieldName = name; Okay.unit }
     def writeFieldNameNotMissing(name: String): CoderResult[Unit] =
-        tryCatch.resultG(terminal) { clearLatched(); generator.writeFieldName(name); Okay.unit } >>
+        tryCatchResultG(terminal) { clearLatched(); generator.writeFieldName(name); Okay.unit } >>
         (_objectFilters match {
             case filter :: _ => filter.fieldName(name)
             case _           => Okay.unit
@@ -121,31 +121,31 @@ final class InterchangeJsonGenerator(generator: JsonGenerator) {
     def filterNextObject(filter: ObjectFilter): Unit = { _nextObjectFilter = filter}
 
     def writeBoolean(b: Boolean): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeBoolean(b); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeBoolean(b); Okay.unit }
     def writeNumber(s: Short): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(s); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeNumber(s); Okay.unit }
     def writeNumber(i: Int): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(i); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeNumber(i); Okay.unit }
     def writeNumber(l: Long): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(l); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeNumber(l); Okay.unit }
     def writeNumber(f: Float): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(f); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeNumber(f); Okay.unit }
     def writeNumber(d: Double): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(d); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeNumber(d); Okay.unit }
     def writeNumber(bi: java.math.BigInteger): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNumber(bi); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeNumber(bi); Okay.unit }
     def writeNull(): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeNull(); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeNull(); Okay.unit }
     def writeString(s: String): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeString(s); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeString(s); Okay.unit }
 
     def writeStartArray(): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeStartArray(); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeStartArray(); Okay.unit }
     def writeEndArray(): CoderResult[Unit] =
-        aboutToWriteToken() >> tryCatch.resultG(terminal) { generator.writeEndArray(); Okay.unit }
+        aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeEndArray(); Okay.unit }
 
     def writeStartObject(): CoderResult[Unit] =
-        tryCatch.resultG(terminal) {
+        tryCatchResultG(terminal) {
             val nextObjectFilter = _nextObjectFilter
             aboutToWriteToken()
             if (nextObjectFilter != null) {
@@ -163,13 +163,13 @@ final class InterchangeJsonGenerator(generator: JsonGenerator) {
             }
         }
     def writeEndObject(): CoderResult[Unit] =
-        tryCatch.resultG(terminal) {
+        tryCatchResultG(terminal) {
             clearLatched()
 
             _objectFilters match {
                 case filter :: tail =>
                     _objectFilters = tail
-                    filter.end() >> tryCatch.resultG(terminal) {
+                    filter.end() >> tryCatchResultG(terminal) {
                         if (!filter.suppressStartAndEnd) generator.writeEndObject()
                         Okay.unit
                     }
@@ -360,7 +360,7 @@ final class InterchangeJsonParser(parser: JsonParser) {
             _replaying = null
 
             // not replaying or there is no more to replay, so read from the underlying parser
-            val res = tryCatch.resultG(terminal) {
+            val res = tryCatchResultG(terminal) {
                 parser.nextToken()
                 Okay.unit
             }
@@ -526,7 +526,7 @@ final class InterchangeJsonParser(parser: JsonParser) {
 
     /** Skip past the current value, even if it's complicated */
     def skipToEndOfValue(): CoderResult[Unit] =
-        tryCatch.resultG(terminal) {
+        tryCatchResultG(terminal) {
             def go(depth: Int): Unit =
                 currentToken match {
                     case JsonToken.START_OBJECT|JsonToken.START_ARRAY =>
@@ -710,7 +710,7 @@ trait JsonEncoder[A] extends Encoder[A, JsonFormat.type] with JsonEncoderOrDecod
      */
     def toOutputStream(in: A, out: OutputStream, enc: JsonEncoding = JsonEncoding.UTF8, pretty: Boolean = false)
                       (implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[Unit] =
-        tryCatch.result {
+        tryCatchResult {
             withResource(jsonFactory.createGenerator(out, enc)) { gen =>
                 toGenerator(in, gen, pretty=pretty)
             }
@@ -727,7 +727,7 @@ trait JsonEncoder[A] extends Encoder[A, JsonFormat.type] with JsonEncoderOrDecod
      * When using the default `JsonFactory` the underlying writer will NOT be closed by this method completing
      */
     def toWriter(in: A, out: Writer, pretty: Boolean = false)(implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[Unit] =
-        tryCatch.result {
+        tryCatchResult {
             withResource(jsonFactory.createGenerator(out)) { gen =>
                 toGenerator(in, gen)
             }
@@ -783,7 +783,7 @@ trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] with JsonEncoderOrDecod
 
     /** Attempt conversion of a byte array to a value of the mapped type */
     def fromBytesRange(in: Array[Byte], offset: Int, length: Int)(implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[A] =
-        tryCatch.result {
+        tryCatchResult {
             withResource(jsonFactory.createParser(in, offset, length))(fromParser)
         }
 
@@ -792,13 +792,13 @@ trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] with JsonEncoderOrDecod
 
     /** Attempt conversion of a character array to a value of the mapped type */
     def fromCharsRange(in: Array[Char], offset: Int, length: Int)(implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[A] =
-        tryCatch.result {
+        tryCatchResult {
             withResource(jsonFactory.createParser(in, offset, length))(fromParser)
         }
 
     /** Attempt conversion of an input stream to a value of the mapped type  */
     def fromInputStream(in: InputStream)(implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[A] =
-        tryCatch.result {
+        tryCatchResult {
             withResource(jsonFactory.createParser(in))(fromParser)
         }
 
@@ -810,7 +810,7 @@ trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] with JsonEncoderOrDecod
 
     /** Attempt conversion of an input reader to a value of the mapped type  */
     def fromReader(in: Reader)(implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[A] =
-        tryCatch.result {
+        tryCatchResult {
             withResource(jsonFactory.createParser(in))(fromParser)
         }
 
@@ -821,7 +821,7 @@ trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] with JsonEncoderOrDecod
     def fromParser(in: JsonParser): Result[A] = {
         val receiver = new Receiver[A]
         val ijp = new InterchangeJsonParser(in)
-        tryCatch.value(ijp.advanceToken()) >> formatFailedPath(run(ijp, receiver)).map { _ => receiver.value }
+        tryCatchValue(ijp.advanceToken()) >> formatFailedPath(run(ijp, receiver)).map { _ => receiver.value }
     }
 }
 

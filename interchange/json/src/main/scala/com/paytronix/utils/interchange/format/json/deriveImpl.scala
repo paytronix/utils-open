@@ -398,7 +398,7 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
             cq"""
                 $value: $subtype =>
                     com.paytronix.utils.interchange.base.atIndex($index) {
-                        com.paytronix.utils.scala.result.tryCatch.resultG(com.paytronix.utils.interchange.base.terminal) {
+                        com.paytronix.utils.scala.result.tryCatchResultG(com.paytronix.utils.interchange.base.terminal) {
                             $encoder.run($value, $jsonGenerator)
                         }
                     }
@@ -624,7 +624,7 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
             val value = TermName(c.freshName())
             cq"""
                 $value: $tpe =>
-                    com.paytronix.utils.scala.result.tryCatch.resultG(com.paytronix.utils.interchange.base.terminal) {
+                    com.paytronix.utils.scala.result.tryCatchResultG(com.paytronix.utils.interchange.base.terminal) {
                         $jsonGenerator.filterNextObject(new com.paytronix.utils.interchange.format.json.InterchangeJsonGenerator.ObjectFilter {
                             override def beginning() = $jsonGenerator.writeFieldName($determinant) >> $jsonGenerator.writeString($tag)
                         })

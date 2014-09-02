@@ -21,7 +21,7 @@ import scala.collection.mutable
 
 import com.paytronix.utils.interchange.base.{InsecureContext, InterchangeClassLoader}
 import com.paytronix.utils.scala.reflection.classByName
-import com.paytronix.utils.scala.result.{Okay, Result, tryCatch, tryCatching}
+import com.paytronix.utils.scala.result.{Okay, Result, tryCatchValue, tryCatchingValue}
 
 object result {
     def instantiateThrowable (
@@ -32,17 +32,17 @@ object result {
                      else classByName[Throwable](interchangeClassLoader.classLoader, className)
             inst <- causeOpt match {
                 case Some(cause) =>
-                    (tryCatching[NoSuchMethodException].value(clazz.getConstructor(classOf[String], classOf[Throwable]))
+                    (tryCatchingValue(classOf[NoSuchMethodException])(clazz.getConstructor(classOf[String], classOf[Throwable]))
                         | ("throwable class " + className + " does not have (String, Throwable) constructor")
-                        >>= { ctor => tryCatch.value(ctor.newInstance(message, cause)) })
+                        >>= { ctor => tryCatchValue(ctor.newInstance(message, cause)) })
 
                 case None =>
-                    ( (tryCatching[NoSuchMethodException].value(clazz.getConstructor(classOf[String]))
+                    ( (tryCatchingValue(classOf[NoSuchMethodException])(clazz.getConstructor(classOf[String]))
                         | ("throwable class " + className + " does not have a (String) constructor")
-                        >>= { ctor => tryCatch.value(ctor.newInstance(message)) })
-                    | (tryCatching[NoSuchMethodException].value(clazz.getConstructor(classOf[String], classOf[Throwable]))
+                        >>= { ctor => tryCatchValue(ctor.newInstance(message)) })
+                    | (tryCatchingValue(classOf[NoSuchMethodException])(clazz.getConstructor(classOf[String], classOf[Throwable]))
                         | ("throwable class " + className + " does not have a (String, Throwable) constructor")
-                        >>= { ctor => tryCatch.value(ctor.newInstance(message, null)) })
+                        >>= { ctor => tryCatchValue(ctor.newInstance(message, null)) })
                     )
             }
         } yield inst

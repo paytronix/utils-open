@@ -358,28 +358,138 @@ class CatchingSpecTest extends SpecificationWithJUnit {
 
     def is = s2"""
         Exception catching
-            tryCatch.value success                                $tryCatch1
-            tryCatch.value has correct failure exception          $tryCatch2
-            tryCatch.value doesn't catch Throwable                $tryCatch3
-            tryCatching.value[A] success                          $tryCatching1s
-            tryCatching.value[A] catching A                       $tryCatching1c
-            tryCatching.value[A] passing B                        $tryCatching1p
-            tryCatching.value(classOf[A], classOf[B]) success     $tryCatching2s
-            tryCatching.value(classOf[A], classOf[B]) catching A  $tryCatching2ac
-            tryCatching.value(classOf[A], classOf[B]) catching B  $tryCatching2bc
-            tryCatching.value(classOf[A], classOf[B]) passing C   $tryCatching2p
+            tryCatchValue no exception                  $tryCatchValueNoExceptionCase
+            tryCatchValue tossing Throwable             $tryCatchValueThrowableCase
+            tryCatchValue tossing Exception             $tryCatchValueExceptionCase
+            tryCatchValueG no exception                 $tryCatchValueGNoExceptionCase
+            tryCatchValueG tossing Throwable            $tryCatchValueGThrowableCase
+            tryCatchValueG tossing Exception            $tryCatchValueGExceptionCase
+            tryCatchResult Okay case                    $tryCatchResultOkayCase
+            tryCatchResult Failed case                  $tryCatchResultFailedCase
+            tryCatchResult tossing Throwable            $tryCatchResultThrowableCase
+            tryCatchResult tossing Exception            $tryCatchResultExceptionCase
+            tryCatchResultG Okay case                   $tryCatchResultGOkayCase
+            tryCatchResultG Failed case                 $tryCatchResultGFailedCase
+            tryCatchResultG tossing Throwable           $tryCatchResultGThrowableCase
+            tryCatchResultG tossing Exception           $tryCatchResultGExceptionCase
+
+            tryCatchingValue no exception               $tryCatchingValueNoExceptionCase
+            tryCatchingValue tossing Throwable          $tryCatchingValueThrowableCase
+            tryCatchingValue tossing first Exception    $tryCatchingValueFirstExceptionCase
+            tryCatchingValue tossing second Exception   $tryCatchingValueSecondExceptionCase
+            tryCatchingValue tossing third Exception    $tryCatchingValueThirdExceptionCase
+            tryCatchingValueG no exception              $tryCatchingValueGNoExceptionCase
+            tryCatchingValueG tossing Throwable         $tryCatchingValueGThrowableCase
+            tryCatchingValueG tossing first Exception   $tryCatchingValueGFirstExceptionCase
+            tryCatchingValueG tossing second Exception  $tryCatchingValueGSecondExceptionCase
+            tryCatchingValueG tossing third Exception   $tryCatchingValueGThirdExceptionCase
+            tryCatchingResult Okay case                 $tryCatchingResultOkayCase
+            tryCatchingResult Failed case               $tryCatchingResultFailedCase
+            tryCatchingResult tossing Throwable         $tryCatchingResultThrowableCase
+            tryCatchingResult tossing first Exception   $tryCatchingResultFirstExceptionCase
+            tryCatchingResult tossing second Exception  $tryCatchingResultSecondExceptionCase
+            tryCatchingResult tossing third Exception   $tryCatchingResultThirdExceptionCase
+            tryCatchingResultG Okay case                $tryCatchingResultGOkayCase
+            tryCatchingResultG Failed case              $tryCatchingResultGFailedCase
+            tryCatchingResultG tossing Throwable        $tryCatchingResultGThrowableCase
+            tryCatchingResultG tossing first Exception  $tryCatchingResultGFirstExceptionCase
+            tryCatchingResultG tossing second Exception $tryCatchingResultGSecondExceptionCase
+            tryCatchingResultG tossing third Exception  $tryCatchingResultGThirdExceptionCase
     """
 
-    def tryCatch1 = tryCatch.value { "foo" } ==== Okay("foo")
-    def tryCatch2 = tryCatch.value { throw new RuntimeException("foo") } must beFailedWith("foo")
-    def tryCatch3 = tryCatch.value { throw new Throwable("foo") } must throwA[Throwable]
-    def tryCatching1s = tryCatching[ExceptionA].value { "foo" } ==== Okay("foo")
-    def tryCatching1c = tryCatching[ExceptionA].value { throw new ExceptionA("foo") } must beFailedWith("foo")
-    def tryCatching1p = tryCatching[ExceptionA].value { throw new ExceptionB("foo") } must throwA[ExceptionB]
-    def tryCatching2s = tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { "foo" } ==== Okay("foo")
-    def tryCatching2ac = tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionA("foo") } must beFailedWith("foo")
-    def tryCatching2bc = tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new ExceptionB("foo") } must beFailedWith("foo")
-    def tryCatching2p = tryCatching(classOf[ExceptionA], classOf[ExceptionB]).value { throw new UnsupportedOperationException("foo") } must throwA[UnsupportedOperationException]
+    import result.{
+        tryCatchValue, tryCatchValueG, tryCatchResult, tryCatchResultG,
+        tryCatchingValue, tryCatchingValueG, tryCatchingResult, tryCatchingResultG
+    }
+
+    val ff: FailedG[Unit] => ResultG[Int, Int] = f => FailedG(f.message, 222)
+    final class ExA(message: String) extends Exception(message)
+    final class ExB(message: String) extends Exception(message)
+    final class ExC(message: String) extends Exception(message)
+    val ExBClass = classOf[ExB]
+
+    val okay111: Result[Int] = Okay(111)
+    val okayG111: ResultG[Int, Int] = Okay(111)
+
+    def tryCatchValueNoExceptionCase =
+        tryCatchValue { 111 } ==== okay111
+    def tryCatchValueThrowableCase =
+        tryCatchValue { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchValueExceptionCase =
+        tryCatchValue { sys.error("test") } must beFailedWith("test")
+
+    def tryCatchValueGNoExceptionCase =
+        tryCatchValueG(ff) { 111 } ==== okayG111
+    def tryCatchValueGThrowableCase =
+        tryCatchValueG(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchValueGExceptionCase =
+        tryCatchValueG(ff) { sys.error("test") } must beFailedWith("test", 222)
+
+    def tryCatchResultOkayCase =
+        tryCatchResult { Okay(111) } ==== okay111
+    def tryCatchResultFailedCase =
+        tryCatchResult { Failed("foo") } must beFailedWith("foo")
+    def tryCatchResultThrowableCase =
+        tryCatchResult { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchResultExceptionCase =
+        tryCatchResult { sys.error("test") } must beFailedWith("test")
+
+    def tryCatchResultGOkayCase =
+        tryCatchResultG(ff) { Okay(111) } ==== okayG111
+    def tryCatchResultGFailedCase =
+        tryCatchResultG(ff) { FailedG("foo", 333) } must beFailedWith("foo", 333)
+    def tryCatchResultGThrowableCase =
+        tryCatchResultG(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchResultGExceptionCase =
+        tryCatchResultG(ff) { sys.error("test") } must beFailedWith("test", 222)
+
+    def tryCatchingValueNoExceptionCase =
+        tryCatchingValue(classOf[ExA], ExBClass) { 111 } ==== okay111
+    def tryCatchingValueThrowableCase =
+        tryCatchingValue(classOf[ExA], ExBClass) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchingValueFirstExceptionCase =
+        tryCatchingValue(classOf[ExA], ExBClass) { throw new ExA("foo") } must beFailedWith("foo")
+    def tryCatchingValueSecondExceptionCase =
+        tryCatchingValue(classOf[ExA], ExBClass) { throw new ExB("bar") } must beFailedWith("bar")
+    def tryCatchingValueThirdExceptionCase =
+        tryCatchingValue(classOf[ExA], ExBClass) { throw new ExC("baz") } must throwAn[ExC]
+
+    def tryCatchingValueGNoExceptionCase =
+        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { 111 } ==== okayG111
+    def tryCatchingValueGThrowableCase =
+        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchingValueGFirstExceptionCase =
+        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new ExA("foo") } must beFailedWith("foo", 222)
+    def tryCatchingValueGSecondExceptionCase =
+        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new ExB("bar") } must beFailedWith("bar", 222)
+    def tryCatchingValueGThirdExceptionCase =
+        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new ExC("baz") } must throwAn[ExC]
+
+    def tryCatchingResultOkayCase =
+        tryCatchingResult(classOf[ExA], ExBClass) { Okay(111) } ==== okay111
+    def tryCatchingResultFailedCase =
+        tryCatchingResult(classOf[ExA], ExBClass) { Failed("foo") } must beFailedWith("foo")
+    def tryCatchingResultThrowableCase =
+        tryCatchingResult(classOf[ExA], ExBClass) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchingResultFirstExceptionCase =
+        tryCatchingResult(classOf[ExA], ExBClass) { throw new ExA("foo") } must beFailedWith("foo")
+    def tryCatchingResultSecondExceptionCase =
+        tryCatchingResult(classOf[ExA], ExBClass) { throw new ExB("bar") } must beFailedWith("bar")
+    def tryCatchingResultThirdExceptionCase =
+        tryCatchingResult(classOf[ExA], ExBClass) { throw new ExC("baz") } must throwAn[ExC]
+
+    def tryCatchingResultGOkayCase =
+        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { Okay(111) } ==== okayG111
+    def tryCatchingResultGFailedCase =
+        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { FailedG("foo", 333) } must beFailedWith("foo", 333)
+    def tryCatchingResultGThrowableCase =
+        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+    def tryCatchingResultGFirstExceptionCase =
+        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExA("foo") } must beFailedWith("foo", 222)
+    def tryCatchingResultGSecondExceptionCase =
+        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExB("bar") } must beFailedWith("bar", 222)
+    def tryCatchingResultGThirdExceptionCase =
+        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExC("baz") } must throwAn[ExC]
 }
 
 class BindAndChainTest extends SpecificationWithJUnit {
