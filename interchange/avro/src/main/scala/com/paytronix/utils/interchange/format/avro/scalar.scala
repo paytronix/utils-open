@@ -33,6 +33,7 @@ import scalaz.BijectionT.bijection
 
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
+import com.paytronix.utils.interchange.format.string.{StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue, tryCatchValueG, tryCatchResultG}
 
 import utils.nameAndNamespaceFromClass
@@ -505,7 +506,7 @@ trait scalar extends scalarLPI {
 }
 
 /** Lower priority implicit `AvroCoder`s that would conflict with the primary ones in `scalar` */
-trait scalarLPI { self: scalar =>
+trait scalarLPI extends scalarLPI2 { self: scalar =>
     /** `AvroCoder` for `Byte` which encodes as an Avro integer instead of fixed. Can increase the space required but is more compatible with other tools */
     implicit lazy val byteAvroCoderInt = intAvroCoder.mapBijection(bijection (
         (b: Byte) => Okay(b: Int): Result[Int],
@@ -557,3 +558,13 @@ trait scalarLPI { self: scalar =>
         (bd: JavaBigDecimal) => Okay(BigDecimal(bd)): Result[BigDecimal]
     ))
 }
+
+trait scalarLPI2 { self: scalar =>
+    implicit def stringCoderAsAvroCoder[A](implicit stringEncoder: StringEncoder[A], stringDecoder: StringDecoder[A]): AvroCoder[A] =
+        stringAvroCoder.mapBijection(bijection (
+            (a: A)      => stringEncoder(a).mapFailure { _ => () }: Result[String],
+            (s: String) => stringDecoder(s).mapFailure { _ => () }: Result[A]
+        ))
+}
+
+

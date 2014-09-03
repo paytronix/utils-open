@@ -32,12 +32,13 @@ import scalaz.BijectionT.bijection
 
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
+import com.paytronix.utils.interchange.format.string.{StringDecoder, StringEncoder}
 import com.paytronix.utils.interchange.format.string.coders._
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValueG, tryCatchResultG, tryCatchingResultG}
 
 object scalar extends scalar
 
-trait scalar {
+trait scalar extends scalarLPI {
     /** JsonCoder for Unit. Does not emit any value */
     implicit object unitJsonCoder extends JsonCoder[Unit] {
         object encode extends JsonEncoder[Unit] {
@@ -593,3 +594,13 @@ trait scalar {
         implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapBijection(datetime.sqlServer.javaSqlTimestampBijection)
     }
 }
+
+trait scalarLPI { self: scalar =>
+    implicit def stringCoderAsJsonCoder[A](implicit stringEncoder: StringEncoder[A], stringDecoder: StringDecoder[A]): JsonCoder[A] =
+        stringJsonCoder.mapBijection(bijection (
+            (a: A)      => stringEncoder(a).mapFailure { _ => () }: Result[String],
+            (s: String) => stringDecoder(s).mapFailure { _ => () }: Result[A]
+        ))
+}
+
+
