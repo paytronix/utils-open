@@ -729,7 +729,7 @@ trait JsonEncoder[A] extends Encoder[A, JsonFormat.type] with JsonEncoderOrDecod
     def toWriter(in: A, out: Writer, pretty: Boolean = false)(implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[Unit] =
         tryCatchResult {
             withResource(jsonFactory.createGenerator(out)) { gen =>
-                toGenerator(in, gen)
+                toGenerator(in, gen, pretty=pretty)
             }
         }
 
