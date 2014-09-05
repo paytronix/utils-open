@@ -100,7 +100,9 @@ trait DeriveCoderMacros extends DeriveUtils {
         val defaultTpe = typeOf[com.paytronix.utils.interchange.base.default]
         List (
             annotations.collectFirst { case annot if annot.tree.tpe =:= nullableTpe => annot }.map { _ => nullable },
-            annotations.collectFirst { case annot if annot.tree.tpe =:= defaultTpe => annot.tree.children.tail.head }.map { valueTree => default(valueTree) }
+            annotations.collectFirst { case annot if annot.tree.tpe =:= defaultTpe && annot.tree.children.size > 1 =>
+                annot.tree.children.tail.head
+            }.map { valueTree => default(valueTree) }
         ).foldLeft(coder) { (inside, wrapper) =>
             wrapper match {
                 case Some(f) => f(inside)
