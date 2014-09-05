@@ -36,9 +36,6 @@
         <module>base</module>
         <module>avro</module>
         <module>json</module>
-        <!--
         <module>liftjson</module>
-        <module>parquet</module>
-        -->
     </modules>
 </project>

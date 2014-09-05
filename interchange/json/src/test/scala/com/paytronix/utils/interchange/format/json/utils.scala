@@ -54,14 +54,14 @@ object arbitraries {
 trait JsonMatchers { self: SpecificationWithJUnit =>
     def withParser[A](in: String)(f: InterchangeJsonParser => A): A = {
         val jp = new JsonFactory().createParser(in)
-        val ijp = new InterchangeJsonParser(jp)
+        val ijp = new InterchangeJacksonJsonParser(jp)
         f(ijp)
     }
 
     def withGenerator[A](f: InterchangeJsonGenerator => A): (A, String) = {
         val sw = new StringWriter
         val jg = new JsonFactory().createGenerator(sw)
-        val ijg = new InterchangeJsonGenerator(jg)
+        val ijg = new InterchangeJacksonJsonGenerator(jg)
         val res = f(ijg)
         jg.close()
         (res, sw.toString)

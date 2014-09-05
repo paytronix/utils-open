@@ -34,7 +34,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>net.liftweb.json_</groupId>
+            <groupId>net.liftweb</groupId>
             <artifactId>lift-json_2.11</artifactId>
         </dependency>
 
@@ -44,9 +44,20 @@
         </dependency>
         <dependency>
             <groupId>com.paytronix.utils</groupId>
-            <artifactId>interchange-jackson</artifactId>
+            <artifactId>interchange-json</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2_2.11</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
