@@ -42,6 +42,7 @@ class resultMacros(val c: Context) {
                                        missing value symbols, type checker exceptions, and strange import renaming issues. thus, this branch is
                                        disabled
                     case q"{$binder => $rhs}" =>
+                        import c.universe.Transformer
                         // case where we can optimize away an anonymous function literal
 
                         val ValDef(mods, name, tpt, _) = binder
@@ -55,7 +56,7 @@ class resultMacros(val c: Context) {
                                         case tpt: TypeTree => tpt
                                         case EmptyTree => tree
                                         case _ =>
-                                            println(s"this symbol ${tree.symbol} binder ${binder.symbol}, tree $tree")
+                                            //println(s"this symbol ${tree.symbol} binder ${binder.symbol}, tree $tree")
                                             if (tree.symbol == binder.symbol) {
                                                 val dupl = tree.duplicate
                                                 // woooo
@@ -68,7 +69,7 @@ class resultMacros(val c: Context) {
                                 }
                         }
 
-                        val out = c.untypecheck(q"""
+                        val out = q"""
                             {
                                 val $res: ${lhs.tpe} = $lhs
                                 if ($res.isInstanceOf[com.paytronix.utils.scala.result.Okay[_]]) {
@@ -78,14 +79,13 @@ class resultMacros(val c: Context) {
                                     $res.asInstanceOf[com.paytronix.utils.scala.result.ResultG[$f, $b]]
                                 }
                             }
-                        """)
+                        """
 
-                        println(s"in = ${c.macroApplication}")
-                        println(s"out = $out")
+                        //println(s"in = ${c.macroApplication}")
+                        //println(s"out = $out")
 
                         out
-                    */
-
+*/
                     case _ =>
                         // case where we can only optimize away the pattern matching
 
