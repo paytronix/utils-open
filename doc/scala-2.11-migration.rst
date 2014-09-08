@@ -124,7 +124,7 @@ The ``"name" from map is f and g`` syntax actually had subtle problems where if 
 .. code:: scala
 
     "name" from map is f and g
-        ==> field("name", map, f)
+        ==> field("name", map, f and g)
 
 ``field`` used to work for both ``Validated`` and ``ValidationFunction``, but was used rarely so was removed to reduce overloads:
 
