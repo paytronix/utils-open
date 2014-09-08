@@ -26,17 +26,8 @@ package object resource {
     trait Closeable[-A] { def close(a: A): Unit }
 
     object Closeable {
-        implicit val InputStreamCloseable = new Closeable[java.io.InputStream] {
-            def close(conn: java.io.InputStream) = conn.close()
-        }
-        implicit val ReaderCloseable = new Closeable[java.io.Reader] {
-            def close(conn: java.io.Reader) = conn.close()
-        }
-        implicit val OutputStreamCloseable = new Closeable[java.io.OutputStream] {
-            def close(conn: java.io.OutputStream) = conn.close()
-        }
-        implicit val WriterCloseable = new Closeable[java.io.Writer] {
-            def close(conn: java.io.Writer) = conn.close()
+        implicit def CloseableCloseable[A <: java.io.Closeable] = new Closeable[A] {
+            def close(a: A) = a.close()
         }
         implicit val SQLConnectionCloseable = new Closeable[java.sql.Connection] {
             def close(conn: java.sql.Connection) = conn.close()
