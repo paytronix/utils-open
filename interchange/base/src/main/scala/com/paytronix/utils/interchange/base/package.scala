@@ -132,15 +132,6 @@ package base {
     /** Annotation indicating that a property should have a separate name when encoded from the Scala/Java identifier */
     class name(name: String) extends StaticAnnotation
 
-    /** Annotation indicating that a val property should be encoded even though it won't be decoded */
-    class coded extends StaticAnnotation
-
-    /** Annotation indicating that a property should not be coded, even if it would normally be */
-    class notCoded extends StaticAnnotation
-
-    /** Annotation indicating that a property can take the value `null` */
-    class nullable extends StaticAnnotation
-
     /** Annotation indicating the default value a property should have when not present in the input */
     class default(value: Any) extends StaticAnnotation
 
