@@ -16,7 +16,6 @@
 
 package com.paytronix.utils.interchange.format.avro
 
-import java.security.MessageDigest
 import java.util.Arrays
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable.WeakHashMap
@@ -27,7 +26,7 @@ import org.codehaus.jackson.JsonNode
 import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
 
 import com.paytronix.utils.scala.reflection.splitFullyQualifiedName
-import com.paytronix.utils.scala.result.Result
+import com.paytronix.utils.scala.result.{Result, tryCatchValue}
 
 
 object utils {
@@ -114,4 +113,9 @@ object utils {
             case UNION   => return "U" + in.getTypes.size + "__" + in.getTypes.asScala.map(encodeSchemaName).mkString("")
         }
     }
+
+    /** Produce a 128-bit MD5 fingerprint from a canonical version of the given `Schema`, for addressing the schema without transmitting it in its entirety */
+    def fingerprintSchema(s: avro.Schema): Result[Array[Byte]] =
+        tryCatchValue(avro.SchemaNormalization.parsingFingerprint("MD5", s))
+
 }
