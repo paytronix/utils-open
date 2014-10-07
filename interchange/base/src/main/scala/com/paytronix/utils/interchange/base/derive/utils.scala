@@ -481,22 +481,25 @@ Type: $tpe
      * Sequence (as in monadic sequencing) a series of `Result` binders.
      *
      * From List(a,b,c,…) generates code like:
-     *    $action(a) match {
-     *        case Okay(a') =>
-     *            $accept(a')
-     *            $action(b) match {
-     *                case Okay(b') =>
-     *                    $accept(b')
-     *                    $action match {
-     *                        case Okay(c') =>
-     *                            $accept(c')
-     *                            …
-     *                            $body(a',b',c',…)
-     *                        case failed => failed
-     *                    }
-     *                case failed => failed
+     *    val a2 = $action(a)
+     *    if (a2.isOkay]) {
+     *        $accept(a2.orThrow)
+     *        val b2 = $action(b)
+     *        if (b2.isOkay]) {
+     *            $accept(b2.orThrow)
+     *            val c2 = $action(c)
+     *            if (c2.isOkay]) {
+     *                $accept(c2.orThrow)
+     *                …
+     *                $body(a2.orThrow, b2.orThrow, c2.orThrow)
+     *            } else {
+     *                c2.asFailed
      *            }
-     *        case failed => failed
+     *        } else {
+     *            b2.asFailed
+     *        }
+     *    } else {
+     *        a2.asFailed
      *    }
      *
      * which is roughly equivalent to the desugaring of the for comprehension:
@@ -506,7 +509,7 @@ Type: $tpe
      *        $accept(a')
      *        b' <- $action(b)
      *        $accept(b')
-     *        c' <- $action
+     *        c' <- $action(c)
      *        $accept(c')
      *    } yield $body(a',b',c')
      *
@@ -519,16 +522,15 @@ Type: $tpe
     ): c.Tree = {
         val names = input.map(_ => TermName(c.freshName()))
 
-        val failed = TermName(c.freshName())
-
         (input zip names).foldRight(body(names.map(name => Ident(name)))) { (pair, inside) =>
             val (a, name) = pair
             q"""
-                ${Block(Nil, action(a))} match {
-                    case com.paytronix.utils.scala.result.Okay(${Bind(name, Ident(termNames.WILDCARD))}) =>
-                        ${accept(a, Ident(name))}
-                        $inside
-                    case $failed => $failed
+                val $name = ${Block(Nil, action(a))}
+                if ($name.isOkay) {
+                    ${accept(a, q"$name.orThrow")}
+                    $inside
+                } else {
+                    $name.asFailed
                 }
             """
         }
