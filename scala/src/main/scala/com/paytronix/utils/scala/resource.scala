@@ -32,6 +32,9 @@ package object resource {
         implicit val SQLConnectionCloseable = new Closeable[java.sql.Connection] {
             def close(conn: java.sql.Connection) = conn.close()
         }
+        implicit val SQLStatementCloseable = new Closeable[java.sql.Statement] {
+            def close(statement: java.sql.Statement) = statement.close()
+        }
     }
 
     /** Close some closeable resource, possibly throwing any kind of hideous exception */
