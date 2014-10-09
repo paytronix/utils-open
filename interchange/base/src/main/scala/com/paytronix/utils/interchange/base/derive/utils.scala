@@ -261,9 +261,17 @@ Type: $tpe
                 method.name.decodedName.toString.length > 2 &&
                 method.name.decodedName.toString.startsWith("is") &&
                 Character.isUpperCase(method.name.decodedName.toString.charAt(2)) =>
-                val (newName, newMethod, newTpe) = ScalaGetter.unapply(method).getOrElse {
-                    sys.error("trying to patch up lone isX method to a Scala getter instead of JavaBean getter but can't apply Scala getter shape")
+                val (newName, newMethod, newTpe) = {
+                    if (method.isMethod && !method.name.decodedName.toString.endsWith("_="))
+                        getterShape(method.asMethod, true).map { tpe => (method.name.decodedName.toString, method.asMethod, tpe) }
+                    else
+                        None
+                }.getOrElse {
+                    sys.error(s"trying to patch up lone ${method.name.decodedName.toString} method to a Scala getter instead of JavaBean getter " +
+                              s"but can't apply Scala getter shape to ${method.asMethod.toString} with type " +
+                              s"${method.asMethod.typeSignature.toString} (of class ${method.asMethod.typeSignature.getClass.toString})")
                 }
+
                 Getter(newName, false, newMethod, newTpe) :: Nil
 
             case other => other
