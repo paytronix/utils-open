@@ -104,25 +104,24 @@ Type: $tpe
         }
     }
 
-    /** Filter children of the given type to only those which are public constructors */
-    def publicConstructorsOf(tpe: Type): List[MethodSymbol] =
+    /** Filter children of the given type to only those which are constructors */
+    def constructorsOf(tpe: Type): List[MethodSymbol] =
             tpe.members.filter { sym =>
                 sym.isMethod &&
-                sym.isPublic &&
                 sym.asMethod.isConstructor
             }.map(_.asMethod).toList
 
-    /** Find the primary public constructor of a type */
-    def publicPrimaryConstructorOf(tpe: Type): Option[MethodSymbol] =
-        publicConstructorsOf(tpe).find(_.isPrimaryConstructor)
+    /** Find the primary constructor of a type */
+    def primaryConstructorOf(tpe: Type): Option[MethodSymbol] =
+        constructorsOf(tpe).find(_.isPrimaryConstructor)
 
     /** Find a constructor in the type which has no explicit parameters */
-    def publicNullaryConstructorOf(tpe: Type): Option[MethodSymbol] = {
+    def nullaryConstructorOf(tpe: Type): Option[MethodSymbol] = {
         object EndOfExplicitParameters {
             def unapply(in: Type): Option[Type] = matchEndOfExplicitParameters(in)
         }
 
-        publicConstructorsOf(tpe).find { ctor =>
+        constructorsOf(tpe).find { ctor =>
             ctor.typeSignature match {
                 case EndOfExplicitParameters(_) => true
                 case _ => false
@@ -219,7 +218,7 @@ Type: $tpe
             typeOf[Any].typeSymbol
         )
 
-        val primaryConstructorOpt = publicPrimaryConstructorOf(tpe)
+        val primaryConstructorOpt = primaryConstructorOf(tpe)
 
         // map of all constructor arguments for annotation discovery
         val constructorArgumentTerms: Map[String, TermSymbol] =
@@ -380,16 +379,16 @@ Type: $tpe
 
 
         val (chosenConstructor, constructorProps) =
-            publicPrimaryConstructorOf(A) match {
+            primaryConstructorOf(A) match {
                 case Some(primaryConstructor) =>
                     val missing = missingArguments(primaryConstructor)
                     if (missing.nonEmpty) {
-                        publicNullaryConstructorOf(A).map { ctor => (ctor, Nil) }.getOrElse {
+                        nullaryConstructorOf(A).map { ctor => (ctor, Nil) }.getOrElse {
                             val missingDescription = missing.map { case (name, tpe) => s"$name: $tpe" }.mkString(", ")
                             bail (
                                 s"cannot construct ${A} with primary constructor " +
                                 s"${primaryConstructor.typeSignature} because it requires extra arguments: " +
-                                s"$missingDescription and there is no public nullary constructor present"
+                                s"$missingDescription and there is no nullary constructor present"
                             )
                         }
                     } else {
@@ -397,11 +396,9 @@ Type: $tpe
                     }
 
                 case None =>
-                    publicNullaryConstructorOf(A).map { case ctor => (ctor, Nil) }.getOrElse {
+                    nullaryConstructorOf(A).map { case ctor => (ctor, Nil) }.getOrElse {
                         bail (
-                            s"cannot construct ${A} with primary constructor " +
-                            s"because it isn't public " +
-                            s"and there is no public nullary constructor present"
+                            s"cannot construct ${A} with primary constructor and there is no nullary constructor present"
                         )
                     }
             }
