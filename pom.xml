@@ -129,27 +129,27 @@
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>extendedreflection</artifactId>
-                <version>14.1-droop-SNAPSHOT</version>
+                <version>14.1.20140709</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>interchange</artifactId>
-                <version>14.1-droop-SNAPSHOT</version>
+                <version>14.1.20140709</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>lift</artifactId>
-                <version>14.1-droop-SNAPSHOT</version>
+                <version>14.1.20140709</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>scala</artifactId>
-                <version>14.1-droop-SNAPSHOT</version>
+                <version>14.1.20140709</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>validation</artifactId>
-                <version>14.1-droop-SNAPSHOT</version>
+                <version>14.1.20140709</version>
             </dependency>
             <dependency>
                 <groupId>paytronix.utils.internal</groupId>
