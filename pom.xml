@@ -28,12 +28,12 @@
     <distributionManagement>
         <repository>
             <id>paytronix-releases</id>
-            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/releases</url>
+            <url>https://nexus.corp.paytronix.com/nexus/content/repositories/releases</url>
         </repository>
 
         <snapshotRepository>
             <id>paytronix-snapshots</id>
-            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/snapshots</url>
+            <url>https://nexus.corp.paytronix.com/nexus/content/repositories/snapshots</url>
         </snapshotRepository>
     </distributionManagement>
 
@@ -172,17 +172,17 @@
     <repositories>
         <repository>
             <id>paytronix-public</id>
-            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/public</url>
+            <url>https://nexus.corp.paytronix.com/nexus/content/repositories/public</url>
         </repository>
 
         <repository>
             <id>paytronix-releases</id>
-            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/releases</url>
+            <url>https://nexus.corp.paytronix.com/nexus/content/repositories/releases</url>
         </repository>
 
         <repository>
             <id>paytronix-snapshots</id>
-            <url>https://greylock.corp.paytronix.com/nexus/content/repositories/snapshots</url>
+            <url>https://nexus.corp.paytronix.com/nexus/content/repositories/snapshots</url>
         </repository>
 
         <repository>
