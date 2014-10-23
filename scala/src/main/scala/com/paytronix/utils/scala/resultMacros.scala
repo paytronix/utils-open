@@ -114,7 +114,7 @@ class resultMacros(val c: Context) {
             case q"$lhs.>>[$f,$b]($rhs)" =>
                 c.typecheck(q"""
                     {
-                        val $res: ${lhs.tpe} = $lhs
+                        val $res: ${lhs.tpe} = ${c.untypecheck(lhs)}
                         if ($res.isOkay) {
                             $rhs
                         } else {
@@ -131,40 +131,32 @@ class resultMacros(val c: Context) {
     def tryCatchValue(body: Tree): Tree = {
         val e = TermName(c.freshName())
         q"""
-            {
-                try $okay($body)
-                catch { case $e: java.lang.Exception => $failedG($e, ()) }
-            }
+            try $okay($body)
+            catch { case $e: java.lang.Exception => $failedG($e, ()) }
         """
     }
 
     def tryCatchValueG(ff: Tree)(body: Tree): Tree = {
         val e = TermName(c.freshName())
         q"""
-            {
-                try $okay($body)
-                catch { case $e: java.lang.Exception => $ff($failedG($e, ())) }
-            }
+            try $okay($body)
+            catch { case $e: java.lang.Exception => $ff($failedG($e, ())) }
         """
     }
 
     def tryCatchResult(body: Tree): Tree = {
         val e = TermName(c.freshName())
         q"""
-            {
-                try $body
-                catch { case $e: java.lang.Exception => $failedG($e, ()) }
-            }
+            try $body
+            catch { case $e: java.lang.Exception => $failedG($e, ()) }
         """
     }
 
     def tryCatchResultG(ff: Tree)(body: Tree): Tree = {
         val e = TermName(c.freshName())
         q"""
-            {
-                try $body
-                catch { case $e: java.lang.Exception => $ff($failedG($e, ())) }
-            }
+            try $body
+            catch { case $e: java.lang.Exception => $ff($failedG($e, ())) }
         """
     }
 
@@ -187,11 +179,9 @@ class resultMacros(val c: Context) {
         }
 
         q"""
-            {
-                try $okay($body)
-                catch {
-                    case ..$cases
-                }
+            try $okay($body)
+            catch {
+                case ..$cases
             }
         """
     }
@@ -216,11 +206,9 @@ class resultMacros(val c: Context) {
         }
 
         q"""
-            {
-                try $okay($body)
-                catch {
-                    case ..$cases
-                }
+            try $okay($body)
+            catch {
+                case ..$cases
             }
         """
     }
@@ -244,11 +232,9 @@ class resultMacros(val c: Context) {
         }
 
         q"""
-            {
-                try $body
-                catch {
-                    case ..$cases
-                }
+            try $body
+            catch {
+                case ..$cases
             }
         """
     }
@@ -272,11 +258,9 @@ class resultMacros(val c: Context) {
         }
 
         q"""
-            {
-                try $body
-                catch {
-                    case ..$cases
-                }
+            try $body
+            catch {
+                case ..$cases
             }
         """
     }

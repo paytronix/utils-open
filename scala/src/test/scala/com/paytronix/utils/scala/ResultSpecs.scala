@@ -395,6 +395,8 @@ class CatchingSpecTest extends SpecificationWithJUnit {
             tryCatchingResultG tossing first Exception  $tryCatchingResultGFirstExceptionCase
             tryCatchingResultG tossing second Exception $tryCatchingResultGSecondExceptionCase
             tryCatchingResultG tossing third Exception  $tryCatchingResultGThirdExceptionCase
+
+            tryCatchValue(…).orElse(…) >> …             $tryCatchValueOrElseBind
     """
 
     import result.{
@@ -490,6 +492,16 @@ class CatchingSpecTest extends SpecificationWithJUnit {
         tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExB("bar") } must beFailedWith("bar", 222)
     def tryCatchingResultGThirdExceptionCase =
         tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExC("baz") } must throwAn[ExC]
+
+    // this test case exercises where splicing the try/catch in would change the meaning, e.g.
+    //   tryCatchValue(a).orElse(b)
+    //     ==>
+    //   try { a } catch { … }.orElse(b) >> next
+    // instead of the correct
+    //   { try { a } catch { … } }.orElse(b) >> next
+    def tryCatchValueOrElseBind =
+        { (tryCatchValue(123).orElse("foo") >> Okay(321)) ==== Okay(321) } and
+        { (tryCatchValue(sys.error("nope")).orElse("foo") >> Okay(321)) must beFailedWith("foo") }
 }
 
 class BindAndChainTest extends SpecificationWithJUnit {
