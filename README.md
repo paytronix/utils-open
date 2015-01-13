@@ -8,8 +8,8 @@ Currently the project is managed using Maven, and as such we don't publish cross
 
 # Paytronix Engineering on Twitter
 
-* @dridus: Ross Mellgren
-* @aldiyen: Matt Czubacki
+* @dridus: Ross MacLeod
+* @aldiyen: Matt Explosion
 
 There are more of us, but not with Twitter accounts!
 
