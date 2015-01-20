@@ -320,7 +320,7 @@ trait InterchangeJsonParser {
 
     /** Fail if the current token is not the given one */
     def require(token: JsonToken): CoderResult[Unit] =
-        if (!hasValue || currentToken != token) unexpectedToken(token.toString)
+        if (!hasValue || currentToken != token) unexpectedToken(if (token != null) token.toString else "<eof>")
         else Okay.unit
 
     /** Fail if the current token is not the given one */
