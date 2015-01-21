@@ -1,0 +1,1 @@
+mvn -f scalaz-stream-pom.xml deploy:deploy-file

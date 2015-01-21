@@ -169,7 +169,7 @@ object sequence {
 
     object compositionFold extends Poly2 {
         def fold[A, B, L <: HList](prev: ListParsingFunction[A, L], f: ListParsingFunction[A, B]): ListParsingFunction[A, B :: L] =
-            in => prev(in).flatMap { case ListParsingResult(rest, result) =>
+            in => prev(in) and { case ListParsingResult(rest, result) =>
                 f(rest).map { res => ListParsingResult(res.rest, res.result :: result) }
             }
 
@@ -190,7 +190,7 @@ object sequence {
 
     implicit class fullyParse[A, B](val lpf: ListParsingFunction[A, B]) extends AnyVal {
         def mustFullyParse: List[A] => Validated[B] =
-            in => lpf(in).flatMap {
+            in => lpf(in) and {
                 case ListParsingResult(Nil, result) => success(result)
                 case ListParsingResult(rest, _)     => failure(unexpectedInput(rest.toString))
             }

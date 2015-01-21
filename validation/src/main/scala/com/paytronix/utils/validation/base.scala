@@ -273,7 +273,10 @@ object base {
     implicit class validationFunctionOps[A, B](f: A => Validated[B]) {
         /** Compose a validation function with another, from left to right */
         def and[C](g: B => Validated[C]): A => Validated[C] =
-            a => f(a).flatMap(g)
+            a => f(a) match {
+                case Success(b) => g(b)
+                case Failure(errors) => Failure(errors)
+            }
 
         /** Map the output value of the validation function */
         def map[C](g: B => C): A => Validated[C] =
@@ -284,7 +287,10 @@ object base {
     implicit class validatedOps[A](lhs: Validated[A]) {
         /** Apply a `ValidationFunction` to a `Validated` value */
         def and[B](rhs: A => Validated[B]): Validated[B] =
-            lhs.flatMap(rhs)
+            lhs match {
+                case Success(b) => rhs(b)
+                case Failure(errors) => Failure(errors)
+            }
 
         /** Convert the `Validated` to a `ResultG` containing the same information */
         def toResultG: ResultG[NonEmptyList[ValidationError], A] =

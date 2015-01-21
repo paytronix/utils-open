@@ -19,7 +19,9 @@ package com.paytronix.utils.interchange.base.derive
 import scala.reflect.macros.Universe
 import scala.reflect.macros.whitebox.Context
 
+import scalaz.syntax.foldable.ToFoldableOps
 import scalaz.syntax.std.list.ToListOpsFromList /* groupWhen */
+import scalaz.NonEmptyList
 
 import com.paytronix.utils.interchange.base.{name, coded, notCoded}
 
@@ -252,11 +254,11 @@ Type: $tpe
             case ScalaSetter(name, method, tpe)                =>                Setter(name, false, method, tpe)
         }
         .groupWhen { (a, b) => a.name == b.name && a.tpe =:= b.tpe }
-        .filter(_.exists(_.isInstanceOf[Getter]))
+        .filter(_.any(_.isInstanceOf[Getter]))
         .map {
             // super awesome hax. this one catches when we'd consider isFoo a property named foo in the JavaBean style that doesn't have
             // an associated JavaBean setter and rewrites it back to the scala style named "isFoo"
-            case Getter(name, true, method, tpe) :: Nil if
+            case NonEmptyList(Getter(name, true, method, tpe)) if
                 method.name.decodedName.toString.length > 2 &&
                 method.name.decodedName.toString.startsWith("is") &&
                 Character.isUpperCase(method.name.decodedName.toString.charAt(2)) =>
@@ -271,15 +273,15 @@ Type: $tpe
                               s"${method.asMethod.typeSignature.toString} (of class ${method.asMethod.typeSignature.getClass.toString})")
                 }
 
-                Getter(newName, false, newMethod, newTpe) :: Nil
+                NonEmptyList(Getter(newName, false, newMethod, newTpe))
 
             case other => other
         }
         .map { psyms =>
             val name           = psyms.head.name
             val tpe            = psyms.head.tpe
-            val getters        = psyms.collect { case g: Getter => g }
-            val setters        = psyms.collect { case s: Setter => s }
+            val getters        = psyms.list.collect { case g: Getter => g }
+            val setters        = psyms.list.collect { case s: Setter => s }
             val ctorArgTermOpt = constructorArgumentTerms.get(name).filter(_.typeSignature =:= tpe)
             val fieldTermOpt   = fieldTerms.get(name)
 

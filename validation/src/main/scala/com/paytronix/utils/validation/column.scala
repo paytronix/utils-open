@@ -96,7 +96,7 @@ object column {
     /** More general type of column validation where the validation function is A => B not A => A. */
     def polyColumnsE[A, B](unknownColumn: String => ValidationError)(seed: A)(f: ColumnValidationFunction[A, B]): Seq[String] => Validated[B] =
         cols => {
-            f((seed, cols.toList.zipWithIndex)).flatMap {
+            f((seed, cols.toList.zipWithIndex)) and {
                 case (output, Nil) =>
                     success(output)
                 case (_, unknownCol :: unknownCols) =>
