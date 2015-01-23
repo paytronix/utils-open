@@ -237,6 +237,12 @@
           <name>snapshots</name>
           <url>http://oss.sonatype.org/content/repositories/snapshots</url>
         </repository>
+
+        <repository>
+          <id>scalaz-bintray</id>
+          <name>Scalaz Bintray</name>
+          <url>http://dl.bintray.com/scalaz/releases</url>
+        </repository>
     </repositories>
 
     <pluginRepositories>
