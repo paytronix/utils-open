@@ -123,12 +123,14 @@ trait tuple {
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B)]) =
             tryCatchResultG(terminal) {
+                in.readFieldOrder()
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 decoderA.run(in, receiverA) >>
                 decoderB.run(in, receiverB) >>
                 out((receiverA.value, receiverB.value))
             }
+
     }
 
     /** Coder for 3-tuples. Codes as an Avro record with three fields: `_1`, `_2`, and `_3` */
@@ -179,6 +181,7 @@ trait tuple {
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C)]) =
             tryCatchResultG(terminal) {
+                in.readFieldOrder()
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]
@@ -242,6 +245,7 @@ trait tuple {
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C, D)]) =
             tryCatchResultG(terminal) {
+                in.readFieldOrder()
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]
@@ -312,6 +316,7 @@ trait tuple {
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C, D, E)]) =
             tryCatchResultG(terminal) {
+                in.readFieldOrder()
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]
@@ -390,6 +395,7 @@ trait tuple {
 
         def run(in: io.ResolvingDecoder, out: Receiver[(A, B, C, D, E, F)]) =
             tryCatchResultG(terminal) {
+                in.readFieldOrder()
                 val receiverA = new Receiver[A]
                 val receiverB = new Receiver[B]
                 val receiverC = new Receiver[C]

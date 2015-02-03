@@ -99,6 +99,68 @@ class avroStructureCoderCaseClassTest extends SpecificationWithJUnit with ScalaC
     }
 }
 
+class avroStructureCoderTupledCaseClassTest extends SpecificationWithJUnit with ScalaCheck with StructureAvroMatchers {
+    def is = s2"""
+        Explicitly derived structure coder for case class nesting within a tuple
+            must round trip successfully as tuple2 $eroundtriptuple2
+            must round trip successfully as tuple3 $eroundtriptuple3
+            must round trip successfully as tuple4 $eroundtriptuple4
+            must round trip successfully as tuple5 $eroundtriptuple5
+            must round trip successfully as tuple6 $eroundtriptuple6
+            must round trip successfully as tuple6 $eroundtriptuple6
+    """
+
+    import container.optionAvroCoder
+    import scalar.{intAvroCoder, stringAvroCoder}
+    import tuple.{tuple2AvroCoder, tuple3AvroCoder, tuple4AvroCoder, tuple5AvroCoder, tuple6AvroCoder}
+
+    case class LargeCaseClass(a: Int, b: Int, c: String, d: Option[String], e: Option[Int], f: Int, g: Option[String])
+    implicit val largeCaseClassCoder = derive.structure.coder[LargeCaseClass]
+
+    implicit val arb = Arbitrary {
+        for {
+            a <- arbitrary[Int]
+            b <- arbitrary[Int]
+            c <- arbitrary[String]
+            d <- arbitrary[Option[String]]
+            e <- arbitrary[Option[Int]]
+            f <- arbitrary[Int]
+            g <- arbitrary[Option[String]]
+        } yield LargeCaseClass(a, b, c, d, e, f, g)
+    }
+
+
+    def eroundtriptuple2 = prop { (lcc: LargeCaseClass) =>
+        val lccTuple2 = (lcc, lcc)
+        val lccTuple2Coder = AvroCoder[(LargeCaseClass, LargeCaseClass)]
+        (lccTuple2Coder.encode.toBytes(lccTuple2) >>= lccTuple2Coder.decode.fromBytes(lccTuple2Coder.schema)) ==== Okay(lccTuple2)
+    }
+
+    def eroundtriptuple3 = prop { (lcc: LargeCaseClass) =>
+        val lccTuple3 = (lcc, lcc, lcc)
+        val lccTuple3Coder = AvroCoder[(LargeCaseClass, LargeCaseClass, LargeCaseClass)]
+        (lccTuple3Coder.encode.toBytes(lccTuple3) >>= lccTuple3Coder.decode.fromBytes(lccTuple3Coder.schema)) ==== Okay(lccTuple3)
+    }
+
+    def eroundtriptuple4 = prop { (lcc: LargeCaseClass) =>
+        val lccTuple4 = (lcc, lcc, lcc, lcc)
+        val lccTuple4Coder = AvroCoder[(LargeCaseClass, LargeCaseClass, LargeCaseClass, LargeCaseClass)]
+        (lccTuple4Coder.encode.toBytes(lccTuple4) >>= lccTuple4Coder.decode.fromBytes(lccTuple4Coder.schema)) ==== Okay(lccTuple4)
+    }
+
+    def eroundtriptuple5 = prop { (lcc: LargeCaseClass) =>
+        val lccTuple5 = (lcc, lcc, lcc, lcc, lcc)
+        val lccTuple5Coder = AvroCoder[(LargeCaseClass, LargeCaseClass, LargeCaseClass, LargeCaseClass, LargeCaseClass)]
+        (lccTuple5Coder.encode.toBytes(lccTuple5) >>= lccTuple5Coder.decode.fromBytes(lccTuple5Coder.schema)) ==== Okay(lccTuple5)
+    }
+
+    def eroundtriptuple6 = prop { (lcc: LargeCaseClass) =>
+        val lccTuple6 = (lcc, lcc, lcc, lcc, lcc, lcc)
+        val lccTuple6Coder = AvroCoder[(LargeCaseClass, LargeCaseClass, LargeCaseClass, LargeCaseClass, LargeCaseClass, LargeCaseClass)]
+        (lccTuple6Coder.encode.toBytes(lccTuple6) >>= lccTuple6Coder.decode.fromBytes(lccTuple6Coder.schema)) ==== Okay(lccTuple6)
+    }
+}
+
 class avroStructureCoderBasicClassTest extends SpecificationWithJUnit with ScalaCheck with StructureAvroMatchers {
     def is = s2"""
         Explicitly derived structure coder for BasicClass
