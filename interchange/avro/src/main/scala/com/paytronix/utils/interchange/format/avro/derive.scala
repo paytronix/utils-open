@@ -60,7 +60,7 @@ object derive {
          *     object MyStruct {
          *         @derive.structure.customizedCoder[MyStruct]
          *         implicit object avroCoder {
-         *             val a = scalaBigDecimalAvroCoderString
+         *             val aCoder = scalaBigDecimalAvroCoderString
          *         }
          *     }
          *
