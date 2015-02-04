@@ -91,7 +91,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
             tpe.typeSymbol.name.decodedName.toString +
             (if (tpe.typeArgs.nonEmpty) "__" + tpe.typeArgs.map(arg => sanitizeSchemaName(arg.typeSymbol.fullName)).mkString("") else "")
 
-        val props = model.constructorProperties ++ model.mutableProperties
+        val props = (model.constructorProperties ++ model.mutableProperties).sorted
         val fields = props.map { prop =>
             val eod = encoderOrDecoderFor(prop)
             q"com.paytronix.utils.interchange.format.avro.utils.makeField(${prop.externalName}, ${eod}.schema, ${eod}.defaultJson)"
