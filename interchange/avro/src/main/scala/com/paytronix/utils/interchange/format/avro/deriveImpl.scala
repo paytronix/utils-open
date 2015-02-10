@@ -80,28 +80,77 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         q"com.paytronix.utils.interchange.format.avro.derive.structure.coder[$target]"
     }
 
+    private final case class AvroFieldNaming(addAliases: Tree => List[Tree])
+    private def avroFieldNaming (
+        prop: Property
+    ): AvroFieldNaming = {
+        val avroAliasesTpe = c.typeOf[com.paytronix.utils.interchange.format.avro.aliases]
+
+        val addFieldAliases: Tree => List[Tree] = field => prop.annotations
+            .collectFirst { case annot if annot.tree.tpe =:= avroAliasesTpe && annot.tree.children.size > 1 => annot }
+            .map { annot => annot.tree.children.tail }
+            .getOrElse { Nil }
+            .map { tree => q"$field.addAlias($tree)" }
+
+        AvroFieldNaming(addFieldAliases)
+    }
+
+    private final case class AvroTypeNaming(name: Tree, namespace: Tree, addAliases: Tree => List[Tree])
+    private def avroTypeNaming (
+        tpe: Type,
+        model: Structure
+    ): AvroTypeNaming = {
+        val avroNameTpe = c.typeOf[com.paytronix.utils.interchange.format.avro.name]
+        val avroAliasesTpe = c.typeOf[com.paytronix.utils.interchange.format.avro.aliases]
+
+        val namespace = tpe.typeSymbol.owner.fullName
+        val defaultName =
+            tpe.typeSymbol.name.decodedName.toString +
+            (if (tpe.typeArgs.nonEmpty) "__" + tpe.typeArgs.map(arg => sanitizeSchemaName(arg.typeSymbol.fullName)).mkString("") else "")
+
+        val avroName: Tree = model.annotations
+            .collectFirst { case annot if annot.tree.tpe =:= avroNameTpe && annot.tree.children.size > 1 => annot }
+            .map { annot => annot.tree.children.tail.head }
+            .getOrElse { q"${defaultName}" }
+        val addTypeAliases: Tree => List[Tree] = schema => model.annotations
+            .collectFirst { case annot if annot.tree.tpe =:= avroAliasesTpe && annot.tree.children.size > 1 => annot }
+            .map { annot => annot.tree.children.tail }
+            .getOrElse { Nil }
+            .map { tree => q"$schema.addAlias($tree)" }
+
+        AvroTypeNaming(avroName, q"$namespace", addTypeAliases)
+    }
+
     private def makeStructureSchema (
         tpe: Type,
         encoderOrDecoderFor: Property => Tree,
         model: Structure
     ): Tree = {
-
-        val namespace = tpe.typeSymbol.owner.fullName
-        val name =
-            tpe.typeSymbol.name.decodedName.toString +
-            (if (tpe.typeArgs.nonEmpty) "__" + tpe.typeArgs.map(arg => sanitizeSchemaName(arg.typeSymbol.fullName)).mkString("") else "")
+        val schema = TermName(c.freshName())
 
         val props = (model.constructorProperties ++ model.mutableProperties).sorted
         val fields = props.map { prop =>
+            val field = TermName(c.freshName())
             val eod = encoderOrDecoderFor(prop)
-            q"com.paytronix.utils.interchange.format.avro.utils.makeField(${prop.externalName}, ${eod}.schema, ${eod}.defaultJson)"
+            val naming = avroFieldNaming(prop)
+
+            q"""
+                {
+                    val $field = com.paytronix.utils.interchange.format.avro.utils.makeField(${prop.externalName}, ${eod}.schema, ${eod}.defaultJson)
+                    ..${naming.addAliases(q"$field")}
+                    $field
+                }
+            """
         }
+
+        val naming = avroTypeNaming(tpe, model)
 
         q"""
             {
-                val s = org.apache.avro.Schema.createRecord($name, "", $namespace, false)
-                s.setFields(java.util.Arrays.asList(..$fields))
-                s
+                val $schema = org.apache.avro.Schema.createRecord(${naming.name}, "", ${naming.namespace}, false)
+                ..${naming.addAliases(q"$schema")}
+                $schema.setFields(java.util.Arrays.asList(..$fields))
+                $schema
             }
         """
     }

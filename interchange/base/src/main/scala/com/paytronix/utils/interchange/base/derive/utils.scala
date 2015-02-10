@@ -66,6 +66,7 @@ trait DeriveUtils {
     /** Distilled information about a structure, either object or class */
     final case class Structure (
         tpe:                    Type,
+        annotations:            List[Annotation],
         properties:             List[Property],
         constructorProperties:  List[Property],
         mutableProperties:      List[Property],
@@ -75,6 +76,7 @@ trait DeriveUtils {
     ) {
         override def toString = s"""
 Type: $tpe
+  Annotations: $annotations
   Chosen constructor: ${constructor.typeSignature}
   Constructor properties:
     ${constructorProperties.mkString("", "\n    ", "\n")}
@@ -442,6 +444,7 @@ Type: $tpe
 
         Structure (
             tpe                   = A,
+            annotations           = A.typeSymbol.annotations,
             constructor           = chosenConstructor,
             properties            = allProps,
             constructorProperties = constructorProps,

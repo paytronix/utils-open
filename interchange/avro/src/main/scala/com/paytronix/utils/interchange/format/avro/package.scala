@@ -17,7 +17,7 @@
 package com.paytronix.utils.interchange.format.avro
 
 import java.io.{ByteArrayOutputStream, InputStream, IOException, OutputStream}
-import scala.annotation.implicitNotFound
+import scala.annotation.{StaticAnnotation, implicitNotFound}
 
 import org.apache.avro
 import org.codehaus.jackson.JsonNode
@@ -27,6 +27,20 @@ import com.paytronix.utils.interchange.base.{
     Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, atTerminal, formatFailedPath, terminal
 }
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchValue, tryCatchResult}
+
+/**
+ * Annotation which allows setting aliases on the generated Avro schema for a type.
+ * <strong>Note:</strong> This only works for coders that honor it, which is typically only the 
+ * macro derived coders.
+ */
+class aliases(aliases: String*) extends StaticAnnotation
+
+/**
+ * Annotation which allows overriding the Avro schema name of the type.
+ * <strong>Note:</strong> This only works for coders that honor it, which is typically only the 
+ * macro derived coders.
+ */
+class name(name: String) extends StaticAnnotation
 
 /** Format which consumes and produces streams of binary data using Avro */
 object AvroFormat extends Format {

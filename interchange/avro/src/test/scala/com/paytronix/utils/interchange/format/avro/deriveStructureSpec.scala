@@ -18,7 +18,7 @@ package com.paytronix.utils.interchange.format.avro
 
 import java.nio.ByteBuffer
 import java.util.Arrays
-import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaSetConverter}
 
 import org.apache.avro.Schema
 import org.scalacheck.Arbitrary
@@ -569,3 +569,38 @@ class avroStructureDefaultingTest extends SpecificationWithJUnit with ScalaCheck
         (coder3.encode.toBytes(ds3) >>= coder3.decode.fromBytes(coder3.schema)) ==== Okay(ds3)
     }
 }
+
+object avroNamingTestFixture {
+    import coders.stringAvroCoder
+    case class DefaultNamed(a: String)
+    val defaultNamedCoder = derive.structure.coder[DefaultNamed]
+    @name("OverrideName") case class OverriddenName(a: String)
+    val overriddenNameCoder = derive.structure.coder[OverriddenName]
+    @name("foo.bar.OverrideName") case class OverriddenFullName(a: String)
+    val overriddenFullNameCoder = derive.structure.coder[OverriddenFullName]
+    @aliases("b", "foo.bar.c") case class Aliased(a: String)
+    val aliasedCoder = derive.structure.coder[Aliased]
+    case class FieldAliased(@aliases("b", "c") a: String)
+    val fieldAliasedCoder = derive.structure.coder[FieldAliased]
+}
+
+class avroNamingTest extends SpecificationWithJUnit {
+    import avroNamingTestFixture._
+
+    def is = s2"""
+        Avro schema naming and aliasing
+            should generate names based on package and class by default $edefault
+            should accept overridden locally scoped names $eoverriddenName
+            should accept overridden fully qualified names $eoverriddenFullName
+            should accept aliases $ealiased
+            should accept field aliases $efieldAliased
+    """
+
+    def edefault = defaultNamedCoder.schema.getFullName ==== "com.paytronix.utils.interchange.format.avro.avroNamingTestFixture.DefaultNamed"
+    def eoverriddenName = overriddenNameCoder.schema.getFullName ==== "com.paytronix.utils.interchange.format.avro.avroNamingTestFixture.OverrideName"
+    def eoverriddenFullName = overriddenFullNameCoder.schema.getFullName ==== "foo.bar.OverrideName"
+    def ealiased = aliasedCoder.schema.getAliases.asScala must containTheSameElementsAs(Seq("com.paytronix.utils.interchange.format.avro.avroNamingTestFixture.b", "foo.bar.c"))
+    def efieldAliased = fieldAliasedCoder.schema.getField("a").aliases.asScala must containTheSameElementsAs(Seq("b", "c"))
+}
+
+
