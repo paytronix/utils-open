@@ -119,13 +119,13 @@ object long {
     val localDateBijection: BijectionT[Result, Result, LocalDate, Long] =
         bijection (
             (ld: LocalDate) => Okay(ld.toDateTimeAtStartOfDay(DateTimeZone.UTC).getMillis): Result[Long],
-            (l: Long) => tryCatchValue(new DateTime(l).toLocalDate): Result[LocalDate]
+            (l: Long) => tryCatchValue(new DateTime(l, DateTimeZone.UTC).toLocalDate): Result[LocalDate]
         )
 
     val localDateTimeBijection: BijectionT[Result, Result, LocalDateTime, Long] =
         bijection (
             (ldt: LocalDateTime) => Okay(ldt.toDateTime(DateTimeZone.UTC).getMillis): Result[Long],
-            (l: Long) => tryCatchValue(new DateTime(l).toLocalDateTime): Result[LocalDateTime]
+            (l: Long) => tryCatchValue(new DateTime(l, DateTimeZone.UTC).toLocalDateTime): Result[LocalDateTime]
         )
 
     val localTimeBijection: BijectionT[Result, Result, LocalTime, Long] =

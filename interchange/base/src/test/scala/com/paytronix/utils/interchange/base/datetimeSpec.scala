@@ -122,3 +122,23 @@ class iso8601Test extends SpecificationWithJUnit with ScalaCheck {
     def e24 = iso8601.localTimeBijection.from("12:13:14") ==== Okay(new LocalTime(12, 13, 14))
     def e25 = iso8601.localTimeBijection.from("121314") ==== Okay(new LocalTime(12, 13, 14))
 }
+
+class longTest extends SpecificationWithJUnit with ScalaCheck {
+    def is = s2"""
+        long bijections should round trip
+            org.joda.time.DateTime          $e1
+            org.joda.time.LocalDate         $e2
+            org.joda.time.LocalDateTime     $e3
+            org.joda.time.LocalTime         $e4
+    """
+
+    val roundTripDateTime      = long.dateTimeBijection      >=> long.dateTimeBijection.flip
+    val roundTripLocalDate     = long.localDateBijection     >=> long.localDateBijection.flip
+    val roundTripLocalDateTime = long.localDateTimeBijection >=> long.localDateTimeBijection.flip
+    val roundTripLocalTime     = long.localTimeBijection     >=> long.localTimeBijection.flip
+
+    def e1 = prop { (dt: DateTime) => roundTripDateTime.to(dt).map(_.getMillis) ==== Okay(dt.getMillis) }
+    def e2 = prop { (ld: LocalDate) => roundTripLocalDate.to(ld) ==== Okay(ld) }
+    def e3 = prop { (ldt: LocalDateTime) => roundTripLocalDateTime.to(ldt) ==== Okay(ldt) }
+    def e4 = prop { (lt: LocalTime) => roundTripLocalTime.to(lt) ==== Okay(lt) }
+}
