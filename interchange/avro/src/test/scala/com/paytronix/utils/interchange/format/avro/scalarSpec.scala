@@ -18,6 +18,7 @@ package com.paytronix.utils.interchange.format.avro
 
 import java.nio.ByteBuffer
 import java.util.Arrays
+import scala.collection.JavaConverters.asScalaSetConverter
 
 import org.apache.avro.Schema
 import org.scalacheck.{Arbitrary, Gen, Prop}
@@ -582,4 +583,32 @@ class scalaEnumAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with
     }
     def e6 = prop { (e: ScalaEnum.Value) => decodeDefault(coder.default(e)) ==== Okay(e) }
     def e7 = { import coders._; AvroCoder[ScalaEnum.Value].schema.getName ==== "ScalaEnum" }
+}
+
+object scalaEnumNamingFixtures {
+    object DefaultNaming extends Enumeration { val one = Value("one") }
+    @name("foo.bar.Overridden") object OverriddenName extends Enumeration { val two = Value("two") }
+    @aliases("a", "b", "foo.bar.C") object AliasedName extends Enumeration { val three = Value("three") }
+}
+
+class scalaEnumNamingAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with AvroMatchers {
+    def is = s2"""
+        `scalaEnumAvroCoder` naming and aliasing
+            must have correct name by default $edefault
+            must honor @name $ename
+            must honor @aliases $ealiases
+    """
+
+    import scalaEnumNamingFixtures._
+
+    val defaultCoder = scalar.scalaEnumAvroCoder[DefaultNaming.type]
+    val namedCoder   = scalar.scalaEnumAvroCoder[OverriddenName.type]
+    val aliasedCoder = scalar.scalaEnumAvroCoder[AliasedName.type]
+
+    def edefault = defaultCoder.schema.getFullName ==== "com.paytronix.utils.interchange.format.avro.scalaEnumNamingFixtures.DefaultNaming"
+    def ename = namedCoder.schema.getFullName ==== "foo.bar.Overridden"
+    def ealiases = aliasedCoder.schema.getAliases.asScala must containTheSameElementsAs(Seq (
+        "com.paytronix.utils.interchange.format.avro.scalaEnumNamingFixtures.a",
+        "com.paytronix.utils.interchange.format.avro.scalaEnumNamingFixtures.b", "foo.bar.C"
+    ))
 }

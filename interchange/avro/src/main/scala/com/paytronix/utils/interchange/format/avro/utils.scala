@@ -19,6 +19,7 @@ package com.paytronix.utils.interchange.format.avro
 import java.util.Arrays
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable.WeakHashMap
+import scala.reflect.runtime.universe.{Constant, TypeTag, typeOf, typeTag}
 import scala.util.MurmurHash.stringHash
 
 import org.apache.avro
@@ -60,13 +61,34 @@ object utils {
     def makeField(name: String, schema: avro.Schema, defaultJson: Option[JsonNode], doc: String = ""): avro.Schema.Field =
         new avro.Schema.Field(name, schema, doc, defaultJson.orNull)
 
+    /** Results of analyzing a class name and annotations for Avro schema naming information */
+    final case class AvroTypeNaming(namespace: String, name: String, aliases: Set[String])
+
     /** Split a Class formal name into a pair containing namespace and unqualified name */
-    def nameAndNamespaceFromClass(clazz: Class[_]): (String, String) = {
-        val rawName = clazz.getName
-        splitFullyQualifiedName (
+    def typeNaming[A: TypeTag]: AvroTypeNaming = {
+        val avroNameTpe = typeOf[com.paytronix.utils.interchange.format.avro.name]
+        val avroAliasesTpe = typeOf[com.paytronix.utils.interchange.format.avro.aliases]
+
+        val rawName = typeTag[A].tpe.typeSymbol.fullName
+        val (namespace, defaultName) = splitFullyQualifiedName (
             if (rawName.endsWith("$")) rawName.substring(0, rawName.length() - 1).replace('$', '.')
             else                       rawName.replace('$', '.')
         )
+
+        val avroName = typeTag[A].tpe.typeSymbol.annotations
+            .collectFirst { case annot if annot.tree.tpe =:= avroNameTpe && annot.tree.children.size > 1 => annot }
+            .map { annot => annot.tree.children.tail.head }
+            // this next bit is especially awful
+            .map { tree => tree.productElement(0).asInstanceOf[Constant].value.asInstanceOf[String] }
+            .getOrElse { defaultName }
+        val avroAliases = typeTag.tpe.typeSymbol.annotations
+            .collectFirst { case annot if annot.tree.tpe =:= avroAliasesTpe && annot.tree.children.size > 1 => annot }
+            .map { annot => annot.tree.children.tail }
+            .map { trees => trees.map { _.productElement(0).asInstanceOf[Constant].value.asInstanceOf[String] } }
+            .map { strings => Set.empty ++ strings }
+            .getOrElse { Set.empty }
+
+        AvroTypeNaming(namespace, avroName, avroAliases)
     }
 
     /** Sanitize a name to a format acceptable as an identifier, replacing invalid characters with _hhhh where hhhh is the unicode value */

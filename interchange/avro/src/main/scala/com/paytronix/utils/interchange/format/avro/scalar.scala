@@ -36,7 +36,7 @@ import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerati
 import com.paytronix.utils.interchange.format.string.{StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue, tryCatchValueG, tryCatchResultG}
 
-import utils.nameAndNamespaceFromClass
+import utils.typeNaming
 
 /** `AvroCoder`s for scalar types such as `int`, `String`, and so on. */
 object scalar extends scalar
@@ -380,7 +380,7 @@ trait scalar extends scalarLPI {
         ))
 
     /** `AvroCoder` for Java enumerations. Encodes as an Avro enumeration */
-    implicit def javaEnumAvroCoder[A <: Enum[A]: ClassTag]: AvroCoder[A] = {
+    implicit def javaEnumAvroCoder[A <: Enum[A]: ClassTag: TypeTag]: AvroCoder[A] = {
         def toSanitizedString(in: A): String = in.toString.replaceAll("[^_a-zA-Z0-9]", "")
         val enumClass = classTag[A].runtimeClass.asInstanceOf[Class[A]]
         val enumValues: Vector[A] = (Vector.empty ++ enumClass.getMethod("values").invoke(null).asInstanceOf[Array[A]]).sortBy(toSanitizedString)
@@ -390,8 +390,10 @@ trait scalar extends scalarLPI {
         class javaEnumAvroCoder extends AvroCoder[A] {
             trait JavaEnumEncoderOrDecoder extends AvroEncoderOrDecoder {
                 val schema = {
-                    val (namespace, name) = nameAndNamespaceFromClass(enumClass)
-                    Schema.createEnum(name, "", namespace, enumValues.map(toSanitizedString).asJava)
+                    val naming = typeNaming[A]
+                    val schema = Schema.createEnum(naming.name, "", naming.namespace, enumValues.map(toSanitizedString).asJava)
+                    naming.aliases.foreach(schema.addAlias)
+                    schema
                 }
                 val defaultJson = None
             }
@@ -426,8 +428,10 @@ trait scalar extends scalarLPI {
         class scalaEnumAvroCoder extends AvroCoder[A#Value] {
             trait ScalaEnumEncoderOrDecoder extends AvroEncoderOrDecoder {
                 val schema = {
-                    val (namespace, name) = nameAndNamespaceFromClass(enumeration.getClass)
-                    Schema.createEnum(name, "", namespace, enumValues.map(toSanitizedString).asJava)
+                    val naming = typeNaming[A]
+                    val schema = Schema.createEnum(naming.name, "", naming.namespace, enumValues.map(toSanitizedString).asJava)
+                    naming.aliases.foreach(schema.addAlias)
+                    schema
                 }
                 val defaultJson = None
             }
