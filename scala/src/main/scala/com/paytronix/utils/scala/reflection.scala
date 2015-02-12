@@ -24,7 +24,7 @@ import result.{Failed, Okay, Result}
 package object reflection {
     /** Split a fully qualified class name into (package name, class name) */
     def splitFullyQualifiedName(in: String): (String, String) =
-        in.indexOf('.') match {
+        in.lastIndexOf('.') match {
             case -1 => ("", in)
             case pos => (in.substring(0, pos), in.substring(pos+1))
         }
