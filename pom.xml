@@ -43,6 +43,7 @@
         <scala.compatibility.version>2.9.3</scala.compatibility.version>
         <lift.scala.compatibility.version>2.9.1</lift.scala.compatibility.version>
         <lift.version>2.4</lift.version>
+        <open-utils.version>14.1.20140709</open-utils.version>
     </properties>
 
     <dependencyManagement>
@@ -129,27 +130,27 @@
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>extendedreflection</artifactId>
-                <version>14.1.20140709</version>
+                <version>${open-utils.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>interchange</artifactId>
-                <version>14.1.20140709</version>
+                <version>${open-utils.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>lift</artifactId>
-                <version>14.1.20140709</version>
+                <version>${open-utils.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>scala</artifactId>
-                <version>14.1.20140709</version>
+                <version>${open-utils.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
                 <artifactId>validation</artifactId>
-                <version>14.1.20140709</version>
+                <version>${open-utils.version}</version>
             </dependency>
             <dependency>
                 <groupId>paytronix.utils.internal</groupId>
