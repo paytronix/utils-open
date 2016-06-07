@@ -262,9 +262,9 @@ object Coders {
             constructor = caseClass.getConstructor(classOf[Int], classOf[String], classOf[Option[_]]),
             constructorFieldNames = List("foo", "bar", "zip"),
             fieldCodings = List(
-                FieldCoding("bar", NullCoder(StringCoder),   caseClass.getMethod("bar"), Failed("no setter")),
-                FieldCoding("foo", IntCoder,                 caseClass.getMethod("foo"), Failed("no setter")),
-                FieldCoding("zip", OptionCoder(StringCoder), caseClass.getMethod("zip"), Failed("no setter"))
+                FieldCoding("bar", NullCoder(StringCoder),          caseClass.getMethod("bar"), Failed("no setter")),
+                FieldCoding("foo", IntCoder,                        caseClass.getMethod("foo"), Failed("no setter")),
+                FieldCoding("zip", OptionCoder(StringCoder, false), caseClass.getMethod("zip"), Failed("no setter"))
             ),
             flatten = false
         )
@@ -278,7 +278,7 @@ object Coders {
             constructorFieldNames = List("a", "b"),
             fieldCodings = List(
                 FieldCoding("a", IntCoder, wrappedClass.getMethod("a"), Failed("no setter")),
-                FieldCoding("b", OptionCoder(ScalaEnumCoder(WrappingObject.WrappedEnum)), wrappedClass.getMethod("b"), Failed("no setter"))
+                FieldCoding("b", OptionCoder(ScalaEnumCoder(WrappingObject.WrappedEnum), false), wrappedClass.getMethod("b"), Failed("no setter"))
             ),
             flatten = false
         )
@@ -304,9 +304,9 @@ object Coders {
             constructor = basicClass.getConstructor(),
             constructorFieldNames = Nil,
             fieldCodings = List(
-                FieldCoding("bar", NullCoder(StringCoder),   basicClass.getMethod("bar"), Okay(basicClass.getMethod("bar_$eq", classOf[String]))),
-                FieldCoding("foo", IntCoder,                 basicClass.getMethod("foo"), Okay(basicClass.getMethod("foo_$eq", classOf[Int]))),
-                FieldCoding("zip", OptionCoder(StringCoder), basicClass.getMethod("zip"), Okay(basicClass.getMethod("zip_$eq", classOf[Option[_]])))
+                FieldCoding("bar", NullCoder(StringCoder),          basicClass.getMethod("bar"), Okay(basicClass.getMethod("bar_$eq", classOf[String]))),
+                FieldCoding("foo", IntCoder,                        basicClass.getMethod("foo"), Okay(basicClass.getMethod("foo_$eq", classOf[Int]))),
+                FieldCoding("zip", OptionCoder(StringCoder, false), basicClass.getMethod("zip"), Okay(basicClass.getMethod("zip_$eq", classOf[Option[_]])))
             ),
             flatten = false
         )
@@ -319,9 +319,9 @@ object Coders {
             constructor = pojoClass.getConstructor(),
             constructorFieldNames = Nil,
             fieldCodings = List(
-                FieldCoding("bar", NullCoder(StringCoder),   pojoClass.getMethod("getBar"), Okay(pojoClass.getMethod("setBar", classOf[String]))),
-                FieldCoding("foo", IntCoder,                 pojoClass.getMethod("getFoo"), Okay(pojoClass.getMethod("setFoo", classOf[Int]))),
-                FieldCoding("zip", OptionCoder(StringCoder), pojoClass.getMethod("getZip"), Okay(pojoClass.getMethod("setZip", classOf[Option[_]])))
+                FieldCoding("bar", NullCoder(StringCoder),          pojoClass.getMethod("getBar"), Okay(pojoClass.getMethod("setBar", classOf[String]))),
+                FieldCoding("foo", IntCoder,                        pojoClass.getMethod("getFoo"), Okay(pojoClass.getMethod("setFoo", classOf[Int]))),
+                FieldCoding("zip", OptionCoder(StringCoder, false), pojoClass.getMethod("getZip"), Okay(pojoClass.getMethod("setZip", classOf[Option[_]])))
             ),
             flatten = false
         )
@@ -359,7 +359,7 @@ object Coders {
 
     lazy val methodAndCtorArgumentCoder = ArgumentArrayCoder(false, List(
         ArgumentCoding("a", caseClassCoder), ArgumentCoding("b", IntCoder),
-        ArgumentCoding("c", NullCoder(StringCoder)), ArgumentCoding("d", OptionCoder(DoubleCoder))
+        ArgumentCoding("c", NullCoder(StringCoder)), ArgumentCoding("d", OptionCoder(DoubleCoder, false))
     ))
 
     lazy val caseClassWithSideCarReflectedCoder = {
@@ -369,9 +369,9 @@ object Coders {
             constructor = caseClassWithSideCar.getConstructor(classOf[Int], classOf[String], classOf[Option[_]]),
             constructorFieldNames = List("foo", "bar", "zip"),
             fieldCodings = List(
-                FieldCoding("bar", StringCoder,              caseClassWithSideCar.getMethod("bar"), Failed("no setter")),
-                FieldCoding("foo", IntCoder,                 caseClassWithSideCar.getMethod("foo"), Failed("no setter")),
-                FieldCoding("zip", OptionCoder(StringCoder), caseClassWithSideCar.getMethod("zip"), Failed("no setter"))
+                FieldCoding("bar", StringCoder,                     caseClassWithSideCar.getMethod("bar"), Failed("no setter")),
+                FieldCoding("foo", IntCoder,                        caseClassWithSideCar.getMethod("foo"), Failed("no setter")),
+                FieldCoding("zip", OptionCoder(StringCoder, false), caseClassWithSideCar.getMethod("zip"), Failed("no setter"))
             ),
             flatten = false
         )
@@ -384,9 +384,9 @@ object Coders {
             constructor = caseClassWithSideCar.getConstructor(classOf[Int], classOf[String], classOf[Option[_]]),
             constructorFieldNames = List("foo", "bar", "zip"),
             fieldCodings = List(
-                FieldCoding("bar", NullCoder(StringCoder),   caseClassWithSideCar.getMethod("bar"), Failed("no setter")),
-                FieldCoding("foo", IntCoder,                 caseClassWithSideCar.getMethod("foo"), Failed("no setter")),
-                FieldCoding("zip", OptionCoder(StringCoder), caseClassWithSideCar.getMethod("zip"), Failed("no setter"))
+                FieldCoding("bar", NullCoder(StringCoder),          caseClassWithSideCar.getMethod("bar"), Failed("no setter")),
+                FieldCoding("foo", IntCoder,                        caseClassWithSideCar.getMethod("foo"), Failed("no setter")),
+                FieldCoding("zip", OptionCoder(StringCoder, false), caseClassWithSideCar.getMethod("zip"), Failed("no setter"))
             ),
             flatten = false
         )

@@ -609,9 +609,9 @@ class NullCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
 }
 
 class OptionCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
-    val testCoder = OptionCoder(StringCoder)
-    val nestedCoder = OptionCoder(OptionCoder(OptionCoder(StringCoder)))
-    val nestedListCoder = OptionCoder(OptionCoder(OptionCoder(ScalaListCoder(StringCoder))))
+    val testCoder = OptionCoder(StringCoder, false)
+    val nestedCoder = OptionCoder(OptionCoder(OptionCoder(StringCoder, false), false), false)
+    val nestedListCoder = OptionCoder(OptionCoder(OptionCoder(ScalaListCoder(StringCoder), false), false), false)
 
     def is =
         "OptionCoder should" ^
@@ -912,7 +912,7 @@ class ArgumentArrayCoderSpecTest extends SpecificationWithJUnit with MoreHelpers
     val testCoder = ArgumentArrayCoder(false,
                                        ArgumentCoding("foo", IntCoder) ::
                                        ArgumentCoding("bar", NullCoder(StringCoder)) ::
-                                       ArgumentCoding("zip", OptionCoder(StringCoder)) :: Nil)
+                                       ArgumentCoding("zip", OptionCoder(StringCoder, false)) :: Nil)
 
     def matchArrayResult(expected: Array[AnyRef]): Matcher[ResultG[_, Array[AnyRef]]] = {
         def arrayToString(in: Array[AnyRef]): String = in.mkString("[", ", ", "]")

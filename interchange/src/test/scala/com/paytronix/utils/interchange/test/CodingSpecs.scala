@@ -160,7 +160,7 @@ class CoderDetectionSpecTest extends SpecificationWithJUnit with MoreHelpers {
             { new BoxedShortTV().coder     must_== Okay(ShortCoder) }
         } ^
         "work for optional types" ! resetCoding {
-            { new OptionIntTV().coder    must_== Okay(OptionCoder(IntCoder)) } and
+            { new OptionIntTV().coder    must_== Okay(OptionCoder(IntCoder, false)) } and
             { new ResultStringTV().coder must_== Okay(ResultCoder(UnitCoder, StringCoder)) } and
             { new ResultUnitTV().coder   must_== Okay(ResultCoder(UnitCoder, UnitCoder)) }
         } ^
@@ -240,7 +240,7 @@ class CoderDetectionSpecTest extends SpecificationWithJUnit with MoreHelpers {
             Reflection.reflect(ctor.getDeclaringClass.getClassLoader, ctor) must_== Okay(methodAndCtorArgumentCoder)
         } ^
         "work for parameterized types in parameterized types" ! resetCoding {
-            new NestedOptionTV().coder must_== Okay(OptionCoder(OptionCoder(OptionCoder(StringCoder))))
+            new NestedOptionTV().coder must_== Okay(OptionCoder(OptionCoder(OptionCoder(StringCoder, false), false), false))
         } ^
         "work for classes enclosed in objects" ! resetCoding {
             { new WrappedClassTV().coder must_== Okay(wrappedClassCoder) } and

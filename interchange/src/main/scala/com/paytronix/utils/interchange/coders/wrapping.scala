@@ -199,7 +199,10 @@ case class NullCoder[T](valueCoder: ComposableCoder[T]) extends ComposableCoder[
 }
 
 /** Coder for Option[T] */
-case class OptionCoder[T](valueCoder: ComposableCoder[T]) extends OptionLikeCoder[Option[T]] {
+case class OptionCoder[T](valueCoder: ComposableCoder[T], flatten: Boolean)
+    extends OptionLikeCoder[Option[T]]
+    with FlattenableCoder
+{
     import ComposableCoder.catchingCoderException
 
     val mostSpecificClass = classOf[Option[T]]
