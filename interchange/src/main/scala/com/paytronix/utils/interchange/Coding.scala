@@ -183,7 +183,7 @@ object Coding {
             (classOf[java.nio.ByteBuffer], registration("java.nio.ByteBuffer", () => ByteBufferCoder)),
 
             (classOf[java.util.List[_]], oneArgRegistration("java.util.List", JavaListCoder(_))),
-            (classOf[Option[_]],         oneArgRegistration("Option",         OptionCoder(_, false))),
+            (classOf[Option[_]],         oneArgRegistration("Option",         OptionCoder(_))),
             (classOf[List[_]],           oneArgRegistration("scala.List",     ScalaListCoder(_))),
 
             (classOf[Either[_, _]],  twoArgRegistration("Either", EitherCoder(_, _))),

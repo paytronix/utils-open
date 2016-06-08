@@ -231,8 +231,8 @@ class AvroWrapperDefaultingSpecTest extends SpecificationWithJUnit with AvroTest
     "Mapped"               ! { testDefaulting(IntCoder.transform(i => Okay(CaseClass(i, null, None)))(cc => Okay(cc.foo)), CaseClass(1234, null, None)) } ^
     "null"                 ! { testDefaulting(NullCoder(StringCoder), null) } ^
     "\"foo\" (not usable)" ! { testDefaultingNotUsable(NullCoder(StringCoder), "foo") } ^
-    "None"                 ! { testDefaulting(OptionCoder(StringCoder, false), None) } ^
-    "Some(\"foo\")"        ! { testDefaultingNotUsable(OptionCoder(StringCoder, false), Some("foo")) }
+    "None"                 ! { testDefaulting(OptionCoder(StringCoder), None) } ^
+    "Some(\"foo\")"        ! { testDefaultingNotUsable(OptionCoder(StringCoder), Some("foo")) }
 }
 
 
