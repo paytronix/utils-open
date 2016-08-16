@@ -1,5 +1,5 @@
 //
-// Copyright 2009-2012 Paytronix Systems, Inc.
+// Copyright 2009-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,12 @@
 
 package com.paytronix.utils.lift
 
+import scala.language.implicitConversions
+
 import net.liftweb.common.{Box, Empty, Failure, Full}
 import org.slf4j.Logger
 
-object log {
+package object log {
     /** Implicitly convert loggers to extended loggers, which integrate better with Lift and Scala */
     implicit def loggerBoxOps(l: Logger): Slf4jLoggerExtension = new Slf4jLoggerExtension(l)
 

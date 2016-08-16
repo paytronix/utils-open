@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,18 +17,25 @@
 package com.paytronix.utils.validation
 
 import java.util.regex.PatternSyntaxException
-import scala.util.control.Exception.catching
 import scala.util.matching.Regex
 
-import base.{ValidationError, ValidationFunction, missingValueError}
+import scalaz.{Failure, Success}
+import scalaz.NonEmptyList.nels
+
+import base.{Validated, ValidationError, missingValueError}
+import string.nonBlankE
 
 object regex {
     import string.nonBlank
 
     /** Assert that a String is nonblank and parse it as a regular expression */
-    def pattern(missingValue: ValidationError = missingValueError): ValidationFunction[String, Regex] =
-        nonBlank() and (
-            in => catching(classOf[PatternSyntaxException]).either(in.r).left.map(t => ValidationError("invalid_regex", Option(t.getMessage) getOrElse t.toString) :: Nil)
-        )
+    val pattern: String => Validated[Regex] =
+        patternE(missingValueError, t => ValidationError("invalid_regex", Option(t.getMessage) getOrElse t.toString))
+
+    /** Assert that a String is nonblank and parse it as a regular expression */
+    def patternE(missingValue: ValidationError, parseError: PatternSyntaxException => ValidationError): String => Validated[Regex] =
+        nonBlankE(missingValue) and { s =>
+            try Success(s.r) catch { case e: PatternSyntaxException => Failure(nels(parseError(e))) }
+        }
 }
 

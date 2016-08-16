@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,15 +19,19 @@ package com.paytronix.utils.validation
 import java.net.{URI, URISyntaxException}
 import scala.util.control.Exception.catching
 
-import base.{ValidationError, ValidationFunction, missingValueError}
+import base.{Validated, ValidationError, failure, missingValueError, success}
 
 object uri {
-    import string.nonBlank
+    import string.nonBlankE
 
     /** Assert that a String is nonblank and convert it to a URI */
-    def uri(missingValue: ValidationError = missingValueError): ValidationFunction[String, URI] =
-        nonBlank(missingValue) and (s => catching(classOf[URISyntaxException])
-                                         .either(new URI(s))
-                                         .left.map(t => ValidationError(Option(t.getMessage) getOrElse t.toString) :: Nil))
+    val uri: String => Validated[URI] =
+        uriE(missingValueError, t => ValidationError(Option(t.getMessage) getOrElse t.toString))
+
+    /** Assert that a String is nonblank and convert it to a URI */
+    def uriE(missingValue: ValidationError, parseError: URISyntaxException => ValidationError): String => Validated[URI] =
+        nonBlankE(missingValue) and { s =>
+            try success(new URI(s)) catch { case t: URISyntaxException => failure(parseError(t)) }
+        }
 }
 

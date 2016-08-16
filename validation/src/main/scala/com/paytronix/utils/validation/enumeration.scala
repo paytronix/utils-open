@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,18 +16,27 @@
 
 package com.paytronix.utils.validation
 
-import base.{ValidationError, ValidationFunction}
+import scala.collection.breakOut
+
+import base.{Validated, ValidationError, failure, success}
 
 object enumeration {
     def invalidEnumerationError(incorrect: String): ValidationError =
-        ValidationError("invalid_enumeration", "value \"" + incorrect + "\" is not an allowed option for this field")
+        ValidationError("invalid_enumeration", s"""value "$incorrect" is not an allowed option for this field""")
 
     /**
      * Apply a partial function to the input only if it is defined, yielding the result of the application.
      * Fails validation if the partial function isn't defined.
      */
-    def definedIn[A, B](pf: PartialFunction[A, B], error: String => ValidationError = invalidEnumerationError): ValidationFunction[A, B] =
-        in => if (pf.isDefinedAt(in)) Right(pf(in)) else Left(error(String.valueOf(in)) :: Nil)
+    def definedIn[A, B](pf: PartialFunction[A, B]): A => Validated[B] =
+        definedInE[A, B](a => invalidEnumerationError(String.valueOf(a)))(pf)
+
+    /**
+     * Apply a partial function to the input only if it is defined, yielding the result of the application.
+     * Fails validation if the partial function isn't defined.
+     */
+    def definedInE[A, B](error: A => ValidationError)(pf: PartialFunction[A, B]): A => Validated[B] =
+        in => if (pf.isDefinedAt(in)) success(pf(in)) else failure(error(in))
 
     /**
      * Assert that the value is a member of the given enumeration, and yield the enumeration value if successful.
@@ -35,20 +44,31 @@ object enumeration {
      * If you get wonky errors like type mismatch MyEnum#Value versus MyEnum.Value, then explicitly pass the enumeration type:
      *    valueOf[MyEnum.type](MyEnum)
      */
-    def valueOf[A <: Enumeration](enum: A, error: String => ValidationError = invalidEnumerationError): ValidationFunction[String, A#Value] =
-        definedIn(enumeration(enum), error)
+    def valueOf[A <: Enumeration](enum: A): String => Validated[A#Value] =
+        valueOfE[A](invalidEnumerationError)(enum)
 
     /**
      * Assert that the value is a member of the given enumeration, and yield the enumeration value if successful.
+     * NOTE: Scala's inference of the type of singletons is heinously awful at best.
+     * If you get wonky errors like type mismatch MyEnum#Value versus MyEnum.Value, then explicitly pass the enumeration type:
+     *    valueOf[MyEnum.type](MyEnum)
      */
-    def valueOfJavaEnum[A <: Enum[A]](enumClass: Class[A], error: String => ValidationError = invalidEnumerationError): ValidationFunction[String, A] =
-        definedIn(enumeration(enumClass), error)
+    def valueOfE[A <: Enumeration](error: String => ValidationError)(enum: A): String => Validated[A#Value] =
+        definedInE(error)(enumeration(enum))
+
+    /** Assert that the value is a member of the given enumeration, and yield the enumeration value if successful. */
+    def valueOfJavaEnum[A <: Enum[A]](enumClass: Class[A]): String => Validated[A] =
+        valueOfJavaEnumE(invalidEnumerationError)(enumClass)
+
+    /** Assert that the value is a member of the given enumeration, and yield the enumeration value if successful. */
+    def valueOfJavaEnumE[A <: Enum[A]](error: String => ValidationError)(enumClass: Class[A]): String => Validated[A] =
+        definedInE(error)(enumeration(enumClass))
 
     /**
      * Helper implict which converts any Enumeration into a PartialFunction from String.
      */
     def enumeration[A <: Enumeration](enum: A): PartialFunction[String, A#Value] =
-        Map(enum.values.map(v => v.toString -> v.asInstanceOf[A#Value]).toSeq: _*)
+        enum.values.map(v => v.toString -> v)(breakOut): Map[String, A#Value]
 
     /**
      * Helper implict which converts any Java enum into a PartialFunction from String.

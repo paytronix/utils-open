@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,46 +16,43 @@
 
 package com.paytronix.utils.validation
 
-import base.{ValidationError, ValidationFunction, missingValueError, nonMissingValueError}
+import base.{Validated, ValidationError, failure, missingValueError, nonMissingValueError, success}
 
 object option {
     /** Apply some validation to the value inside an Option. */
-    def optional[A, B](f: ValidationFunction[A, B]): ValidationFunction[Option[A], Option[B]] = (in: Option[A]) => in match {
-        case Some(v) => f(v).right.map(Some.apply)
-        case None => Right(None)
+    def optional[A, B](f: A => Validated[B]): Option[A] => Validated[Option[B]] = {
+        case Some(a) => f(a).map(Some.apply)
+        case None    => success(None)
     }
 
     /** Require that an optional value be present. */
-    def some[A, B]: ValidationFunction[Option[A], A] = {
-        case Some(a) => Right(a)
-        case None => Left(missingValueError :: Nil)
-    }
+    def some[A, B]: Option[A] => Validated[A] =
+        someE(missingValueError)(success)
 
     /** Require that an optional value be present and apply a validation function to the value. */
-    def some[A, B](f: ValidationFunction[A, B]): ValidationFunction[Option[A], B] = {
-        case Some(v) => f(v)
-        case None => Left(missingValueError :: Nil)
-    }
+    def some[A, B](f: A => Validated[B]): Option[A] => Validated[B] =
+        someE(missingValueError)(f)
 
-    /** Require that an optional value be present and apply a validation function to the value, specifying a particular error message if not. */
-    def some[A, B](error: ValidationError)(f: ValidationFunction[A, B]): ValidationFunction[Option[A], B] = {
+    /** Require that an optional value be present and apply a validation function to the value. */
+    def someE[A, B](error: ValidationError)(f: A => Validated[B]): Option[A] => Validated[B] = {
         case Some(v) => f(v)
-        case None => Left(error :: Nil)
+        case None    => failure(error)
     }
 
     /** Require that an optional value not be present. */
-    val none: ValidationFunction[Option[Any], Unit] = none(nonMissingValueError)
+    val none: Option[Any] => Validated[Unit] =
+        noneE(nonMissingValueError)
 
     /** Require that an optional value not be present. */
-    def none(error: ValidationError): ValidationFunction[Option[Any], Unit] = _ match {
-        case Some(v) => Left(error :: Nil)
-        case None => Right(())
+    def noneE(error: ValidationError): Option[Any] => Validated[Unit] = {
+        case Some(v) => failure(error)
+        case None    => success(())
     }
 
-    /** Either unwrap the `Option` or substitute some default value. The `ValidationFunction` equivalent of `getOrElse` */
-    def defaultsTo[A](substitute: A): ValidationFunction[Option[A], A] = _ match {
-        case Some(v) => Right(v)
-        case None    => Right(substitute)
+    /** Either unwrap the `Option` or substitute some default value. Similar to `getOrElse` */
+    def defaultsTo[A](substitute: A): Option[A] => Validated[A] = {
+        case Some(v) => success(v)
+        case None    => success(substitute)
     }
 }
 
