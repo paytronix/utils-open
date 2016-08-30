@@ -16,6 +16,7 @@
 
 package com.paytronix.utils.interchange.format.json
 
+import java.lang.{Boolean => JavaBoolean, Integer => JavaInteger}
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
@@ -27,14 +28,14 @@ import scala.reflect.{ClassTag, classTag}
 import scala.reflect.runtime.universe.{TypeTag, typeTag}
 
 import com.fasterxml.jackson.core.{JsonParseException, JsonToken}
-import org.joda.time.{DateTime, LocalDate, LocalDateTime, LocalTime}
+import org.joda.time.{DateTime, LocalDate, LocalDateTime, LocalTime, Duration}
 import scalaz.BijectionT.bijection
 
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
 import com.paytronix.utils.interchange.format.string.{StringDecoder, StringEncoder}
 import com.paytronix.utils.interchange.format.string.coders._
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValueG, tryCatchResultG, tryCatchingResultG}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue, tryCatchValueG, tryCatchResultG, tryCatchingResultG}
 
 object scalar extends scalar
 
@@ -89,6 +90,12 @@ trait scalar extends scalarLPI {
                 }
         }
     }
+
+    /** `JsonCoder` for Java Boolean. Encodes as a JSON boolean */
+    implicit lazy val javaBooleanJsonCoder = booleanJsonCoder.mapBijection(bijection (
+        (i: JavaBoolean) => tryCatchValue(i: Boolean): Result[Boolean],
+        (i: Boolean) => Okay(boolean2Boolean(i)): Result[JavaBoolean]
+    ))
 
     /** JsonCoder for Byte. Encodes as a JSON number */
     implicit object byteJsonCoder extends JsonCoder[Byte] {
@@ -185,6 +192,12 @@ trait scalar extends scalarLPI {
                 }
         }
     }
+
+    /** `JsonCoder` for Java Integer. Encodes as a JSON number */
+    implicit lazy val javaIntegerJsonCoder = intJsonCoder.mapBijection(bijection (
+        (i: JavaInteger) => tryCatchValue(i.toInt): Result[Int],
+        (i: Int) => Okay(int2Integer(i)): Result[JavaInteger]
+    ))
 
     /** JsonCoder for Long. Encodes as a JSON number */
     implicit object longJsonCoder extends JsonCoder[Long] {
@@ -593,6 +606,12 @@ trait scalar extends scalarLPI {
         implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapBijection(datetime.sqlServer.javaSqlTimeBijection)
         implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapBijection(datetime.sqlServer.javaSqlTimestampBijection)
     }
+
+    /** `JsonCoder` for `org.joda.time.Duration`. Encodes as a JSON number */
+    implicit lazy val durationJsonCoder = longJsonCoder.mapBijection(bijection (
+        (d: Duration) => Okay(d.getMillis): Result[Long],
+        (d: Long)     => Okay(new Duration(d)): Result[Duration]
+    ))
 }
 
 trait scalarLPI { self: scalar =>

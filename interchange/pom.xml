@@ -24,8 +24,8 @@
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.paytronix.utils</groupId>
-    <artifactId>interchange</artifactId>
+    <groupId>com.paytronix.utils.interchange</groupId>
+    <artifactId>parent</artifactId>
     <packaging>pom</packaging>
     <version>16.0-emilybear-SNAPSHOT</version>
 

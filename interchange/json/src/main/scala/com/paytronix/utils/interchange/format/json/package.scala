@@ -900,7 +900,7 @@ trait JsonCoder[A] extends Coder[JsonEncoder, JsonDecoder, A, JsonFormat.type] {
      * Map a bijection (pair of kleislis `A => Result[B]` and `B => Result[A]`) over this coder pair, yielding a new coder pair for some
      * type `B` which can be bijected to the underlying type `A`.
      *
-     * For example, to make a `JsonCoder` that is encoded in Avro as a string but decodes to Scala as a sequence of space separated tokens:
+     * For example, to make a `JsonCoder` that is encoded in Json as a string but decodes to Scala as a sequence of space separated tokens:
      *
      *    val tokenizedStringJsonCoder = scalar.stringJsonCoder.mapBijection(bijection (
      *        (tokens: Seq[String]) => Okay(tokens.mkString(" ")),
