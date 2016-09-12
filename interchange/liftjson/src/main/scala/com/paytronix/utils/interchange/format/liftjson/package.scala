@@ -38,7 +38,7 @@ package object liftjson {
 
     /** Wrap a `JsonDecoder` with an additional operation to convert from a `JValue` */
     implicit class jsonDecoderOps[A](jsonDecoder: JsonDecoder[A]) {
-        /** Encode a value to a `JValue` */
+        /** Encode a `JValue` to a value */
         def fromJValue(in: JValue): Result[A] = {
             val rec = new Receiver[A]
             val par = new InterchangeLiftJsonParser(in)
