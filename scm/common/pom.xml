@@ -3,7 +3,7 @@
     <parent>
         <groupId>paytronix.utils.internal.scm</groupId>
         <artifactId>parent</artifactId>
-        <version>14.1-droop-SNAPSHOT</version>
+        <version>16.0-fozziebear-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -12,7 +12,7 @@
     <artifactId>common</artifactId>
     <packaging>jar</packaging>
     <name>Paytronix Internal Utils - SCM Common</name>
-    <version>14.1-droop-SNAPSHOT</version>
+    <version>16.0-fozziebear-SNAPSHOT</version>
 
     <build>
         <plugins>
