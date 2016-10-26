@@ -15,7 +15,7 @@ import com.paytronix.utils.scala.concurrent.ThreadLocal
 import com.paytronix.utils.scala.result.{Failed, Okay, Result, ResultG, parameter, tryCatch, tryCatching}
 
 object SoftwareVersion {
-    val pattern = "^([^.-]+)[\\.-]([^.-]+)(?:[\\.-]([^.-]+))?(?:-\\S+\\s+)?(?:[\\.-]?(\\S+))?$".r
+    val pattern = """^([^.]+)\.([^.-]+)(?:[.-]([^.-]+))?(?:-\S+\s+)?(?:[.-]?(\S+))?$""".r
     val logger = LoggerFactory.getLogger(classOf[SoftwareVersion])
 
     /** Extractor that extracts components from a `SoftwareVersion` rather than the original text */
