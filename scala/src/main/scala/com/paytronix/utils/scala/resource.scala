@@ -35,6 +35,9 @@ package object resource {
         implicit val SQLStatementCloseable = new Closeable[java.sql.Statement] {
             def close(statement: java.sql.Statement) = statement.close()
         }
+        implicit val ResultSetCloseable = new Closeable[java.sql.ResultSet] {
+            def close(rs: java.sql.ResultSet) = rs.close()
+        }
     }
 
     /** Close some closeable resource, possibly throwing any kind of hideous exception */
