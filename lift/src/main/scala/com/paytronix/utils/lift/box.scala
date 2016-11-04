@@ -88,6 +88,12 @@ object box
             case other   => logger.errorBox(msg, box); throw new NullPointerException(msg)
         }
 
+        /** Log a warn and throw a better labelled NPE unless the covered box is Full (in which case return the value) */
+        final def orWarnAndAbort(logger: Logger, msg: String): A = box match {
+            case Full(a) => a
+            case other   => logger.errorBox(msg, box); throw new NullPointerException(msg)
+        }
+
         /** For Empty or Failure boxes, log the given error text using debugBox */
         def orLogDebug(logger: Logger, msg: String): Box[A] = box match {
             case Full(_) => box
