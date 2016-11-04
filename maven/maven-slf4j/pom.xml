@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils.maven</groupId>
         <artifactId>parent</artifactId>
-        <version>14.1-droop-SNAPSHOT</version>
+        <version>16.0-airheads-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils.maven</groupId>
     <artifactId>maven-slf4j</artifactId>
     <packaging>jar</packaging>
-    <version>14.1-droop-SNAPSHOT</version>
+    <version>16.0-airheads-SNAPSHOT</version>
 
     <name>Paytronix Maven Utils - SLF4J Logging</name>
     <description>Library to allow logging via SLF4j from Maven plugins by using the Maven logger. Gratefully copied from https://github.com/carrot-garden/carrot-maven</description>
