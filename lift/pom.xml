@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>16.0-airheads-SNAPSHOT</version>
+        <version>16.0-emilybear-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>lift</artifactId>
     <packaging>jar</packaging>
-    <version>16.0-airheads-SNAPSHOT</version>
+    <version>16.0-emilybear-SNAPSHOT</version>
 
     <name>Paytronix Utils - Lift Support</name>
     <description>Library providing utilities for Lift, particularly for bridging interchange and ResultG with Lift's Box type.</description>
