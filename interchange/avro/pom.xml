@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils.interchange</groupId>
         <artifactId>parent</artifactId>
-        <version>16.0-emilybear-SNAPSHOT</version>
+        <version>16.0-airheads-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>interchange-avro</artifactId>
     <packaging>jar</packaging>
-    <version>16.0-emilybear-SNAPSHOT</version>
+    <version>16.0-airheads-SNAPSHOT</version>
 
     <name>Paytronix Utils - Interchange Avro</name>
     <description>Interchange library for transcoding objects to Avro</description>
