@@ -260,9 +260,11 @@ trait InterchangeJsonParser {
         }
 
     /** Skip past the current value, even if it's complicated */
-    def skipToEndOfValue(): CoderResult[Unit] =
+    def skipToEndOfValue(): CoderResult[Unit] = {
+        //println(s"skipToEndOfValue: currentToken=$currentToken, currentLocation=$currentLocation")
         tryCatchResultG(terminal) {
-            def go(depth: Int): Unit =
+            def go(depth: Int): Unit = {
+                //println(s"go: depth=$depth, currentToken=$currentToken, currentLocation=$currentLocation")
                 currentToken match {
                     case JsonToken.START_OBJECT|JsonToken.START_ARRAY =>
                         advanceTokenUnguarded().orThrow
@@ -280,9 +282,11 @@ trait InterchangeJsonParser {
                         advanceTokenUnguarded().orThrow
                         go(depth)
                 }
+            }
             go(0)
             Okay.unit
         }
+    }
 
     /**
      * While positioned at the start of an object, call the function for each field in the enclosed object.
@@ -436,7 +440,7 @@ object InterchangeJacksonJsonParser {
                 i += 1
                 b = b.next
             }
-            s"RecordBuffer($event, <location>, next=<$i more>)"
+            s"RecordBuffer($event, <location $location>, next=<$i more>)"
         }
     }
 }
@@ -510,18 +514,22 @@ final class InterchangeJacksonJsonParser(parser: JsonParser) extends Interchange
         if (!_didCheckMissingValue) sys.error("decoder should have checked whether a value was present prior to calling mark")
 
         val point =
-            if (_replaying == null) {
-                // marking while reading from the parser, so set the recording point and use that
-                _recording = _record()
-                _recording
-            } else {
+            if (_replaying != null) {
                 // marking while replaying, so just snap another copy of the replay point
                 _replaying
+            } else if (_recording != null) {
+                // we're already recording, so just mark the current recording point
+                _recording
+            } else {
+                // marking while reading from the parser, so set the recording point and use that
+                val buf = _record()
+                _recording = buf
+                buf
             }
 
         val m = new Mark(point)
         _activeMarks ::= m
-        //println(s"mark(): _recording = ${_recording} replaying = ${_replaying}, _activeMarks = ${_activeMarks}, mark = $m")
+        //println(s"mark(): _recording = ${_recording}, _replaying = ${_replaying}, _activeMarks = ${_activeMarks}, mark = $m")
         m
     }
 
@@ -553,6 +561,7 @@ final class InterchangeJacksonJsonParser(parser: JsonParser) extends Interchange
                 // but if there are active marks we should record what we just read and advance the recording point
                 val buf = _record()
                 _recording.next = buf
+                //println(s"_advance: appended new buf = $buf, _recording = ${_recording}")
                 _recording = buf
             } else {
                 // if no active marks, no reason to record so make sure to clear that
