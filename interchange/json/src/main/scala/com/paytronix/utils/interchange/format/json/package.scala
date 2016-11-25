@@ -591,6 +591,7 @@ final class InterchangeJacksonJsonParser(parser: JsonParser) extends Interchange
                     case JsonToken.START_OBJECT       => RecordedStartObject
                     case JsonToken.END_OBJECT         => RecordedEndObject
                     case JsonToken.FIELD_NAME         => RecordedFieldName(parser.getCurrentName)
+                    case null                         => null // null means EOF in the parser, so this is acceptable
                     case other => sys.error(s"unexpected JSON token $other that shouldn't show up for normal JSON parser")
                 }
 
