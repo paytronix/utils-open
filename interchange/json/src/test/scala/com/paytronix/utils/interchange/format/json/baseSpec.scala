@@ -29,7 +29,7 @@ class interchangeJsonParserTest extends SpecificationWithJUnit with JsonMatchers
             should fail to admit a token is current when a value has been marked missing $missingNegativeCase
             should correctly indicate a missing value $missingPositiveCase
             should record and replay tokens when peeking $markRewindCase
-            marking should not overwrite recording point when replaying $doubleMarkCase
+            marking should not overwrite recording point when replaying $doubleMarkRewindCase
             `peekFields` should work $peekFieldsCase
             `foreachFields` should work $foreachFieldsCase
             `skipToEndOfValue` should work for scalars $skipScalarCase
@@ -104,7 +104,7 @@ class interchangeJsonParserTest extends SpecificationWithJUnit with JsonMatchers
         ijp.advanceTokenUnguarded() >> ijp.require(null)
     } ==== Okay(())
 
-    def doubleMarkCase = withParser(""" [[1,2,3]] """) { ijp =>
+    def doubleMarkRewindCase = withParser(""" [[1,2,3]] """) { ijp =>
         def check[A](a: A, e: A): CoderResult[Unit] = unless(a == e)(ijp.unexpectedToken(s"$e (got $a)"))
         ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.START_ARRAY) >> {
             val m = ijp.mark()
@@ -114,12 +114,12 @@ class interchangeJsonParserTest extends SpecificationWithJUnit with JsonMatchers
                 ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.VALUE_NUMBER_INT) >> check(ijp.bigIntegerValue, new java.math.BigInteger("2")) >>
                 ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.VALUE_NUMBER_INT) >> check(ijp.bigIntegerValue, new java.math.BigInteger("3")) >>
                 ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.END_ARRAY) >>
-                { ijp.rewind(m2); Okay.unit } >> ijp.require(JsonToken.START_ARRAY)
+                { ijp.rewind(m2); Okay.unit } >> ijp.require(JsonToken.START_ARRAY) >>
                 ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.VALUE_NUMBER_INT) >> check(ijp.bigIntegerValue, new java.math.BigInteger("1")) >>
                 ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.VALUE_NUMBER_INT) >> check(ijp.bigIntegerValue, new java.math.BigInteger("2")) >>
                 ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.VALUE_NUMBER_INT) >> check(ijp.bigIntegerValue, new java.math.BigInteger("3")) >>
                 ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.END_ARRAY)
-            }
+            } >>
             { ijp.rewind(m); Okay.unit } >> ijp.require(JsonToken.START_ARRAY) >>
             ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.START_ARRAY) >>
             ijp.advanceTokenUnguarded() >> ijp.require(JsonToken.VALUE_NUMBER_INT) >> check(ijp.bigIntegerValue, new java.math.BigInteger("1")) >>
