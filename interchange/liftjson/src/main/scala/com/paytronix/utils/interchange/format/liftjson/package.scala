@@ -16,15 +16,22 @@
 
 package com.paytronix.utils.interchange.format
 
+import scala.collection.generic.CanBuildFrom
+import scala.collection.mutable.Builder
+import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.Stack
 
 import com.fasterxml.jackson.core.{JsonLocation, JsonParseException, JsonToken}
 import net.liftweb.json.JsonAST.{JValue, JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString, render}
 import net.liftweb.json.Printer.compact
 
+import com.paytronix.utils.interchange
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, Receiver, formatFailedPath}
-import com.paytronix.utils.interchange.format.json.{JsonEncoder, JsonDecoder, InterchangeJsonGenerator, InterchangeJsonParser}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue}
+import com.paytronix.utils.interchange.format.{json, string}
+import com.paytronix.utils.interchange.format.json.{JsonCoder, JsonDecoder, JsonEncoder, InterchangeJsonGenerator, InterchangeJsonParser}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue, tryCatchResultG}
+import json.coders.{booleanJsonCoder, doubleJsonCoder, intJsonCoder, jsonObjectCoder, jsonObjectEncoder, jsonObjectDecoder, jsonArrayCoder, optionJsonCoder, scalaBigDecimalJsonCoder, scalaBigIntJsonCoder, scalaEnumJsonCoder, stringJsonCoder}
+import string.coders.stringCoder
 
 package object liftjson {
     /** Wrap a `JsonEncoder` with an additional operation to convert to a `JValue` */
@@ -49,6 +56,84 @@ package object liftjson {
 
 package liftjson {
     /** Implementation of `InterchangeJsonGenerator` which produces a `JValue` */
+
+    object JsonCoders {
+        // This could've just used a derived adHocUnion coder except there's an infinitely recursive call stack
+        // involved with the adHocUnion logic and the wrapper coder logic used for JArrayCoder
+        implicit object JValueCoder extends JsonCoder[JValue] {
+            object decode extends JsonDecoder[JValue] {
+                val mightBeNull = true
+                val codesAsObject = false
+
+                def run(parser: InterchangeJsonParser, receiver: Receiver[JValue]): CoderResult[Unit] = {
+                    def tryParse[A <: JValue](decoder: JsonDecoder[A]): CoderResult[Unit] = {
+                        val subReceiver = new Receiver[A]
+                        parser.excursion(decoder.run(parser, subReceiver)) >>
+                        parser.skipToEndOfValue() >>
+                        receiver(subReceiver.value)
+                    }
+
+                    if (!parser.hasValue || parser.currentToken == JsonToken.VALUE_NULL) {
+                        receiver(JNull)
+                    } else {
+                        tryParse(jStringCoder.decode)
+                        .orElse(tryParse(jIntCoder.decode))
+                        .orElse(tryParse(jBoolCoder.decode))
+                        .orElse(tryParse(jDoubleCoder.decode))
+                        .orElse(tryParse(jArrayCoder.decode))
+                        .orElse(tryParse(jObjectCoder.decode))
+                    }
+                }
+            }
+
+            object encode extends JsonEncoder[JValue] {
+                val mightBeNull = true
+                val codesAsObject = false
+                def run(jValue: JValue, generator: json.InterchangeJsonGenerator): CoderResult[Unit] = {
+                    def tryEncode[A <: JValue](value: A, encoder: JsonEncoder[A]): CoderResult[Unit] = tryCatchResultG(interchange.base.terminal)(encoder.run(value, generator))
+
+                    jValue match {
+                        case jInt: JInt       => tryEncode(jInt,    jIntCoder.encode)
+                        case jBool: JBool     => tryEncode(jBool,   jBoolCoder.encode)
+                        case jDouble: JDouble => tryEncode(jDouble, jDoubleCoder.encode)
+                        case jString: JString => tryEncode(jString, jStringCoder.encode)
+                        case jArray: JArray   => tryEncode(jArray,  jArrayCoder.encode)
+                        case jObject: JObject => tryEncode(jObject, jObjectCoder.encode)
+                        case JNull|JNothing   => generator.writeNothingOrNull()
+                        case _                => FailedG(s"cannot encode value $jValue because it is not a valid JValue", interchange.base.CoderFailure.terminal)
+                    }
+                }
+            }
+        }
+
+        implicit val jArrayCoder:  JsonCoder[JArray]  = json.derive.wrapper.coder[JArray]
+        implicit val jBoolCoder:   JsonCoder[JBool]   = json.derive.wrapper.coder[JBool]
+        implicit val jDoubleCoder: JsonCoder[JDouble] = json.derive.wrapper.coder[JDouble]
+        implicit val jIntCoder:    JsonCoder[JInt]    = json.derive.wrapper.coder[JInt]
+        implicit val jStringCoder: JsonCoder[JString] = json.derive.wrapper.coder[JString]
+
+        /** `CanBuildFrom` for `JObject` to allow us to use jsonObjectDecoder so we don't have to roll our own */
+        def canBuildJObject = new CanBuildFrom[Nothing, (String, JValue), JObject] {
+            def apply() = new Builder[(String, JValue), JObject] {
+                val buf = new ListBuffer[JField]
+                def clear() = buf.clear()
+                def result() = JObject(buf.toList)
+                def += (p: (String, JValue)) = {
+                    buf += JField(p._1, p._2)
+                    this
+                }
+            }
+
+            def apply(from: Nothing) = apply()
+        }
+
+        implicit val jObjectCoder: JsonCoder[JObject] = {
+            val encoder = jsonObjectEncoder[String, JValue, JObject](_.obj.map(f => f.name -> f.value), string.StringEncoder[String], JValueCoder.encode)
+            val decoder = jsonObjectDecoder[String, JValue, JObject](canBuildJObject, string.StringDecoder[String], JValueCoder.decode)
+            json.JsonCoder.make(encoder, decoder)
+        }
+    }
+
     final class InterchangeLiftJsonGenerator extends InterchangeJsonGenerator {
         import InterchangeJsonGenerator._
 
