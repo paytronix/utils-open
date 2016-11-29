@@ -51,6 +51,8 @@ object coders {
                 if (!parser.hasValue || parser.currentToken == JsonToken.VALUE_NULL) {
                     receiver(JNull)
                 } else {
+                    // JString is first because it will only decode actual JSON strings, but the int, boolean, and double
+                    // coders will accept strings if they contain data that can be converted to the appropriate type
                     tryParse(jStringCoder.decode)
                     .orElse(tryParse(jIntCoder.decode))
                     .orElse(tryParse(jBoolCoder.decode))
