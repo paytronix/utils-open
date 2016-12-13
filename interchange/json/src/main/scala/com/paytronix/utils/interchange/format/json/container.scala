@@ -622,6 +622,24 @@ trait container extends containerLPI {
         }
     }
 
+    /** Coder which will only successfully encode or decode when in a secure context */
+    def secureOnlyJsonCoder[A](valueCoder: JsonCoder[A]): JsonCoder[A] =
+        secureOnlyJsonCoder(valueCoder.encode, valueCoder.decode)
+
+    /** Coder which will only successfully encode or decode when in a secure context */
+    def secureOnlyJsonCoder[A](implicit valueEncoder: JsonEncoder[A], valueDecoder: JsonDecoder[A]): JsonCoder[A] =
+        JsonCoder.make(insecureJsonEncoder[A], secureOnlyJsonDecoder[A])
+
+    def secureOnlyJsonDecoder[A](implicit valueDecoder: JsonDecoder[A]) =
+        new JsonDecoder[A] {
+            val mightBeNull = valueDecoder.mightBeNull
+            val codesAsObject = valueDecoder.codesAsObject
+
+            def run(in: InterchangeJsonParser, out: Receiver[A]) =
+                if (InsecureContext.get) FailedG("Invalid in insecure context", in.terminal)
+                else valueDecoder.run(in, out)
+        }
+
     /** Coder for values that should not be coded when in an insecure context and instead decode as a substitute value */
     def insecureJsonCoder[A](valueCoder: JsonCoder[A], substitute: A): JsonCoder[A] =
         insecureJsonCoder(substitute)(valueCoder.encode, valueCoder.decode)
