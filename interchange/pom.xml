@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>16.0-airheads-SNAPSHOT</version>
+        <version>17.0.20170202</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>interchange</artifactId>
     <packaging>jar</packaging>
-    <version>16.0-airheads-SNAPSHOT</version>
+    <version>17.0.20170202</version>
 
     <name>Paytronix Utils - Interchange</name>
     <description>Library which allows for reflection-based transcoding of Scala and Java objects to/from JSON, Avro, and MongoDB with minimal metadata.</description>
