@@ -52,7 +52,7 @@ final case class Wrapper[T] (
     end: EndMarker
 )
 
-object Helper extends SpecificationFeatures {
+object AvroTestHelpers {
     implicit val builder = new com.paytronix.utils.extendedreflection.Builder(getClass.getClassLoader)
 
     val clazz = classOf[Wrapper[_]]
@@ -68,6 +68,12 @@ object Helper extends SpecificationFeatures {
             ),
             flatten=false
         )
+}
+
+import AvroTestHelpers._
+
+trait AvroTestHelpers {
+    self: SpecificationFeatures =>
 
     def testDefaulting[T](contentCoder: ComposableCoder[T], default: T, validate: Option[ResultG[Any, T] => MatchResult[Any]] = None): MatchResult[Any] = {
         val coder = wrapperCoderFor(DefaultingCoder(contentCoder, default))
@@ -101,9 +107,7 @@ object Helper extends SpecificationFeatures {
     }
 }
 
-import Helper._
-
-class AvroScalarDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroScalarDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting for scalars" ^
     "JValue"           ! { testDefaulting(JValueCoder, JObject(List(JField("foo", JString("bar"))))) } ^
     "Unit"             ! { testDefaulting(UnitCoder, ()) } ^
@@ -122,13 +126,13 @@ class AvroScalarDefaultingSpecTest extends SpecificationWithJUnit { def is =
     "String"           ! { testDefaulting(StringCoder, "defaulted") }
 }
 
-class AvroArgumentDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroArgumentDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting for argument lists" ^
     "Flat argument list"   ! { testDefaulting(FlatArgumentArrayCoder(StringCoder, StringCoder), Array[AnyRef]("foo", "bar")) } ^
     "Normal argument list" ! { testDefaulting(ArgumentArrayCoder(false, List(ArgumentCoding("a", StringCoder), ArgumentCoding("b", StringCoder))), Array[AnyRef]("foo", "bar")) }
 }
 
-class AvroBytesDefaultingSpecTest extends SpecificationWithJUnit {
+class AvroBytesDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers {
     val bytes = Array[Byte](1, 2, 3, 4, 5, -120, -121, -122, -123, -124, -125)
 
     def is =
@@ -144,7 +148,7 @@ class AvroBytesDefaultingSpecTest extends SpecificationWithJUnit {
     }) }
 }
 
-class AvroCollectionDefaultingSpecTest extends SpecificationWithJUnit {
+class AvroCollectionDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers {
     val javaMap = {
         val m = new java.util.HashMap[String, Int]
         m.put("foo", 1)
@@ -164,7 +168,7 @@ class AvroCollectionDefaultingSpecTest extends SpecificationWithJUnit {
     "Scala mutable Maps"   ! { testDefaulting(ScalaMutableMapCoder(StringCoder, IntCoder), mutable.Map("foo" -> 1, "bar" -> 2)) }
 }
 
-class AvroDateTimeDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroDateTimeDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting for dates and times" ^
     "java.util.Date"              ! { testDefaulting(JavaDateCoder, new java.util.Date()) } ^
     "java.sql.Date"               ! { testDefaulting(JavaSqlDateCoder, new java.sql.Date(System.currentTimeMillis)) } ^
@@ -176,43 +180,43 @@ class AvroDateTimeDefaultingSpecTest extends SpecificationWithJUnit { def is =
     "org.joda.time.Duration"      ! { testDefaulting(DurationCoder, new org.joda.time.Duration(1234)) }
 }
 
-class AvroEnumDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroEnumDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting for enumerations" ^
     "Java enum"  ! { testDefaulting(JavaEnumCoder(classOf[JavaEnum]), JavaEnum.TWO) } ^
     "Scala enum" ! { testDefaulting(ScalaEnumCoder(ScalaEnum), ScalaEnum.TWO) }
 }
 
 object Singleton
-class AvroSingletonDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroSingletonDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting for singletons"  ^ "Singletons" ! { testDefaulting(SingletonCoder(Singleton), Singleton) }
 }
 
-class AvroMongoDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroMongoDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting of Mongo types" ^
     "org.bson.types.ObjectId" ! { testDefaulting(ObjectIdCoder, new org.bson.types.ObjectId()) }
 }
 
-class AvroObjectDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroObjectDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting of objects" ^
     "BasicClass" ! { testDefaulting(Coders.basicClassCoder, BasicClass.make(1234, null, None)) and
                      testDefaultingNotUsable(Coders.basicClassCoder, BasicClass.make(1234, null, Some("barbaz"))) and
                      testDefaultingNotUsable(Coders.basicClassCoder, BasicClass.make(1234, "foobar", None)) }
 }
 
-class AvroResultDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroResultDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting of Result" ^
     "Okay (not usable)" ! { testDefaultingNotUsable(ResultCoder(UnitCoder, IntCoder), Okay(123)) } ^
     "Failed" ! { testDefaulting(ResultCoder(UnitCoder, IntCoder), Failed("unknown failure")) }
 }
 
-class AvroTupleDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroTupleDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting of Tuples" ^
     "(Int)" ! { testDefaulting(Tuple1Coder(IntCoder), new Tuple1(123)) } ^
     "(Int, String)" ! { testDefaulting(Tuple2Coder(IntCoder, StringCoder), (123, "foobar")) } ^
     "(Int, String, Double)" ! { testDefaulting(Tuple3Coder(IntCoder, StringCoder, DoubleCoder), (123, "foobar", 12.34)) }
 }
 
-class AvroUnionDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroUnionDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting of unions" ^
     "Left(123): Either[Int, String]"                   ! { testDefaulting(EitherCoder(IntCoder, StringCoder), Left(123)) } ^
     "Right(\"foo\"): Either[Int, String] (not usable)" ! { testDefaultingNotUsable(EitherCoder(IntCoder, StringCoder), Right("foo")) } ^
@@ -222,7 +226,7 @@ class AvroUnionDefaultingSpecTest extends SpecificationWithJUnit { def is =
     "ExplicitUnionSecond"                              ! { testDefaultingNotUsable(Coders.explicitUnionCoder, ExplicitUnionSecond("foo")) }
 }
 
-class AvroWrapperDefaultingSpecTest extends SpecificationWithJUnit { def is =
+class AvroWrapperDefaultingSpecTest extends SpecificationWithJUnit with AvroTestHelpers { def is =
     "Avro defaulting of wrappers" ^
     "Mapped"               ! { testDefaulting(IntCoder.transform(i => Okay(CaseClass(i, null, None)))(cc => Okay(cc.foo)), CaseClass(1234, null, None)) } ^
     "null"                 ! { testDefaulting(NullCoder(StringCoder), null) } ^

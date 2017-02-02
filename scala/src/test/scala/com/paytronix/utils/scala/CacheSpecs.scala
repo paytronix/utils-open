@@ -1,6 +1,17 @@
 //
 // Copyright 2012 Paytronix Systems, Inc.
-// All Rights Reserved
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 
 package com.paytronix.utils.scala
@@ -16,7 +27,7 @@ import org.specs2.matcher.MatchResult
 import cache._
 import concurrent.atomicUpdate
 
-object LFUCacheTestFixtures extends SpecificationFeatures {
+object LFUCacheTestFixtures {
     def newLFU = new LFUCache[TestKey, TestValue](20, 0.25)
     def newIndexedLFU = new LFUCache[TestKey, TestValue](20, 0.25) {
         object byB extends Index(_.value.b)
@@ -27,16 +38,20 @@ object LFUCacheTestFixtures extends SpecificationFeatures {
 
     val tkey = TestKey("foo")
     val tvalue = TestValue("bar", "baz")
+}
+
+trait LFUCacheHelpers {
+    self: SpecificationFeatures =>
 
     def writerTests(s: String)(f: (LFUCache[_, _] => Unit, LFUCache[_, _] => Unit) => MatchResult[Any]) =
-        (s + " (neutral)") ! f(_ => (), _ => ()) ^
-        (s + " (pre-flush)") ! f(_.killWriter(), _ => ()) ^
-        (s + " (post-flush)") ! f(_ => (), _.waitForWriteQueueToEmpty())
+        (s + " (neutral)") ! f(_ => (), _ => ()).toResult ^
+        (s + " (pre-flush)") ! f(_.killWriter(), _ => ()).toResult ^
+        (s + " (post-flush)") ! f(_ => (), _.waitForWriteQueueToEmpty()).toResult
 }
 
 import LFUCacheTestFixtures._
 
-class LFUCacheBasicSpecTest extends SpecificationWithJUnit { def is =
+class LFUCacheBasicSpecTest extends SpecificationWithJUnit with LFUCacheHelpers { def is =
     "LFU Cache basics" ^
     "starts empty" ! { newLFU.byKey.valueMap must_== Map.empty } ^
     writerTests("store(single)") { (pre, post) =>
@@ -175,7 +190,7 @@ class LFUCacheBasicSpecTest extends SpecificationWithJUnit { def is =
     }
 }
 
-class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit { def is =
+class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit with LFUCacheHelpers { def is =
     "LFU Cache alternate indexes" ^
     "starts empty" ! { newIndexedLFU.byB.valueMap must_== Map.empty } ^
     writerTests("store(single)") { (pre, post) =>
@@ -316,7 +331,7 @@ class LFUCacheAlternateIndexSpecTest extends SpecificationWithJUnit { def is =
     }
 }
 
-class LFUCacheLoadSpecTest extends SpecificationWithJUnit {
+class LFUCacheLoadSpecTest extends SpecificationWithJUnit with LFUCacheHelpers {
     def loadTest(readers: Int, writers: Int) = {
         val runtime = 10 /* s */
         val keys = 50
@@ -417,7 +432,7 @@ class LFUCacheLoadSpecTest extends SpecificationWithJUnit {
         "many writers few readers" ! loadTest(1, 4)
 }
 
-class LFUCacheEvictionSpecTest extends SpecificationWithJUnit { def is =
+class LFUCacheEvictionSpecTest extends SpecificationWithJUnit with LFUCacheHelpers { def is =
     "LFU cache eviction" ^
     "should not evict prematurely" ! {
         val lfu = new LFUCache[Int, Int](20, 0.25)

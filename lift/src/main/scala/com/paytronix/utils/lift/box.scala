@@ -88,6 +88,12 @@ object box
             case other   => logger.errorBox(msg, box); throw new NullPointerException(msg)
         }
 
+        /** Log a warn and throw a better labelled NPE unless the covered box is Full (in which case return the value) */
+        final def orWarnAndAbort(logger: Logger, msg: String): A = box match {
+            case Full(a) => a
+            case other   => logger.warnBox(msg, box); throw new NullPointerException(msg)
+        }
+
         /** For Empty or Failure boxes, log the given error text using debugBox */
         def orLogDebug(logger: Logger, msg: String): Box[A] = box match {
             case Full(_) => box
@@ -110,6 +116,13 @@ object box
         def orLogError(logger: Logger, msg: String): Box[A] = box match {
             case Full(_) => box
             case _       => logger.errorBox(msg, box); box
+        }
+
+        /** For Empty or Failure boxes, log the given error text using errorBox after performing the specified cleanup behaviors */
+        def orLogErrorWithCleanup(logger: Logger, msg: String, cleanup: () => Unit): Box[A] = box match {
+            case Full(_) => box
+            case _       => cleanup()
+                            logger.errorBox(msg, box); box
         }
 
         // Aliases for orLog* that makes chaining orError and orLog* from SnippetHelpers more natural

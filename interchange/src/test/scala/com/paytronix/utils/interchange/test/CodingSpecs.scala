@@ -115,8 +115,9 @@ object CodingFixtures {
 
 import CodingFixtures._
 
-class CodingFrontendSpecTest extends SpecificationWithJUnit {
+class CodingFrontendSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is =
+        sequential ^
         "Coding frontend should" ^
         "support quick decode" ! resetCoding {
             Coding.decode[CaseClass](("foo" -> 1) ~ ("bar" -> "baz") ~ ("zip" -> "qux")) must_== Okay(CaseClass(1, "baz", Some("qux")))
@@ -126,11 +127,12 @@ class CodingFrontendSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class CoderDetectionSpecTest extends SpecificationWithJUnit {
+class CoderDetectionSpecTest extends SpecificationWithJUnit with MoreHelpers {
     import fixtures._
     import Coders._
 
     def is =
+        sequential ^
         "Coder detection should" ^
         "work for scalar types" ! resetCoding {
             { new BigIntTV().coder          must_== Okay(BigIntCoder) } and
@@ -268,15 +270,17 @@ class CoderDetectionSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class CoderRegistrationSpecTest extends SpecificationWithJUnit {
+class CoderRegistrationSpecTest extends SpecificationWithJUnit with MoreHelpers {
     import fixtures._
     import Coders._
 
+
     def is =
+        sequential ^
         "Coder registration should" ^
         "allow specific registration" ! resetCoding {
             val clazz = classOf[CaseClass]
-            Coding.register(clazz, Coding.registration("CaseClass", () => pojoClassCoder))
+            Coding.register(clazz, Coding.registration("CaseClass (POJO override from allow specific)", () => pojoClassCoder))
             builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(pojoClassCoder)
         } ^
         "override automatic reflection" ! resetCoding {
@@ -285,7 +289,7 @@ class CoderRegistrationSpecTest extends SpecificationWithJUnit {
             { builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(caseClassCoder) } and
             {
                 Cache.reset
-                Coding.register(clazz, Coding.registration("CaseClass", () => pojoClassCoder))
+                Coding.register(clazz, Coding.registration("CaseClass (POJO override from override automatic)", () => pojoClassCoder))
                 builder.typeRFor(clazz).flatMap(Coding.forTypeComposable(clazz.getClassLoader, _)) must_== Okay(pojoClassCoder)
             }
         } ^
@@ -298,11 +302,12 @@ class CoderRegistrationSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class CoderDiagnosticsSpecTest extends SpecificationWithJUnit {
+class CoderDiagnosticsSpecTest extends SpecificationWithJUnit with MoreHelpers {
     import Coders._
     val cl = this.getClass.getClassLoader
 
     def is =
+        sequential ^
         "Coder diagnostics should" ^
         "work for manual coding" ! {
             { Coder(cl, wrapperCoder).decode(JObject(Nil)) must beLike { case Failed.Message("At cc: required but missing") => ok } } and

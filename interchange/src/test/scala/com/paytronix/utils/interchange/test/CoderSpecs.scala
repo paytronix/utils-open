@@ -38,7 +38,7 @@ import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG}
 import ComposableCoder.CoderResult
 import Helpers._
 
-object MoreHelpers extends SpecificationFeatures {
+object MoreHelpers {
     val log = LoggerFactory.getLogger(getClass)
 
     val percentFormat = new DecimalFormat("#,##0.00")
@@ -48,6 +48,26 @@ object MoreHelpers extends SpecificationFeatures {
     val testObject = ("foo" -> 1) ~ ("bar" -> "baz") ~ ("zip" -> "qux")
 
     val testCollectionJValue = JArray(JString("one") :: JString("two") :: JString("three") :: Nil)
+
+    val byteMin  = BigInt(java.lang.Byte.MIN_VALUE.toString)
+    val byteMax  = BigInt(java.lang.Byte.MAX_VALUE.toString)
+    val intMin   = BigInt(java.lang.Integer.MIN_VALUE.toString)
+    val intMax   = BigInt(java.lang.Integer.MAX_VALUE.toString)
+    val longMin  = BigInt(java.lang.Long.MIN_VALUE.toString)
+    val longMax  = BigInt(java.lang.Long.MAX_VALUE.toString)
+    val shortMin = BigInt(java.lang.Short.MIN_VALUE.toString)
+    val shortMax = BigInt(java.lang.Short.MAX_VALUE.toString)
+
+    val simpleMapJValue = ("one" -> 1) ~ ("two" -> 2)
+    val simpleMapJValue2 = JArray((("key" -> "one") ~ ("value" -> 1)) :: (("key" -> "two") ~ ("value" -> 2)) :: Nil)
+    val complexMapJValue = JArray((("key" -> (("foo" -> "bar") ~ ("baz" -> 1))) ~ ("value" -> "foobarbaz1")) ::
+                                  (("key" -> (("qux" -> "foo") ~ ("zip" -> 1))) ~ ("value" -> "quxfoozip1")) :: Nil)
+}
+
+import MoreHelpers._
+
+trait MoreHelpers extends Helpers {
+    self: SpecificationFeatures =>
 
     def simpleTest[T] (
         name: String,
@@ -108,25 +128,9 @@ object MoreHelpers extends SpecificationFeatures {
                 }
             } else Nil
         )
-
-    val byteMin  = BigInt(java.lang.Byte.MIN_VALUE.toString)
-    val byteMax  = BigInt(java.lang.Byte.MAX_VALUE.toString)
-    val intMin   = BigInt(java.lang.Integer.MIN_VALUE.toString)
-    val intMax   = BigInt(java.lang.Integer.MAX_VALUE.toString)
-    val longMin  = BigInt(java.lang.Long.MIN_VALUE.toString)
-    val longMax  = BigInt(java.lang.Long.MAX_VALUE.toString)
-    val shortMin = BigInt(java.lang.Short.MIN_VALUE.toString)
-    val shortMax = BigInt(java.lang.Short.MAX_VALUE.toString)
-
-    val simpleMapJValue = ("one" -> 1) ~ ("two" -> 2)
-    val simpleMapJValue2 = JArray((("key" -> "one") ~ ("value" -> 1)) :: (("key" -> "two") ~ ("value" -> 2)) :: Nil)
-    val complexMapJValue = JArray((("key" -> (("foo" -> "bar") ~ ("baz" -> 1))) ~ ("value" -> "foobarbaz1")) ::
-                                  (("key" -> (("qux" -> "foo") ~ ("zip" -> 1))) ~ ("value" -> "quxfoozip1")) :: Nil)
 }
 
-import MoreHelpers._
-
-class JValueCoderSpecTest extends SpecificationWithJUnit {
+class JValueCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val coder = Coder(cl, JValueCoder)
     def is = simpleTest (
         name="JValueCoder",
@@ -139,7 +143,7 @@ class JValueCoderSpecTest extends SpecificationWithJUnit {
     "decode array values from MongoDB" ! { coder.decodeMongoDB("[2]") must_== Okay(JArray(List(JInt(BigInt(2))))) }
 }
 
-class UnitCoderSpecTest extends SpecificationWithJUnit {
+class UnitCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="UnitCoder",
         inst = Coder(cl, UnitCoder),
@@ -149,7 +153,7 @@ class UnitCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class JavaBigDecimalCoderSpecTest extends SpecificationWithJUnit {
+class JavaBigDecimalCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="JavaBigDecimalCoder",
         inst=Coder(cl, JavaBigDecimalCoder),
@@ -159,7 +163,7 @@ class JavaBigDecimalCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class ScalaBigDecimalCoderSpecTest extends SpecificationWithJUnit {
+class ScalaBigDecimalCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="ScalaBigDecimalCoder",
         inst=Coder(cl, ScalaBigDecimalCoder),
@@ -169,7 +173,7 @@ class ScalaBigDecimalCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class BigIntCoderSpecTest extends SpecificationWithJUnit {
+class BigIntCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="BigIntCoder",
         inst=Coder(cl, BigIntCoder),
@@ -179,7 +183,7 @@ class BigIntCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class BigIntegerCoderSpecTest extends SpecificationWithJUnit {
+class BigIntegerCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="BigIntegerCoder",
         inst=Coder(cl, BigIntegerCoder),
@@ -189,7 +193,7 @@ class BigIntegerCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class BooleanCoderSpecTest extends SpecificationWithJUnit {
+class BooleanCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="BooleanCoder",
         inst=Coder(cl, BooleanCoder),
@@ -199,7 +203,7 @@ class BooleanCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class ByteCoderSpecTest extends SpecificationWithJUnit {
+class ByteCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="ByteCoder",
         inst=Coder(cl, ByteCoder),
@@ -214,7 +218,7 @@ class ByteCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class CharCoderSpecTest extends SpecificationWithJUnit {
+class CharCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="CharCoder",
         inst=Coder(cl, CharCoder),
@@ -224,7 +228,7 @@ class CharCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class DoubleCoderSpecTest extends SpecificationWithJUnit {
+class DoubleCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="DoubleCoder",
         inst=Coder(cl, DoubleCoder),
@@ -234,7 +238,7 @@ class DoubleCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class IntCoderSpecTest extends SpecificationWithJUnit {
+class IntCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="IntCoder",
         inst=Coder(cl, IntCoder),
@@ -249,7 +253,7 @@ class IntCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class LongCoderSpecTest extends SpecificationWithJUnit {
+class LongCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="LongCoder",
         inst=Coder(cl, LongCoder),
@@ -264,7 +268,7 @@ class LongCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class ShortCoderSpecTest extends SpecificationWithJUnit {
+class ShortCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="ShortCoder",
         inst=Coder(cl, ShortCoder),
@@ -279,7 +283,7 @@ class ShortCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class StringCoderSpecTest extends SpecificationWithJUnit {
+class StringCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="StringCoder",
         inst=Coder(cl, StringCoder),
@@ -289,7 +293,7 @@ class StringCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class JavaDateCoderSpecTest extends SpecificationWithJUnit {
+class JavaDateCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testDate = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z").parse("2010-09-01 11:12:13 -0400")
     def is = simpleTest (
         name="JavaDateCoder",
@@ -310,7 +314,7 @@ class JavaDateCoderSpecTest extends SpecificationWithJUnit {
     "support ISO8601 format yyyy-mm-ddThh:mm:ss.sss+zzzz" ! { JavaDateCoder.decodeString(getClass.getClassLoader, "2010-09-01T19:12:13.000+0400") must_== Okay(testDate) }
 }
 
-class DateTimeCoderSpecTest extends SpecificationWithJUnit {
+class DateTimeCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testDate = ISODateTimeFormat.dateTime.parseDateTime("2010-09-01T11:12:13.000-0400")
     def is = simpleTest (
         name="DateTimeCoder",
@@ -331,7 +335,7 @@ class DateTimeCoderSpecTest extends SpecificationWithJUnit {
     "support ISO8601 format yyyy-mm-ddThh:mm:ss.sss+zzzz" ! { DateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T19:12:13.000+0400") must_== Okay(testDate) }
 }
 
-class LocalDateTimeSpecTest extends SpecificationWithJUnit {
+class LocalDateTimeSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testDate = ISODateTimeFormat.dateTime.parseLocalDateTime("2010-09-01T11:12:13.000Z")
     def is = simpleTest (
         name="LocalDateTime",
@@ -347,7 +351,7 @@ class LocalDateTimeSpecTest extends SpecificationWithJUnit {
     "support ISO8601 format yyyy-mm-ddThh:mm:ss.sss" ! { LocalDateTimeCoder.decodeString(getClass.getClassLoader, "2010-09-01T11:12:13.000") must_== Okay(testDate) }
 }
 
-class LocalDateCoderSpecTest extends SpecificationWithJUnit {
+class LocalDateCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testDate = ISODateTimeFormat.localDateParser.parseLocalDate("2010-09-01")
     def is = simpleTest (
         name="LocalDateCoder",
@@ -362,7 +366,7 @@ class LocalDateCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class LocalTimeCoderSpecTest extends SpecificationWithJUnit {
+class LocalTimeCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testTime = ISODateTimeFormat.localTimeParser.parseLocalTime("13:15:16")
     def is = simpleTest (
         name="LocalTimeCoder",
@@ -378,7 +382,7 @@ class LocalTimeCoderSpecTest extends SpecificationWithJUnit {
     "decode times without milliseconds" ! { LocalTimeCoder.decodeString(getClass.getClassLoader, "13:15:16") must_== Okay(testTime) }
 }
 
-class JavaSqlDateCoderSpecTest extends SpecificationWithJUnit {
+class JavaSqlDateCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="JavaSqlDateCoder",
         inst=Coder(cl, JavaSqlDateCoder),
@@ -394,7 +398,7 @@ class JavaSqlDateCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class JavaEnumCoderSpecTest extends SpecificationWithJUnit {
+class JavaEnumCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="JavaEnumCoder",
         inst=Coder(cl, fixtures.Coders.javaEnumCoder),
@@ -404,7 +408,7 @@ class JavaEnumCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class ScalaEnumCoderSpecTest extends SpecificationWithJUnit {
+class ScalaEnumCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is = simpleTest (
         name="ScalaEnumCoder",
         inst=Coder(cl, fixtures.Coders.scalaEnumCoder),
@@ -414,7 +418,7 @@ class ScalaEnumCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class InsecureCoderSpecTest extends SpecificationWithJUnit {
+class InsecureCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder = InsecureCoder(StringCoder, Failed("boom!"))
     def is =
         "InsecureCoder should" ^
@@ -435,7 +439,7 @@ class InsecureCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class FailCoderSpecTest extends SpecificationWithJUnit {
+class FailCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def is =
         "FailCoder should" ^
         "always fail properly" ! {
@@ -448,7 +452,7 @@ class FailCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class CollectionCoderSpecTest extends SpecificationWithJUnit {
+class CollectionCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder: CollectionCoder[String, Set[String]] = CollectionCoder(StringCoder)
     val testSet = Set("one", "two", "three")
 
@@ -465,7 +469,7 @@ class CollectionCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class JavaListCoderSpecTest extends SpecificationWithJUnit {
+class JavaListCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder = JavaListCoder(StringCoder)
     val testList = Arrays.asList("one", "two", "three")
 
@@ -482,7 +486,7 @@ class JavaListCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class JavaMapCoderSpecTest extends SpecificationWithJUnit {
+class JavaMapCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val simpleMapCoder = JavaMapCoder(StringCoder, IntCoder)
     val complexMapCoder = JavaMapCoder(JValueCoder, StringCoder)
 
@@ -518,7 +522,7 @@ class JavaMapCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class ScalaImmutableMapCoderSpecTest extends SpecificationWithJUnit {
+class ScalaImmutableMapCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val simpleMapCoder = ScalaImmutableMapCoder(StringCoder, IntCoder)
     val complexMapCoder = ScalaImmutableMapCoder(JValueCoder, StringCoder)
 
@@ -551,7 +555,7 @@ class ScalaImmutableMapCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class ScalaMutableMapCoderSpecTest extends SpecificationWithJUnit {
+class ScalaMutableMapCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val simpleMapCoder = ScalaMutableMapCoder(StringCoder, IntCoder)
     val complexMapCoder = ScalaMutableMapCoder(JValueCoder, StringCoder)
 
@@ -584,7 +588,7 @@ class ScalaMutableMapCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class NullCoderSpecTest extends SpecificationWithJUnit {
+class NullCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder = NullCoder(StringCoder)
 
     def is =
@@ -604,7 +608,7 @@ class NullCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class OptionCoderSpecTest extends SpecificationWithJUnit {
+class OptionCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder = OptionCoder(StringCoder)
     val nestedCoder = OptionCoder(OptionCoder(OptionCoder(StringCoder)))
     val nestedListCoder = OptionCoder(OptionCoder(OptionCoder(ScalaListCoder(StringCoder))))
@@ -667,7 +671,7 @@ class OptionCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class ResultCoderSpecTest extends SpecificationWithJUnit {
+class ResultCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder = ResultCoder(UnitCoder, StringCoder)
     val testUnitCoder = ResultCoder(UnitCoder, UnitCoder)
     val nestedCoder = ResultCoder(UnitCoder, ResultCoder(UnitCoder, ResultCoder(UnitCoder, StringCoder)))
@@ -821,7 +825,7 @@ class ResultCoderSpecTest extends SpecificationWithJUnit {
     )
 }
 
-class EitherCoderSpecTest extends SpecificationWithJUnit {
+class EitherCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder = EitherCoder(StringCoder, IntCoder)
 
     def is =
@@ -840,7 +844,7 @@ class EitherCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class AutomaticUnionCoderSpecTest extends SpecificationWithJUnit {
+class AutomaticUnionCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     import fixtures._
     import Coders._
 
@@ -866,7 +870,7 @@ class AutomaticUnionCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class ExplicitUnionCoderSpecTest extends SpecificationWithJUnit {
+class ExplicitUnionCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     import fixtures._
     import Coders._
 
@@ -904,7 +908,7 @@ class ExplicitUnionCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class ArgumentArrayCoderSpecTest extends SpecificationWithJUnit {
+class ArgumentArrayCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     val testCoder = ArgumentArrayCoder(false,
                                        ArgumentCoding("foo", IntCoder) ::
                                        ArgumentCoding("bar", NullCoder(StringCoder)) ::
@@ -960,7 +964,7 @@ class ArgumentArrayCoderSpecTest extends SpecificationWithJUnit {
         }
 }
 
-class ObjectCoderSpecTest extends SpecificationWithJUnit {
+class ObjectCoderSpecTest extends SpecificationWithJUnit with MoreHelpers {
     import fixtures._
     import Coders._
 

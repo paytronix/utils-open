@@ -1,6 +1,17 @@
 //
 // Copyright 2012 Paytronix Systems, Inc.
-// All Rights Reserved
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 
 package com.paytronix.utils.scala
@@ -239,6 +250,7 @@ object cache {
 
         /** Reference to the thread running the `CacheWriter`, kept around for `unpark`ing */
         private val writerThread = new Thread(writer, this.toString + " Writer")
+        writerThread.setDaemon(true)
         writerThread.start()
 
         /** Process a `Store` request while in the writer thread */
@@ -337,7 +349,9 @@ object cache {
         /** Unit test hook: restore the writer thread after `killWriter` */
         private[scala] def restoreWriter(): Unit = {
             writer.continue = true
-            new Thread(writer, "writer thread").start()
+            val newWriter = new Thread(writer, "writer thread")
+            newWriter.setDaemon(true)
+            newWriter.start()
         }
 
         /** Unit test hook: wait for any pending write queue entries to be processed to test behavior after entries have been folded back into the main maps */

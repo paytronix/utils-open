@@ -34,7 +34,7 @@ import com.paytronix.utils.scala.result.{Okay, parameter}
 import fixtures._
 import Helpers._
 
-class EndToEndSpecTest extends SpecificationWithJUnit {
+class EndToEndSpecTest extends SpecificationWithJUnit with MoreHelpers {
     def encodeAndDecode[T](in: T)(implicit m: Manifest[T]): SpecsResult =
         Coding.encode[T](in).flatMap(Coding.decode[T](_)) must_== Okay(in)
 

@@ -19,7 +19,7 @@ package com.paytronix.utils.interchange
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 
-import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JInt, JNothing, JNull, JString, JValue, render}
+import net.liftweb.json.JsonAST.{JArray, JBool, JDouble, JInt, JNothing, JNull, JObject, JString, JValue, render}
 import net.liftweb.json.JsonParser.parse
 import net.liftweb.json.Printer.compact
 import org.apache.avro.Schema
@@ -34,8 +34,13 @@ object JValueCoder extends ComposableCoder[JValue] {
 
     val mostSpecificClass = classOf[JValue]
 
-    def decode(classLoader: ClassLoader, in: JValue) = Okay(in)
-    def encode(classLoader: ClassLoader, in: JValue) = Okay(in)
+    def decode(classLoader: ClassLoader, in: JValue) =
+        in match {
+            case JNothing => FailedG("expected a value", Nil)
+            case _        => Okay(in)
+        }
+    def encode(classLoader: ClassLoader, in: JValue) =
+        Okay(in)
 
     def decodeString(classLoader: ClassLoader, in: String) =
         catchingCoderException(Okay(parse("[" + in + "]"))).flatMap {
@@ -62,6 +67,43 @@ object JValueCoder extends ComposableCoder[JValue] {
         encodeString(classLoader, in)
 
     override def toString = "JValueCoder"
+}
+
+object JObjectCoder extends ComposableCoder[JObject] {
+    import ComposableCoder.catchingCoderException
+
+    val mostSpecificClass = classOf[JObject]
+
+    def decode(classLoader: ClassLoader, in: JValue) =
+        in match {
+            case jo: JObject => Okay(jo)
+            case _ => FailedG("expected an object", Nil)
+        }
+
+    def encode(classLoader: ClassLoader, in: JObject) =
+        Okay(in)
+
+    def decodeString(classLoader: ClassLoader, in: String) =
+        JValueCoder.decodeString(classLoader, in) flatMap { decode(classLoader, _) }
+
+    def encodeString(classLoader: ClassLoader, in: JValue) =
+        JValueCoder.encodeString(classLoader, in)
+
+    lazy val avroSchema = JValueCoder.avroSchema
+    def decodeAvro(classLoader: ClassLoader, in: ResolvingDecoder) =
+        JValueCoder.decodeAvro(classLoader, in) flatMap { decode(classLoader, _) }
+    def encodeAvro(classLoader: ClassLoader, in: JObject, out: Encoder) =
+        JValueCoder.encodeAvro(classLoader, in, out)
+    def encodeAvroDefaultJson(classLoader: ClassLoader, in: JObject) =
+        JValueCoder.encodeAvroDefaultJson(classLoader, in)
+
+    def decodeMongoDB(classLoader: ClassLoader, in: AnyRef) =
+        JValueCoder.decodeMongoDB(classLoader, in) flatMap { decode(classLoader, _) }
+
+    def encodeMongoDB(classLoader: ClassLoader, in: JObject) =
+        JValueCoder.encodeMongoDB(classLoader, in)
+
+    override def toString = "JObjectCoder"
 }
 
 /** Unit coder, which codes the Unit */

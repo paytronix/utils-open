@@ -1,6 +1,17 @@
 //
 // Copyright 2013 Paytronix Systems, Inc.
-// All Rights Reserved
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 
 package com.paytronix.utils.interchange
@@ -18,8 +29,14 @@ import com.paytronix.utils.scala.result.{Okay, ResultG}
 
 import fixtures.{CaseClass, Coders}
 
-object Helper extends SpecificationFeatures {
+object Helper {
     val classLoader = getClass.getClassLoader
+}
+
+import Helper._
+
+trait Helper {
+    self: SpecificationFeatures =>
 
     def check(stream: Stream[ResultG[Any, CaseClass]]): MatchResult[Any] =
         stream.toList must_== List (
@@ -29,9 +46,8 @@ object Helper extends SpecificationFeatures {
         )
 }
 
-import Helper._
 
-class JSONArrayStreamSpecTest extends SpecificationWithJUnit {
+class JSONArrayStreamSpecTest extends SpecificationWithJUnit with Helper {
     val json = """
     [
         { "foo": 1 },
@@ -50,7 +66,7 @@ class JSONArrayStreamSpecTest extends SpecificationWithJUnit {
     }
 }
 
-class AvroStreamStreamSpecTest extends SpecificationWithJUnit {
+class AvroStreamStreamSpecTest extends SpecificationWithJUnit with Helper {
     val bytes =
         Coder(classLoader, Coders.caseClassCoder).encodeAvro(CaseClass(1, null, None)).orThrow ++
         Coder(classLoader, Coders.caseClassCoder).encodeAvro(CaseClass(2, null, None)).orThrow ++
@@ -64,7 +80,7 @@ class AvroStreamStreamSpecTest extends SpecificationWithJUnit {
     }
 }
 
-class AvroArrayStreamSpecTest extends SpecificationWithJUnit {
+class AvroArrayStreamSpecTest extends SpecificationWithJUnit with Helper {
     val bytes = {
         val baos = new ByteArrayOutputStream()
         val encoder = EncoderFactory.get.directBinaryEncoder(baos, null)
