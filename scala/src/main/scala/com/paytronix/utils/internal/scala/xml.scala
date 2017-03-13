@@ -45,18 +45,18 @@ object xml {
         sb.toString
     }
 
-
-    def willAmpPoundCompile(content: String): Boolean = {
+    /** Checks a string of XHTML for invalid unicode characters that would blow up when passed to XhtmlParser */
+    private def invalidCharacterPresent(content: String): Boolean = {
         //Check for a &# that doesn't have a semicolon within the next 6 chars
         val noSemicolonPattern = Pattern.compile("""&#[^;]{6}""")
         if(noSemicolonPattern.matcher(content).find()) {
-            return false
+            return true
         }
 
         //Check for a &# following the closing html tag
         val ampPoundAtEndPattern = Pattern.compile("""&#.{0,6}$""")
         if(ampPoundAtEndPattern.matcher(content).find()) {
-            return false
+            return true
         }
 
         val ampSemicolonSandwiches = """&#.{0,6};""".r.findAllIn(content.toCharArray).toList
@@ -67,16 +67,16 @@ object xml {
 
             //Return false if content is not a digit or doesn't start with an 'x'
             if (!meat.matches("""\d*""") && !meat.startsWith("""x""")) {
-                return false
+                return true
 
             } 
             //If content starts with an x and is followed by non hexadecimals, return false
             else if (meat.startsWith("""x""")) {
-                if (!meat.matches("""^x[0-9A-Fa-f]+$""")) return false
+                if (!meat.matches("""^x[0-9A-Fa-f]+$""")) return true
             }
         }
 
-        return true
+        return false
     }
 
     /** Turn a string containing an XHTML fragment into a `NodeSeq` */
@@ -85,7 +85,7 @@ object xml {
 
     /** Turn a string containing XHTML into XML while logging all the errors */
     def stringToXhtml(s: String): ParseResult[NodeSeq] = 
-        if(!willAmpPoundCompile(s)) ParseFailed(Seq(ParseError.Unlocated("Invalid unicode character beginning with '&#'")))
+        if(invalidCharacterPresent(s)) ParseFailed(Seq(ParseError.Unlocated("Invalid unicode character beginning with '&#'")))
         else charsToXhtml(() => s.iterator)
     
     /** Turn a stream containing XHTML into XML while logging all the errors */
@@ -280,7 +280,7 @@ object xml {
             case _                                          => None
         }
 
-        if(!willAmpPoundCompile(html)) ParseFailed(Seq(ParseError.Unlocated("Invalid unicode character beginning with '&#'")))
+        if(invalidCharacterPresent(html)) ParseFailed(Seq(ParseError.Unlocated("Invalid unicode character beginning with '&#'")))
         else charsToXhtml(() => html.iterator) match {
             case ParseSucceeded(nodeSeq)  => ParseSucceeded(new NodeSeqWithDocType(docType, nodeSeq))
             case ParseFailed(errors)      => ParseFailed(errors)
