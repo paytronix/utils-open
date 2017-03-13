@@ -7,6 +7,7 @@ package com.paytronix.utils.internal.scala
 
 import java.io.{InputStream, InputStreamReader, PrintStream}
 import java.nio.charset.Charset
+import java.util.regex.{Matcher, Pattern}
 import scala.collection.immutable
 import scala.collection.mutable.ListBuffer
 import scala.io.{Position, Source}
@@ -44,14 +45,49 @@ object xml {
         sb.toString
     }
 
+
+    def willAmpPoundCompile(content: String): Boolean = {
+        //Check for a &# that doesn't have a semicolon within the next 6 chars
+        val noSemicolonPattern = Pattern.compile("""&#[^;]{6}""")
+        if(noSemicolonPattern.matcher(content).find()) {
+            return false
+        }
+
+        //Check for a &# following the closing html tag
+        val ampPoundAtEndPattern = Pattern.compile("""&#.{0,6}$""")
+        if(ampPoundAtEndPattern.matcher(content).find()) {
+            return false
+        }
+
+        val ampSemicolonSandwiches = """&#.{0,6};""".r.findAllIn(content.toCharArray).toList
+
+        //Check that the content between the &# and the ;
+        for (sandwich <- ampSemicolonSandwiches) {
+            val meat = sandwich.substring(2, sandwich.length - 1)
+
+            //Return false if content is not a digit or doesn't start with an 'x'
+            if (!meat.matches("""\d*""") && !meat.startsWith("""x""")) {
+                return false
+
+            } 
+            //If content starts with an x and is followed by non hexadecimals, return false
+            else if (meat.startsWith("""x""")) {
+                if (!meat.matches("""^x[0-9A-Fa-f]+$""")) return false
+            }
+        }
+
+        return true
+    }
+
     /** Turn a string containing an XHTML fragment into a `NodeSeq` */
     def stringToXhtmlFragment(s: String): ParseResult[NodeSeq] =
         stringToXhtml("<body>" + s.toString + "</body>").map(_.flatMap(_.child))
 
     /** Turn a string containing XHTML into XML while logging all the errors */
-    def stringToXhtml(s: String): ParseResult[NodeSeq] =
-        charsToXhtml(() => s.iterator)
-
+    def stringToXhtml(s: String): ParseResult[NodeSeq] = 
+        if(!willAmpPoundCompile(s)) ParseFailed(Seq(ParseError.Unlocated("Invalid unicode character beginning with '&#'")))
+        else charsToXhtml(() => s.iterator)
+    
     /** Turn a stream containing XHTML into XML while logging all the errors */
     def streamToXhtml(is: InputStream): ParseResult[NodeSeq] = {
         /*
@@ -244,7 +280,8 @@ object xml {
             case _                                          => None
         }
 
-        charsToXhtml(() => html.iterator) match {
+        if(!willAmpPoundCompile(html)) ParseFailed(Seq(ParseError.Unlocated("Invalid unicode character beginning with '&#'")))
+        else charsToXhtml(() => html.iterator) match {
             case ParseSucceeded(nodeSeq)  => ParseSucceeded(new NodeSeqWithDocType(docType, nodeSeq))
             case ParseFailed(errors)      => ParseFailed(errors)
         }
