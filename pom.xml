@@ -8,7 +8,7 @@
     <groupId>paytronix.utils.internal</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>17.0-gonzo-SNAPSHOT</version>
+    <version>17.1-honeydewbunsen-SNAPSHOT</version>
 
     <name>Paytronix Internal Utils - Parent</name>
 
