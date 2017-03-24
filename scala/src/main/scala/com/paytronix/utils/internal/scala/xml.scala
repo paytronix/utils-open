@@ -47,8 +47,8 @@ object xml {
 
     /** Checks a string of XHTML for invalid unicode characters that would blow up when passed to XhtmlParser */
     private def invalidCharacterPresent(content: String): Boolean = {
-        //Check for a &# that doesn't have a semicolon within the next 6 chars
-        val noSemicolonPattern = Pattern.compile("""&#[^;]{6}""")
+        //Check for a &# that doesn't have a semicolon within the next 10 chars
+        val noSemicolonPattern = Pattern.compile("""&#[^;]{11}""")
         if(noSemicolonPattern.matcher(content).find()) {
             return true
         }
@@ -59,7 +59,7 @@ object xml {
             return true
         }
 
-        val ampSemicolonSandwiches = """&#.{0,6};""".r.findAllIn(content.toCharArray).toList
+        val ampSemicolonSandwiches = """&#.{0,10};""".r.findAllIn(content.toCharArray).toList
 
         //Check that the content between the &# and the ;
         for (sandwich <- ampSemicolonSandwiches) {
