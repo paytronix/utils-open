@@ -29,14 +29,14 @@
     <packaging>jar</packaging>
     <version>16.0-emilybear-SNAPSHOT</version>
 
-    <name>Paytronix Maven Utils - SLF4J Logging</name>
+<!--     <name>Paytronix Maven Utils - SLF4J Logging</name>
     <description>Library to allow logging via SLF4j from Maven plugins by using the Maven logger. Gratefully copied from https://github.com/carrot-garden/carrot-maven</description>
     <licenses>
         <license>
             <name>OSI BSD</name>
             <url>http://www.opensource.org/licenses/bsd-license.php</url>
         </license>
-    </licenses>
+    </licenses> -->
 
     <name>Paytronix Utils - Interchange Avro</name>
     <description>Interchange library for transcoding objects to Avro</description>

@@ -16,7 +16,7 @@
 
 package com.paytronix.utils.interchange.format.json
 
-import java.lang.{Boolean => JavaBoolean, Integer => JavaInteger}
+import java.lang.{Boolean => JavaBoolean, Integer => JavaInteger, Long => JavaLong}
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
@@ -230,6 +230,12 @@ trait scalar extends scalarLPI {
                 }
         }
     }
+
+    /** `JsonCoder` for Java Long. Encodes as a JSON number */
+    implicit lazy val javaLongJsonCoder = longJsonCoder.mapBijection(bijection (
+        (i: JavaLong) => tryCatchValue(i.toLong): Result[Long],
+        (i: Long) => Okay(long2Long(i)): Result[JavaLong]
+    ))
 
     /** JsonCoder for Float. Encodes as a JSON number */
     implicit object floatJsonCoder extends JsonCoder[Float] {
