@@ -16,21 +16,15 @@
 
 package com.paytronix.utils.interchange.format
 
-import scala.collection.generic.CanBuildFrom
-import scala.collection.mutable.Builder
-import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.Stack
 
 import com.fasterxml.jackson.core.{JsonLocation, JsonParseException, JsonToken}
 import net.liftweb.json.JsonAST.{JValue, JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString, render}
 import net.liftweb.json.Printer.compact
 
-import com.paytronix.utils.interchange
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, Receiver, formatFailedPath}
-import com.paytronix.utils.interchange.format.{json, string}
-import com.paytronix.utils.interchange.format.json.{JsonCoder, JsonDecoder, JsonEncoder, InterchangeJsonGenerator, InterchangeJsonParser}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue, tryCatchResultG}
-import json.coders.{booleanJsonCoder, doubleJsonCoder, intJsonCoder, jsonObjectCoder, jsonObjectEncoder, jsonObjectDecoder, jsonArrayCoder, optionJsonCoder, scalaBigDecimalJsonCoder, scalaBigIntJsonCoder, scalaEnumJsonCoder, stringJsonCoder}
+import com.paytronix.utils.interchange.format.json.{JsonDecoder, JsonEncoder, InterchangeJsonGenerator, InterchangeJsonParser}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue}
 import string.coders.stringCoder
 
 package object liftjson {

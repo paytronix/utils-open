@@ -24,8 +24,8 @@ import scala.reflect.macros.whitebox.Context
  */
 class resultMacros(val c: Context) {
     import c.universe.{
-        ConstantType, ConstantTypeTag, EmptyTree, FunctionTag, NoSymbol, Quasiquote, TermName,
-        Tree, TreeTag, TypeNameTag, TypeRef, TypeRefTag, TypeTree, TypeTreeTag, ValDef, WeakTypeTag
+        ConstantType, ConstantTypeTag, Quasiquote, TermName,
+        Tree, TreeTag, TypeNameTag, TypeRef, TypeRefTag
     }
 
     val okay = q"com.paytronix.utils.scala.result.Okay"

@@ -17,13 +17,13 @@
 package com.paytronix.utils.interchange.format.json
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters.{asScalaBufferConverter, mapAsScalaMapConverter}
+import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaSetConverter, mapAsScalaMapConverter}
 import scala.collection.generic.CanBuildFrom
 
 import com.fasterxml.jackson.core.JsonToken
 
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InsecureContext, InterchangeClassLoader, Receiver, terminal}
-import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSortedMap}
+import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSet, canBuildJavaSortedMap}
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.concurrent.ThreadLocal
@@ -685,6 +685,23 @@ trait container extends containerLPI {
     /** Decoder for `java.util.List`. Decodes from a JSON array */
     def javaListJsonDecoder[E](implicit elemDecoder: JsonDecoder[E]): JsonDecoder[java.util.List[E]] =
         jsonArrayDecoder[E, java.util.List[E]](canBuildJavaList, elemDecoder)
+
+
+     /** Coder for `java.util.List`. Encodes as a JSON array */
+    def javaSetJsonCoder[E](elemCoder: JsonCoder[E]): JsonCoder[java.util.Set[E]] =
+        javaSetJsonCoder(elemCoder.encode, elemCoder.decode)
+
+    /** Coder for `java.util.Set`. Encodes as a JSON array */
+    implicit def javaSetJsonCoder[E](implicit elemEncoder: JsonEncoder[E], elemDecoder: JsonDecoder[E]): JsonCoder[java.util.Set[E]] =
+        JsonCoder.make(javaSetJsonEncoder[E], javaSetJsonDecoder[E])
+
+    /** Encoder for `java.util.Set`. Encodes as a JSON array */
+    def javaSetJsonEncoder[E](implicit elemEncoder: JsonEncoder[E]): JsonEncoder[java.util.Set[E]] =
+        jsonArrayEncoder[E, java.util.Set[E]](_.asScala, elemEncoder)
+
+    /** Decoder for `java.util.Set`. Decodes from a JSON array */
+    def javaSetJsonDecoder[E](implicit elemDecoder: JsonDecoder[E]): JsonDecoder[java.util.Set[E]] =
+        jsonArrayDecoder[E, java.util.Set[E]](canBuildJavaSet, elemDecoder)
 
     // FIXME? map encoding allocates 2-tuples for each element as it iterates
 

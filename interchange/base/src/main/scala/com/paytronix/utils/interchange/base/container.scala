@@ -61,6 +61,18 @@ object javaCollections {
         def apply(from: Nothing) = apply()
     }
 
+    /** `CanBuildFrom` for `java.util.Set` */
+     def canBuildJavaSet[E] = new CanBuildFrom[Nothing, E, java.util.Set[E]] {
+        def apply() = new mutable.Builder[E, java.util.Set[E]] {
+            val js = new java.util.HashSet[E]
+            def clear() = js.clear()
+            def result() = js
+            def += (e: E) = { js.add(e); this }
+        }
+
+        def apply(from: Nothing) = apply()
+    }
+
     /** `CanBuildFrom` for `java.util.Map` */
     def canBuildJavaMap[K, V] = new CanBuildFrom[Nothing, (K, V), java.util.Map[K, V]] {
         def apply() = new mutable.Builder[(K, V), java.util.Map[K, V]] {
