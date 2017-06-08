@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonToken
 
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InsecureContext, InterchangeClassLoader, Receiver, terminal}
 import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSet, canBuildJavaSortedMap}
+import com.paytronix.utils.interchange.base.container.scalaIterable.canBuildScalaList
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.concurrent.ThreadLocal
@@ -718,6 +719,38 @@ trait container extends containerLPI {
     /** Decoder for `java.util.Collection`. Decodes from a JSON array */
     def javaCollectionJsonDecoder[E](implicit elemDecoder: JsonDecoder[E]): JsonDecoder[java.util.Collection[E]] =
         jsonArrayDecoder[E, java.util.Collection[E]](canBuildJavaSet, elemDecoder)
+
+    /** Coder for `Iterable`. Encodes as a JSON array */
+    def iterableJsonCoder[E](elemCoder: JsonCoder[E]): JsonCoder[Iterable[E]] =
+        iterableJsonCoder(elemCoder.encode, elemCoder.decode)
+
+    /** Coder for `Iterable`. Encodes as a JSON array */
+    implicit def iterableJsonCoder[E](implicit elemEncoder: JsonEncoder[E], elemDecoder: JsonDecoder[E]): JsonCoder[Iterable[E]] =
+        JsonCoder.make(iterableJsonEncoder[E], iterableJsonDecoder[E])
+
+    /** Encoder for `Iterable`. Encodes as a JSON array */
+    def iterableJsonEncoder[E](implicit elemEncoder: JsonEncoder[E]): JsonEncoder[Iterable[E]] =
+        jsonArrayEncoder[E, Iterable[E]](_.iterable, elemEncoder)
+
+    /** Decoder for `Iterable`. Decodes from a JSON array */
+    def iterableJsonDecoder[E](implicit elemDecoder: JsonDecoder[E]): JsonDecoder[Iterable[E]] =
+        jsonArrayDecoder[E, Iterable[E]](canBuildScalaList, elemDecoder)
+
+    /** Coder for `List`. Encodes as a JSON array */
+    def listJsonCoder[E](elemCoder: JsonCoder[E]): JsonCoder[List[E]] =
+        listJsonCoder(elemCoder.encode, elemCoder.decode)
+
+    /** Coder for `List`. Encodes as a JSON array */
+    implicit def listJsonCoder[E](implicit elemEncoder: JsonEncoder[E], elemDecoder: JsonDecoder[E]): JsonCoder[List[E]] =
+        JsonCoder.make(listJsonEncoder[E], listJsonDecoder[E])
+
+    /** Encoder for `List`. Encodes as a JSON array */
+    def listJsonEncoder[E](implicit elemEncoder: JsonEncoder[E]): JsonEncoder[List[E]] =
+        jsonArrayEncoder[E, List[E]](_.toList, elemEncoder)
+
+    /** Decoder for `List`. Decodes from a JSON array */
+    def listJsonDecoder[E](implicit elemDecoder: JsonDecoder[E]): JsonDecoder[List[E]] =
+        jsonArrayDecoder[E, List[E]](canBuildScalaList, elemDecoder)
 
     // FIXME? map encoding allocates 2-tuples for each element as it iterates
 

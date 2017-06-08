@@ -18,10 +18,11 @@ package com.paytronix.utils.interchange.base.container
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
-
 import com.paytronix.utils.interchange.base.{InsecureContext, InterchangeClassLoader}
 import com.paytronix.utils.scala.reflection.classByName
 import com.paytronix.utils.scala.result.{Okay, Result, tryCatchValue, tryCatchingValue}
+
+import scala.collection.mutable.ListBuffer
 
 object result {
     def instantiateThrowable (
@@ -92,6 +93,20 @@ object javaCollections {
             def clear() = jm.clear()
             def result() = jm
             def += (p: (K, V)) = { jm.put(p._1, p._2); this }
+        }
+
+        def apply(from: Nothing) = apply()
+    }
+}
+
+object scalaIterable {
+    /** `CanBuildFrom` for `Scala List` */
+    def canBuildScalaList[E] = new CanBuildFrom[Nothing, E, List[E]] {
+        def apply() = new mutable.Builder[E, List[E]] {
+            val sl = new ListBuffer[E]
+            def clear() = sl.clear()
+            def result() = sl.result()
+            def += (e: E) = { sl += e; this }
         }
 
         def apply(from: Nothing) = apply()
