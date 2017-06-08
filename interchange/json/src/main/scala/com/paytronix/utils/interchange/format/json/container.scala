@@ -24,7 +24,6 @@ import com.fasterxml.jackson.core.JsonToken
 
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InsecureContext, InterchangeClassLoader, Receiver, terminal}
 import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSet, canBuildJavaSortedMap}
-import com.paytronix.utils.interchange.base.container.scalaIterable.canBuildScalaList
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.concurrent.ThreadLocal
