@@ -17,7 +17,7 @@
 package com.paytronix.utils.interchange.format.json
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaSetConverter, mapAsScalaMapConverter}
+import scala.collection.JavaConverters.{asJavaCollectionConverter, asScalaBufferConverter, asScalaSetConverter, collectionAsScalaIterableConverter, mapAsScalaMapConverter}
 import scala.collection.generic.CanBuildFrom
 
 import com.fasterxml.jackson.core.JsonToken
@@ -702,6 +702,22 @@ trait container extends containerLPI {
     /** Decoder for `java.util.Set`. Decodes from a JSON array */
     def javaSetJsonDecoder[E](implicit elemDecoder: JsonDecoder[E]): JsonDecoder[java.util.Set[E]] =
         jsonArrayDecoder[E, java.util.Set[E]](canBuildJavaSet, elemDecoder)
+
+    /** Coder for `java.util.Collection`. Encodes as a JSON array */
+    def javaCollectionJsonCoder[E](elemCoder: JsonCoder[E]): JsonCoder[java.util.Collection[E]] =
+        javaCollectionJsonCoder(elemCoder.encode, elemCoder.decode)
+
+    /** Coder for `java.util.Collection`. Encodes as a JSON array */
+    implicit def javaCollectionJsonCoder[E](implicit elemEncoder: JsonEncoder[E], elemDecoder: JsonDecoder[E]): JsonCoder[java.util.Collection[E]] =
+        JsonCoder.make(javaCollectionJsonEncoder[E], javaCollectionJsonDecoder[E])
+
+    /** Encoder for `java.util.Collection`. Encodes as a JSON array */
+    def javaCollectionJsonEncoder[E](implicit elemEncoder: JsonEncoder[E]): JsonEncoder[java.util.Collection[E]] =
+        jsonArrayEncoder[E, java.util.Collection[E]](_.asScala, elemEncoder)
+
+    /** Decoder for `java.util.Collection`. Decodes from a JSON array */
+    def javaCollectionJsonDecoder[E](implicit elemDecoder: JsonDecoder[E]): JsonDecoder[java.util.Collection[E]] =
+        jsonArrayDecoder[E, java.util.Collection[E]](canBuildJavaSet, elemDecoder)
 
     // FIXME? map encoding allocates 2-tuples for each element as it iterates
 
