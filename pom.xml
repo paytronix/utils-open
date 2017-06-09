@@ -234,6 +234,8 @@
                 <artifactId>validation</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- SCALAUPGRADE Remove me after you've removed boxes pls -->
+             <dependency><groupId>net.liftweb</groupId><artifactId>lift-common_2.11</artifactId><version>2.6</version></dependency>
         </dependencies>
     </dependencyManagement>
 
