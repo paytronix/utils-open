@@ -284,6 +284,9 @@ Type: $tpe
             val tpe            = psyms.head.tpe
             val getters        = psyms.list.collect { case g: Getter => g }
             val setters        = psyms.list.collect { case s: Setter => s }
+            // Just as a note, constructor argument terms will never be found for Java classes,
+            // as the constructor argument names are not preserved and are given names like
+            // x$1, x$2, x$3, etc. -- I don't know why this is.
             val ctorArgTermOpt = constructorArgumentTerms.get(name).filter(_.typeSignature =:= tpe)
             val fieldTermOpt   = fieldTerms.get(name)
 
