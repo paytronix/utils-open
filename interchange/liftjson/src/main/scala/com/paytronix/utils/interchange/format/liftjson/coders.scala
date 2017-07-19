@@ -19,17 +19,21 @@ package com.paytronix.utils.interchange.format.liftjson
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.Builder
 import scala.collection.mutable.ListBuffer
+import com.paytronix.utils.scala.reflection.classByName
+import java.lang.ClassLoader
 
 import com.fasterxml.jackson.core.JsonToken
 import net.liftweb.json.JsonAST.{JValue, JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString}
 
 import com.paytronix.utils.interchange
-import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, Receiver}
+import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, Receiver,InsecureContext,InterchangeClassLoader}
 import com.paytronix.utils.interchange.format.{json, string}
 import com.paytronix.utils.interchange.format.json.{JsonCoder, JsonDecoder, JsonEncoder, InterchangeJsonGenerator, InterchangeJsonParser}
-import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchResultG}
+import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchResultG,ResultG}
+import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import json.coders.{booleanJsonCoder, doubleJsonCoder, intJsonCoder, jsonObjectCoder, jsonObjectEncoder, jsonObjectDecoder, jsonArrayCoder, scalaBigIntJsonCoder, stringJsonCoder}
 import string.coders.stringCoder
+
 
 /** `JsonCoder`s to convert raw JSON into happy `JValue` types */
 object coders {
@@ -110,4 +114,216 @@ object coders {
         val decoder = jsonObjectDecoder[String, JValue, JObject](canBuildJObject, string.StringDecoder[String], jValueCoder.decode)
         json.JsonCoder.make(encoder, decoder)
     }
+
+    //SCALAUPGRADE Please remove me after you've decided to use ResultG instead instead of Boxes. Seriously things will break with this coder the way it is...
+    import net.liftweb.common.{Box, Full, Empty,Failure, ParamFailure,EmptyBox}
+    /**
+     * Coder for `Box[A]`.
+     *
+     * Encodes as `null`/nothing or the value if the value will not be null, `null`/nothing or a
+     * single element array if the value might be encoded as `null`.
+     * See the discussion of `mightBeNull` on `JsonEncoderOrDecoder` for more about the specifics of nested `null`-like codings.
+     */
+    def boxJsonCoder[A](valueCoder: JsonCoder[A]): JsonCoder[Box[A]] =
+        boxJsonCoder[A](valueCoder.encode, valueCoder.decode)
+
+    /**
+     * Coder for `Box[A]`.
+     *
+     * Encodes as `null`/nothing or the value if the value will not be null, `null`/nothing or a
+     * single element array if the value might be encoded as `null`.
+     * See the discussion of `mightBeNull` on `JsonEncoderOrDecoder` for more about the specifics of nested `null`-like codings.
+     */
+    implicit def boxJsonCoder[A](implicit valueEncoder: JsonEncoder[A], valueDecoder: JsonDecoder[A]): JsonCoder[Box[A]] =
+        JsonCoder.make(boxJsonEncoder(valueEncoder), boxJsonDecoder(valueDecoder))
+
+    /**
+     * Encoder for `Box[A]`.
+     *
+     * Encodes as `null`/nothing or the value if the value will not be null, `null`/nothing or a
+     * single element array if the value might be encoded as `null`.
+     * See the discussion of `mightBeNull` on `JsonEncoderOrDecoder` for more about the specifics of nested `null`-like codings.
+     */
+    def boxJsonEncoder[A](implicit valueEncoder: JsonEncoder[A]): JsonEncoder[Box[A]] =
+            new JsonEncoder[Box[A]] {
+                val mightBeNull = true
+                val codesAsObject = valueEncoder.codesAsObject
+
+                def run(in: Box[A], out: InterchangeJsonGenerator) =
+                    in match {
+                        case Full(a) =>
+                            if(codesAsObject){
+                                if (valueEncoder.mightBeNull){
+                                    out.writeStartObject() >> {
+                                        out.writeFieldName("result") >> out.writeString("success")
+                                        out.writeFieldName("value") >>
+                                        out.writeStartArray() >> {
+                                            out.omitNextMissing()
+                                            valueEncoder.run(a, out)
+                                        } >> out.writeEndArray()
+                                    }
+                                    out.writeEndObject()
+                                }
+                                else{
+                                    out.writeStartObject() >> {
+                                        out.writeFieldName("result") >> out.writeString("success")
+                                        out.writeFieldName("value") >> {
+                                            out.omitNextMissing()
+                                            valueEncoder.run(a, out)
+                                        }   
+                                    }
+                                    out.writeEndObject()
+                                }
+                            }
+                            else{
+                                if (valueEncoder.mightBeNull){
+                                    out.writeStartArray() >> {
+                                        out.omitNextMissing()
+                                        valueEncoder.run(a, out)
+                                    } >> out.writeEndArray()
+                                }
+                                else{
+                                    out.omitNextMissing()
+                                    valueEncoder.run(a, out)
+                                }
+                            }
+                        case Failure(msg,exception,chain) =>
+                            out.writeStartObject() >> {
+                                out.omitNextMissing()
+                                out.writeFieldName("result") >> out.writeString("failed") >>
+                                out.writeFieldName("errorCode") >> out.writeString("system.error") >>
+                                out.writeFieldName("errorMessage") >> out.writeString(msg) >>
+                                //if the exception is Full, print out the exception, otherwise
+                                //leave the exception field out of the result
+                                exception.map{(in:Throwable) => 
+                                    out.writeFieldName("exception") >> out.writeStartObject() >>
+                                    out.writeFieldName("isA") >> out.writeString(in.getClass().getName())
+                                    if(in.getMessage()!=null){
+                                        out.writeFieldName("message") >> out.writeString(in.getMessage())
+                                    }
+                                    out.writeEndObject()
+                                }.openOr(Okay.unit) >> {
+                                    chain.foreach {
+                                        out.writeFieldName("chain") >> run(_, out)
+                                    }
+                                    Okay.unit
+                                }
+                                   
+                            } >> out.writeEndObject()
+                        case Empty =>
+                            out.writeNothingOrNull()
+                        case _ =>
+                            out.writeNothingOrNull() //SCALAUPGRADE Note that I'm eating exceptions to FORCE you good developer to get rid of this and all Boxes....
+                    }
+            }
+
+    protected final def readThrowable(in: InterchangeJsonParser, out: Receiver[Throwable]): CoderResult[Unit] = {
+        class State {
+            var isA: String = null
+            var message: String = null
+        }
+
+        val state = new State
+        out(null)
+
+        in.foreachFields {
+            case "isA"     => state.isA = in.stringValue; Okay.unit
+            case "message" => state.message = in.stringValue; Okay.unit
+            case "chain"   => readThrowable(in, out)
+            case _         => in.skipToEndOfValue()
+        } >>
+        {
+            if (state.isA == null) FailedG("expecting \"isA\"", CoderFailure.terminal)
+            else if (state.message == null) FailedG("expecting \"message\"", CoderFailure.terminal)
+            else instantiateThrowable(state.isA, state.message, Option(out.value)).mapFailure(_ => CoderFailure.terminal) >>= out.apply
+        }
+    }
+
+    /**
+     * Decoder for `Box[A]`.
+     *
+     * Decodes from `null`/nothing or the value if the value will not be null, `null`/nothing or a
+     * single element array if the value might be encoded as `null`.
+     * See the discussion of `mightBeNull` on `JsonEncoderOrDecoder` for more about the specifics of nested `null`-like codings.
+     */
+    def boxJsonDecoder[A](implicit valueDecoder: JsonDecoder[A]): JsonDecoder[Box[A]] =
+        if (valueDecoder.mightBeNull)
+            new JsonDecoder[Box[A]] {
+                val mightBeNull = true
+                val codesAsObject = valueDecoder.codesAsObject
+
+                def run(in: InterchangeJsonParser, out: Receiver[Box[A]]) =
+                    if (!in.hasValue || in.currentToken == JsonToken.VALUE_NULL){
+                        out(Empty)
+                    }
+                    else if (in.currentToken == JsonToken.START_ARRAY) {
+                        val rec = new Receiver[A]
+                        in.advanceTokenUnguarded() >> {
+                            in.currentToken match {
+                                case JsonToken.END_ARRAY =>
+                                    in.currentValueIsMissing()
+                                    valueDecoder.run(in, rec) >> out(Full(rec.value))
+                                case null =>
+                                    in.unexpectedToken("value in one-element array")
+                                case _ =>
+                                    valueDecoder.run(in, rec) >> in.advanceTokenUnguarded() >> {
+                                        in.currentToken match {
+                                            case JsonToken.END_ARRAY =>
+                                                out(Full(rec.value))
+                                            case other =>
+                                                in.unexpectedToken("end of a single element array")
+                                        }
+                                    }
+                            }
+                        }
+                    } 
+                    else{
+                        in.unexpectedToken("single element array or null")
+                    }
+            }
+        else
+            new JsonDecoder[Box[A]] {
+                val mightBeNull = true
+                val codesAsObject = valueDecoder.codesAsObject
+
+                def runHelper(in: InterchangeJsonParser, out: Receiver[Box[A]]): Box[A] =
+                    if (!in.hasValue || in.currentToken == JsonToken.VALUE_NULL){
+                        Empty
+                    }
+                    else if (in.currentToken == JsonToken.START_OBJECT){
+                        class State {
+                            var gotResult = false
+                            var throwable = new Receiver[Throwable]
+                            var chain: Box[A] = null
+                            var message: String = null
+                        }
+
+                        val state = new State
+
+                        in.foreachFields {
+                            case "errorMessage" => state.message = in.stringValue
+                                                   Okay.unit
+                            case "exception"    => readThrowable(in, state.throwable)
+                            case "chain"        => state.chain = runHelper(in,out)
+                                                   Okay.unit
+                            case _              => in.skipToEndOfValue()
+                        }
+                        Failure(
+                               state.message,
+                               if(state.throwable.value!=null) Full(state.throwable.value) else Empty,
+                               state.chain match{
+                                    case f:Failure => Full(f) 
+                                    case _ => Empty
+                               })
+    
+                    }
+                    else {
+                        val rec = new Receiver[A]
+                        valueDecoder.run(in, rec)
+                        Full(rec.value)
+                    }
+
+                def run(in: InterchangeJsonParser, out: Receiver[Box[A]]) =
+                    out(runHelper(in,out))
+            }
 }
