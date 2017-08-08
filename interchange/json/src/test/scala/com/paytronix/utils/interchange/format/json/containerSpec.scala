@@ -25,7 +25,7 @@ import org.specs2.matcher.{Matcher, MatchResult}
 
 import com.paytronix.utils.interchange.base.{CoderFailure, InsecureContext, Receiver}
 import com.paytronix.utils.interchange.format.string
-import com.paytronix.utils.scala.result.{FailedException, FailedG, FailedParameterDefault, Okay, ResultG, unless}
+import com.paytronix.utils.scala.result.{FailedException, Failed, FailedG, FailedParameterDefault, Okay, Result, ResultG, unless}
 
 import Arbitrary.arbitrary
 import container.ResultGHideFailures
@@ -300,6 +300,14 @@ class resultGJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with J
             should decode {"result":"failed",…} to unknown cause if hiding failures  $decodeNonObjectHideFailuresCase
             should round trip various values                                         $encodeNonObjectRoundTripCase
 
+        `resultGJsonCoder` when `Failed` parameter type might be null
+            should decode no parameter to Unit                                       $encodeFailedGWithUnitParamCase
+            should encode Unit to no parameter                                       $decodeFailedGWithUnitParamCase
+            should decode no parameter to None                                       $decodeFailedGWithNoneParamCase
+            should encode None to no parameter                                       $encodeFailedGWithNoneParamCase
+            should decode parameter to Some                                          $decodeFailedGWithSomeParamCase
+            should encode Some to a parameter                                        $encodeFailedGWithSomeParamCase
+
         `resultGJsonCoder`
             must be the implicit coder for `ResultG` $implicitCase
     """
@@ -308,6 +316,9 @@ class resultGJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with J
     val objectWithResultSuccessJSON = TestObj(123, 45.67f).json(ResultFieldSuccess)
     val objectWithResultBazJSON = TestObj(123, 45.67f).json(ResultFieldBaz)
 
+    val failedUnit: Failed = FailedG(new TestException("test"), ())
+    val failedNone: FailedG[Option[String]] = FailedG(new TestException("test"), None)
+    val failedSome: FailedG[Option[String]] = FailedG(new TestException("test"), Some("testParam"))
     val failed: FailedG[Int] = FailedG(new TestException("test"), 123)
     val failedWithCause: FailedG[Int] = FailedG(new TestException("test", new TestException("test2")), 123)
 
@@ -341,6 +352,8 @@ class resultGJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with J
     val failedJSONSecure = s""" {$failedJSONCommon,"throwable":{$testThrowableJSON}} """.trim
     val failedJSONInsecure = s""" {$failedJSONCommon} """.trim
     val failedJSONWithCause = s""" {$failedJSONCommon,"throwable":{$testThrowableJSON,"cause":{"isA":"$failedExcName","message":"test2"}}} """.trim
+    val failedNoParamJSON = s""" {"errorCode":"system.error","errorMessage":"test","result":"failed","throwable":{$testThrowableJSON}} """.trim
+    val failedStringParamJSON = s""" {"errorCode":"system.error","errorMessage":"test","result":"failed","param":"testParam","throwable":{$testThrowableJSON}} """.trim
 
     implicit val fpdInt = FailedParameterDefault.value(321)
 
@@ -446,6 +459,31 @@ class resultGJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with J
         prop { (rg: ResultG[Int, Double]) =>
             (nonObjectRGC.encode.toString(rg) >>= decode(nonObjectRGC.decode)) must beLike { case Okay(rg) => rg must beEqualRG(rg) }
         }
+
+    val failedUnitRGC = container.resultGJsonCoder(scalar.unitJsonCoder, scalar.doubleJsonCoder)
+
+    def decodeFailedGWithUnitParamCase =
+        {
+            decode(failedUnitRGC.decode)(failedNoParamJSON) must beLike { case Okay(rg) => rg must beEqualRG(failedUnit) }
+        }
+    def encodeFailedGWithUnitParamCase =
+        failedUnitRGC.encode.toString(failedUnit) ==== Okay(failedNoParamJSON)
+
+    val failedOptionRGC = container.resultGJsonCoder(container.optionJsonCoder(scalar.stringJsonCoder), scalar.doubleJsonCoder)
+
+    def decodeFailedGWithNoneParamCase =
+        {
+            decode(failedOptionRGC.decode)(failedNoParamJSON) must beLike { case Okay(rg) => rg must beEqualRG(failedNone) }
+        }
+    def encodeFailedGWithNoneParamCase =
+        failedOptionRGC.encode.toString(failedNone) ==== Okay(failedNoParamJSON)
+
+    def decodeFailedGWithSomeParamCase =
+        {
+            decode(failedOptionRGC.decode)(failedStringParamJSON) must beLike { case Okay(rg) => rg must beEqualRG(failedSome) }
+        }
+    def encodeFailedGWithSomeParamCase =
+        failedOptionRGC.encode.toString(failedSome) ==== Okay(failedStringParamJSON)
 
     def implicitCase = { import coders._; JsonCoder[ResultG[Int, Double]].encode.getClass must_== nonObjectRGC.encode.getClass }
 }

@@ -519,7 +519,17 @@ trait container extends containerLPI {
                                            else readThrowable(in, state.throwable)
                     case "errorMessage" => state.message = in.stringValue
                                            Okay.unit
-                    case _              => in.skipToEndOfValue()
+                    case _              => Okay.unit
+                } >>
+                {
+                    // Run paramDecoder to set its empty-type value appropriately
+                    if (!state.gotParam && paramDecoder.mightBeNull) {
+                        in.currentValueIsMissing()
+                        state.gotParam = true
+                        paramDecoder.run(in, state.param)
+                    } else {
+                        Okay.unit
+                    }
                 } >>
                 {
                     if (!state.gotResult) FailedG("expecting \"result\": \"failed\" but found none", CoderFailure.terminal)
