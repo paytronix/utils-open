@@ -40,7 +40,7 @@ trait container extends containerLPI {
     def nullableJsonCoder[A >: Null](implicit valueEncoder: JsonEncoder[A], valueDecoder: JsonDecoder[A]): JsonCoder[A] =
         JsonCoder.make(nullableJsonEncoder(valueEncoder), nullableJsonDecoder(valueDecoder))
 
-    /** Wrapper encoder for nullable values. Encodes `null` as an Avro `null`, uses the wrapped encoder otherwise */
+    /** Wrapper encoder for nullable values. Encodes `null` as an JSON `null`, uses the wrapped encoder otherwise */
     def nullableJsonEncoder[A >: Null](implicit valueEncoder: JsonEncoder[A]) =
         new JsonEncoder[A] {
             val mightBeNull = true
@@ -66,6 +66,30 @@ trait container extends containerLPI {
                     out(null)
                 else
                     valueDecoder.run(in, out)
+        }
+
+    /** Coder which always encodes and decodes as null */
+    def alwaysNullJsonCoder[A >: Null]: JsonCoder[A] =
+        JsonCoder.make(alwaysNullJsonEncoder, alwaysNullJsonDecoder)
+
+    /** Encoder which always encodes as null */
+    def alwaysNullJsonEncoder[A >: Null] =
+        new JsonEncoder[A] {
+            val mightBeNull = true
+            val codesAsObject = false
+
+            def run(in: A, out: InterchangeJsonGenerator) =
+                out.writeNothingOrNull()
+        }
+
+    /** Decoder which always decodes as null */
+    def alwaysNullJsonDecoder[A >: Null] =
+        new JsonDecoder[A] {
+            val mightBeNull = true
+            val codesAsObject = false
+
+            def run(in: InterchangeJsonParser, out: Receiver[A]) =
+                out(null)
         }
 
     /**
