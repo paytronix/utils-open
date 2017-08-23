@@ -521,6 +521,7 @@ object DoubleCoder extends StringSafeCoder[Double] {
         in match {
             case JString(s)     => decodeString(classLoader, s)
             case JDouble(d)     => Okay(d)
+            case JInt(i)        => Okay(i.doubleValue)
             case JNothing|JNull => FailedG("required but missing", Nil)
             case _              => FailedG("not a double", Nil)
         }
@@ -567,6 +568,7 @@ object FloatCoder extends StringSafeCoder[Float] {
         in match {
             case JString(s)     => decodeString(classLoader, s)
             case JDouble(d)     => Okay(d.floatValue)
+            case JInt(i)        => Okay(i.floatValue)
             case JNothing|JNull => FailedG("required but missing", Nil)
             case _              => FailedG("not a double", Nil)
         }
