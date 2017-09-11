@@ -152,7 +152,9 @@ object iso8601 extends DateTimeStringBijections (
         ISODateTimeFormat.dateTime.withOffsetParsed,
         ISODateTimeFormat.basicDateTime.withOffsetParsed,
         ISODateTimeFormat.dateTimeNoMillis.withOffsetParsed,
-        ISODateTimeFormat.basicDateTimeNoMillis.withOffsetParsed
+        ISODateTimeFormat.basicDateTimeNoMillis.withOffsetParsed,
+        DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss.SSS Z"),
+        DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss Z")
     ),
     localDateFormatters = NonEmptyList (
         DateTimeFormat.forPattern("yyyy-MM-dd"),
