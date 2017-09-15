@@ -153,36 +153,29 @@ object coders {
                     in match {
                         case Full(a) =>
                             if(codesAsObject){
-                                if (valueEncoder.mightBeNull){
-                                    out.writeStartObject() >> {
-                                        out.writeFieldName("result") >> out.writeString("success")
-                                        out.writeFieldName("value") >>
+                                out.writeStartObject() >>
+                                out.writeFieldName("result") >> out.writeString("success")
+                                out.writeFieldName("value") >> {
+                                    if (valueEncoder.mightBeNull){
                                         out.writeStartArray() >> {
                                             out.omitNextMissing()
                                             valueEncoder.run(a, out)
                                         } >> out.writeEndArray()
-                                    }
-                                    out.writeEndObject()
-                                }
-                                else{
-                                    out.writeStartObject() >> {
-                                        out.writeFieldName("result") >> out.writeString("success")
-                                        out.writeFieldName("value") >> {
+                                    } else {
                                             out.omitNextMissing()
                                             valueEncoder.run(a, out)
-                                        }   
                                     }
-                                    out.writeEndObject()
-                                }
+                                } >>
+                                out.writeEndObject()
                             }
-                            else{
+                            else {
                                 if (valueEncoder.mightBeNull){
                                     out.writeStartArray() >> {
                                         out.omitNextMissing()
                                         valueEncoder.run(a, out)
                                     } >> out.writeEndArray()
                                 }
-                                else{
+                                else {
                                     out.omitNextMissing()
                                     valueEncoder.run(a, out)
                                 }
@@ -212,8 +205,6 @@ object coders {
                             } >> out.writeEndObject()
                         case Empty =>
                             out.writeNothingOrNull()
-                        case _ =>
-                            out.writeNothingOrNull() //SCALAUPGRADE Note that I'm eating exceptions to FORCE you good developer to get rid of this and all Boxes....
                     }
             }
 
@@ -283,39 +274,62 @@ object coders {
             }
         else
             new JsonDecoder[Box[A]] {
-                val mightBeNull = true
+                val mightBeNull = false
                 val codesAsObject = valueDecoder.codesAsObject
+
+                class State {
+                    var throwable: Receiver[Throwable] = new Receiver[Throwable]
+                    var chain:     Box[A]              = null
+                    var message:   String              = null
+                }
+                var toBeReturned: Box[A] = Empty
 
                 def runHelper(in: InterchangeJsonParser, out: Receiver[Box[A]]): Box[A] =
                     if (!in.hasValue || in.currentToken == JsonToken.VALUE_NULL){
                         Empty
                     }
-                    else if (in.currentToken == JsonToken.START_OBJECT){
-                        class State {
-                            var gotResult = false
-                            var throwable = new Receiver[Throwable]
-                            var chain: Box[A] = null
-                            var message: String = null
+                    else if (in.currentToken == JsonToken.START_OBJECT) {
+                        in.peekFields(Array("result")) >>= {
+                            case Array(Some(resultString)) if (resultString == "success" || resultString == "failed") => {
+                                if (resultString == "success") {
+
+                                    in.foreachFields {
+                                        case "value" => {
+                                            val rec = new Receiver[A]
+                                            valueDecoder.run(in, rec)
+                                            toBeReturned = Full(rec.value)
+                                            Okay.unit
+                                        }
+                                        case _       => in.skipToEndOfValue()
+                                    }
+                                    Okay.unit
+                                } else {
+                                    val state = new State
+
+                                    in.foreachFields {
+                                        case "errorMessage" => state.message = in.stringValue
+                                                               Okay.unit
+                                        case "exception"    => readThrowable(in, state.throwable)
+                                        case "chain"        => state.chain = runHelper(in,out)
+                                                               Okay.unit
+                                        case _              => in.skipToEndOfValue()
+                                    }
+
+                                    toBeReturned = Failure (
+                                           state.message,
+                                           if(state.throwable.value!=null) Full(state.throwable.value) else Empty,
+                                           state.chain match {
+                                                case f:Failure => Full(f)
+                                                case _ => Empty
+                                           })
+
+                                    Okay.unit
+                                }
+                            }
+                            case _ => in.unexpectedToken("one of success or failed")
                         }
 
-                        val state = new State
-
-                        in.foreachFields {
-                            case "errorMessage" => state.message = in.stringValue
-                                                   Okay.unit
-                            case "exception"    => readThrowable(in, state.throwable)
-                            case "chain"        => state.chain = runHelper(in,out)
-                                                   Okay.unit
-                            case _              => in.skipToEndOfValue()
-                        }
-                        Failure(
-                               state.message,
-                               if(state.throwable.value!=null) Full(state.throwable.value) else Empty,
-                               state.chain match{
-                                    case f:Failure => Full(f) 
-                                    case _ => Empty
-                               })
-    
+                        toBeReturned
                     }
                     else {
                         val rec = new Receiver[A]
