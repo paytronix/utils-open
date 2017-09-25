@@ -80,7 +80,7 @@ class LiftJsonCoderTest extends SpecificationWithJUnit with ScalaCheck {
     }
 
     def encodeJObjectCase = {
-        jObjectCoder.encode.toString(jObjectWithAllTypes) === Okay("""{"s":"123","i":"10","a":[["1","2","3"]],"d":5.5,"o":{"test":["test"]},"b":false}""")
+        jObjectCoder.encode.toString(jObjectWithAllTypes) === Okay("""{"s":"123","i":10,"a":[[1,2,3]],"d":5.5,"o":{"test":["test"]},"b":false}""")
     }
 
     def decodeJObjectCase = {
