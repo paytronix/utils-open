@@ -41,7 +41,7 @@ object javaDates {
     val javaSqlDateBijection: BijectionT[Result, Result, JavaSqlDate, LocalDate] =
         bijection (
             (jsd: JavaSqlDate) => Okay(new LocalDate(jsd)): Result[LocalDate],
-            (ld: LocalDate) => Okay(new JavaSqlDate(ld.toDateTimeAtStartOfDay().getMillis)): Result[JavaSqlDate]
+            (ld: LocalDate) => Okay(new JavaSqlDate(ld.toDate.getTime)): Result[JavaSqlDate]
         )
     val javaSqlTimeBijection: BijectionT[Result, Result, JavaSqlTime, LocalTime] =
         bijection (
