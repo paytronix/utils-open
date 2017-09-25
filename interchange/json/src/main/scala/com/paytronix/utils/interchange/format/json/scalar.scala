@@ -309,7 +309,7 @@ trait scalar extends scalarLPI {
 
             def run(in: java.math.BigInteger, out: InterchangeJsonGenerator) =
                 tryCatchResultG(terminal) {
-                    out.writeString(in.toString)
+                    out.writeNumber(in)
                     Okay.unit
                 }
         }

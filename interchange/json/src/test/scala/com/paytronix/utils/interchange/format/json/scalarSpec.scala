@@ -197,14 +197,14 @@ class doubleJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with Js
 class javaBigIntegerJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
     def is = s2"""
         `javaBigIntegerJsonCoder`
-            should encode to strings $encodeCase
+            should encode to int $encodeCase
             should decode from strings $decodeCase
             should decode from numbers without a decimal $decodeIntegralCase
             should not decode from numbers with a decimal $decodeRealCase
             should fail to decode a missing value $decodeMissingCase
     """
 
-    def encodeCase = prop { (bi: java.math.BigInteger) => scalar.javaBigIntegerJsonCoder.encode.toString(bi) ==== Okay("\"" + bi.toString + "\"") }
+    def encodeCase = prop { (bi: java.math.BigInteger) => scalar.javaBigIntegerJsonCoder.encode.toString(bi) ==== Okay(bi.toString) }
     def decodeCase = prop { (bi: java.math.BigInteger) => decode(scalar.javaBigIntegerJsonCoder.decode)(s""" "${bi.toString}" """) ==== Okay(bi) }
     def decodeIntegralCase = prop { (bi: java.math.BigInteger) => decode(scalar.javaBigIntegerJsonCoder.decode)(bi.toString) ==== Okay(bi) }
     def decodeRealCase = prop { (d: Double) =>
@@ -223,7 +223,7 @@ class scalaBigIntJsonCoderTest extends SpecificationWithJUnit with ScalaCheck wi
             should fail to decode a missing value $decodeMissingCase
     """
 
-    def encodeCase = prop { (bi: BigInt) => scalar.scalaBigIntJsonCoder.encode.toString(bi) ==== Okay("\"" + bi.toString + "\"") }
+    def encodeCase = prop { (bi: BigInt) => scalar.scalaBigIntJsonCoder.encode.toString(bi) ==== Okay(bi.toString) }
     def decodeCase = prop { (bi: BigInt) => decode(scalar.scalaBigIntJsonCoder.decode)(s""" "${bi.toString}" """) ==== Okay(bi) }
     def decodeIntegralCase = prop { (bi: BigInt) => decode(scalar.scalaBigIntJsonCoder.decode)(bi.toString) ==== Okay(bi) }
     def decodeRealCase = prop { (d: Double) =>
