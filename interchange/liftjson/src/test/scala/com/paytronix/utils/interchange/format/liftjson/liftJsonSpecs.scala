@@ -118,8 +118,8 @@ class liftJsonTest extends SpecificationWithJUnit with ScalaCheck {
     def encodeDoubleCase = prop { (d: Double) => doubleJsonCoder.encode.toJValue(d) ==== Okay(JDouble(d)) }
     def decodeDoubleCase = prop { (d: Double) => doubleJsonCoder.decode.fromJValue(JDouble(d)) ==== Okay(d) }
 
-    def encodeBigIntCase = prop { (bi: BigInt) => scalaBigIntJsonCoder.encode.toJValue(bi) ==== Okay(JString(bi.toString)) }
-    def decodeBigIntCase = prop { (bi: BigInt) => scalaBigIntJsonCoder.decode.fromJValue(JString(bi.toString)) ==== Okay(bi) }
+    def encodeBigIntCase = prop { (bi: BigInt) => scalaBigIntJsonCoder.encode.toJValue(bi) ==== Okay(JInt(bi)) }
+    def decodeBigIntCase = prop { (bi: BigInt) => scalaBigIntJsonCoder.decode.fromJValue(JInt(bi)) ==== Okay(bi) }
 
     val listIntCoder = JsonCoder[List[Int]]
     def encodeArrayCase = prop { (l: List[Int]) => listIntCoder.encode.toJValue(l) ==== Okay(JArray(l.map(i => JInt(BigInt(i))))) }

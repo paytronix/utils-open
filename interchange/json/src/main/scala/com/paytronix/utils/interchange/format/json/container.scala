@@ -626,8 +626,8 @@ trait container extends containerLPI {
                     if (!in.hasValue || in.currentToken == JsonToken.VALUE_NULL)
                         out(unknownFailure)
                     else if (in.currentToken == JsonToken.START_OBJECT)
-                        in.peekFields(Array("result", "param", "errorCode", "errorMessage")) >>= {
-                            case Array(Some("failed"), Some(_), Some(_), Some(_)) =>
+                        in.peekFields(Array("result")) >>= {
+                            case Array(Some("failed")) =>
                                 readFailure(in, out)
                             case _ =>
                                 val rec = new Receiver[A]
