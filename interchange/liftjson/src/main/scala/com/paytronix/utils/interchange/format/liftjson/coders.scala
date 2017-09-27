@@ -115,7 +115,6 @@ object coders {
         json.JsonCoder.make(encoder, decoder)
     }
 
-    //SCALAUPGRADE Please remove me after you've decided to use ResultG instead instead of Boxes. Seriously things will break with this coder the way it is...
     import net.liftweb.common.{Box, Full, Empty,Failure, ParamFailure,EmptyBox}
     /**
      * Coder for `Box[A]`.
