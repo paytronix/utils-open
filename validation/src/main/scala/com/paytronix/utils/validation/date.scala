@@ -50,7 +50,14 @@ object date {
      * Example: `isoDate and javaSqlDate`
      */
     val javaSqlDate: LocalDate => Validated[java.sql.Date] =
-        in => success(new java.sql.Date(in.toDateTimeAtStartOfDay().getMillis))
+        in => success(new java.sql.Date(in.toDate().getTime))
+
+    /**
+     * Validation function which maps a Joda `LocalDate` to a `java.sql.Date` in the default time zone
+     * Example: `isoDate and javaSqlDate`
+     */
+    val javaSqlDate: LocalDate => Validated[java.sql.Date] =
+        in => success(new java.sql.Date(in.toDate().getTime))
 
     /**
      * Validation function which maps a Joda `LocalTime` to a `java.sql.Time`
