@@ -222,7 +222,7 @@ object JavaSqlDateCoder extends DateTimeCoderBase[java.sql.Date] {
     }
 
     protected def parseDate(in: String, formatter: DateTimeFormatter) =
-        tryCatch.valueG(parameter(Nil))(new java.sql.Date(formatter.parseLocalDate(in).toDateTimeAtStartOfDay.getMillis))
+        tryCatch.valueG(parameter(Nil))(new java.sql.Date(formatter.parseLocalDate(in).toDate.getTime))
     protected def fromDateTime(in: DateTime) = new java.sql.Date(in.getMillis)
     protected def toDateTime(in: java.sql.Date) = new DateTime(in)
 

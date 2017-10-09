@@ -533,6 +533,10 @@ object result extends resultLowPriorityImplicits
         def unless(b: Boolean): ResultG[E, Unit] =
             if (b) Okay(()) else this
 
+        /** If the given boolean is `true`, yield this `FailedG`, else `Okay(())` */
+        def when(b: Boolean): ResultG[E, Unit] =
+            if (b) this else Okay(())
+
         // need to override case class equality because throwables don't compare well
         override def equals(other: Any): Boolean = {
             def equalThrowable(a: Throwable, b: Throwable): Boolean =
