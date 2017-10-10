@@ -129,6 +129,10 @@ trait DeriveCoderMacros extends DeriveUtils {
         val name = TermName(tpe.typeSymbol.name.decodedName.toString + "Coder")
         val model = structureOf(tpe)
 
+        //System.out.println("structureCoderDefImpl tpe: " + tpe)
+        //System.out.println("structureCoderDefImpl name: " + name)
+        //System.out.println("structureCoderDefImpl model: " + model)
+
         val declareCoders = model.properties.flatMap { prop =>
             List (
                 q"lazy val ${prop.decoderName} = ${materializeDecoder(prop.tpe, prop.annotations)}",

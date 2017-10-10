@@ -240,7 +240,7 @@ Type: $tpe
         val fieldTerms: Map[String, TermSymbol] =
             Map.empty ++ tpe.members.collect { case s if s.isTerm && s.name.decodedName.toString.endsWith(" ") => s.name.decodedName.toString.trim -> s.asTerm }
 
-        tpe.members.collect { case sym
+        val collectedMembers: List[Accessor] = tpe.members.collect { case sym
             if !ignoreOwners.contains(sym.owner)
             && sym.isPublic
             && !sym.isImplementationArtifact
@@ -255,9 +255,23 @@ Type: $tpe
             case ScalaGetter(name, method, tpe)                =>                Getter(name, false, method, tpe)
             case ScalaSetter(name, method, tpe)                =>                Setter(name, false, method, tpe)
         }
-        .groupWhen { (a, b) => a.name == b.name && a.tpe =:= b.tpe }
-        .filter(_.any(_.isInstanceOf[Getter]))
-        .map {
+
+        //System.out.println("collectedMembers: " + collectedMembers)
+
+        //Put access/mutators for each attribute side by side so grouping can actually work
+        val sortedCollectedMembers = collectedMembers.sortWith{ (a: Accessor, b: Accessor) => a.name.compareTo(b.name) < 0 }
+
+        //System.out.println("sortedCollectedMembers: " + sortedCollectedMembers)
+
+        val groupedCollectedMembers = sortedCollectedMembers.groupWhen { (a, b) => a.name == b.name && a.tpe =:= b.tpe }
+
+        //System.out.println("groupedCollectedMembers: " + groupedCollectedMembers)
+
+        val filteredMembers = groupedCollectedMembers.filter(_.any(_.isInstanceOf[Getter]))
+
+        //System.out.println("filteredMembers: " + filteredMembers)
+
+        val listPsyms = filteredMembers.map {
             // super awesome hax. this one catches when we'd consider isFoo a property named foo in the JavaBean style that doesn't have
             // an associated JavaBean setter and rewrites it back to the scala style named "isFoo"
             case NonEmptyList(Getter(name, true, method, tpe)) if
@@ -279,7 +293,11 @@ Type: $tpe
 
             case other => other
         }
-        .map { psyms =>
+
+
+        //System.out.println("listPsyms: " + listPsyms)
+
+        val toReturn = listPsyms.map { psyms =>
             val name           = psyms.head.name
             val tpe            = psyms.head.tpe
             val getters        = psyms.list.collect { case g: Getter => g }
@@ -331,6 +349,10 @@ Type: $tpe
                 constructorAssignment = ctorArgTermOpt.map { ctorArgTerm => (a: Tree) => q"$ctorArgTerm = $a" }
             )
         }.toList.sorted
+
+        //System.out.println("toReturn: " + toReturn)
+
+        toReturn
     }
 
     /**
@@ -351,7 +373,6 @@ Type: $tpe
 
         val availableProps  = propertiesOf(A).filterNot(_.annotations.exists(_.tree.tpe.typeSymbol == notCodedTpe))
         val unwritableProps = availableProps.filter { p => !(p.write.isDefined || p.constructorAssignment.isDefined) }
-
         val allConstructorProps = availableProps.filter { p => p.constructorAssignment.isDefined }
 
         object EndOfExplicitParameters {
