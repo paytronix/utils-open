@@ -522,6 +522,10 @@ object result {
         def unless(b: Boolean): ResultG[E, Unit] =
             if (b) Okay.unit else this
 
+        /** If the given boolean is `true`, yield this `FailedG`, else `Okay.unit` */
+        def when(b: Boolean): ResultG[E, Unit] =
+            if (b) this else Okay.unit
+
         // need to override case class equality because throwables don't compare well
         override def equals(other: Any): Boolean = {
             def equalThrowable(a: Throwable, b: Throwable): Boolean =
