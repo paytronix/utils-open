@@ -22,7 +22,7 @@ import scala.collection.generic.CanBuildFrom
 
 import com.fasterxml.jackson.core.JsonToken
 
-import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InsecureContext, InterchangeClassLoader, Receiver, terminal}
+import com.paytronix.utils.interchange.base.{atIndex, CoderFailure, CoderResult, InsecureContext, InterchangeClassLoader, Receiver, terminal}
 import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSet, canBuildJavaSortedMap}
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
@@ -986,6 +986,7 @@ trait containerLPI2 {
                 in.requireValue >> {
                     val builder = canBuildFrom()
                     val receiver = new Receiver[E]
+                    var counter = 0
 
                     @tailrec
                     def iterate(): CoderResult[Unit] = {
@@ -994,7 +995,7 @@ trait containerLPI2 {
                             in.currentToken match {
                                 case JsonToken.END_ARRAY => done = true; Okay.unit
                                 case _ =>
-                                    elemDecoder.run(in, receiver) >> {
+                                    atIndex(counter)(elemDecoder.run(in, receiver)) >> {
                                         builder += receiver.value
                                         Okay.unit
                                     }
@@ -1003,7 +1004,7 @@ trait containerLPI2 {
 
                         res match {
                             case _: Okay[_] if done => Okay.unit
-                            case _: Okay[_]         => iterate()
+                            case _: Okay[_]         => counter += 1; iterate();
                             case failed: FailedG[_] => failed
                         }
                     }
