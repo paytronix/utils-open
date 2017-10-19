@@ -233,7 +233,7 @@ package object base {
                 case Some(loc) =>
                     Failed(s"At source location $loc: $msg", throwable)
                 case None if !formattedPath.isEmpty =>
-                    Failed(s"At field $formattedPath: $msg", throwable)
+                    Failed(s"At $formattedPath: $msg", throwable)
                 case None =>
                     Failed(msg, throwable)
             }
