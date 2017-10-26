@@ -324,7 +324,7 @@ trait InterchangeJsonParser {
 
     /** Fail if the current token is not the given one */
     def require(token: JsonToken): CoderResult[Unit] =
-        if (!hasValue || currentToken != token) unexpectedToken(if (token != null) token.toString else "<eof>")
+        if (!hasValue || currentToken != token) unexpectedToken(if (token != null) token.asString else "<eof>")
         else Okay.unit
 
     /** Fail if the current token is not the given one */
@@ -335,8 +335,7 @@ trait InterchangeJsonParser {
     /** Format an error indicating that the current token was unexpected */
     def unexpectedToken(expectedWhat: String): CoderResult[Unit] = {
         val what =
-            if (!hasValue) "missing value"
-            else currentToken match {
+            currentToken match {
                 case null                         => "EOF"
                 case JsonToken.FIELD_NAME         => s""" field "$fieldName" """.trim
                 case JsonToken.VALUE_FALSE        => s"false"
@@ -351,7 +350,9 @@ trait InterchangeJsonParser {
                 case JsonToken.END_ARRAY          => s"end of array (])"
                 case other => other.toString
             }
-        FailedG(s"expected $expectedWhat but instead got $what", terminal)
+
+        if (!hasValue)  FailedG(s"required but missing. Expected $expectedWhat, but found nothing.", terminal)
+        else            FailedG(s"expected $expectedWhat but instead got $what", terminal)
     }
 
     /** Format an error indicating a value was expected but missing */
