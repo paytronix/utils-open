@@ -347,7 +347,10 @@ trait scalar extends scalarLPI {
 
             def run(in: java.math.BigDecimal, out: InterchangeJsonGenerator) =
                 tryCatchResultG(terminal) {
-                    out.writeString(in.toString)
+                    if (in.scale < 0 || in.scale > 50)
+                        out.writeString(in.toString)
+                    else
+                        out.writeString(in.toPlainString)
                     Okay.unit
                 }
         }

@@ -135,7 +135,7 @@ trait scalar {
 
     implicit object javaBigDecimalStringCoder extends StringCoder[JavaBigDecimal] {
         object encode extends StringEncoder[JavaBigDecimal] {
-            def run(in: JavaBigDecimal, out: Receiver[String]) = out(in.toString)
+            def run(in: JavaBigDecimal, out: Receiver[String]) = if (in.scale < 0 || in.scale > 50) out(in.toString) else out(in.toPlainString)
         }
         object decode extends StringDecoder[JavaBigDecimal] {
             def run(in: String, out: Receiver[JavaBigDecimal]) = tryCatchResultG(terminal)(out(new JavaBigDecimal(in)))

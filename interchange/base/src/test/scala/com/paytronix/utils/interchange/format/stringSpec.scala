@@ -18,6 +18,7 @@ package com.paytronix.utils.interchange.format.string
 
 import java.nio.ByteBuffer
 import javax.xml.bind.DatatypeConverter
+import java.math.{ BigDecimal => JavaBigDecimal }
 
 import org.scalacheck.{Arbitrary, Gen, Prop}
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
@@ -36,11 +37,23 @@ object testStuff {
     )
 
     val safeBigDecimals = arbitrary[BigDecimal].map(_.bigDecimal).filter { bd =>
-        try { new java.math.BigDecimal(bd.toString); true }
+        try { new JavaBigDecimal(bd.toString); true }
         catch { case nfe: NumberFormatException => false }
     }
 
+    val inScaleBigDecimals = {
+        val bd = new JavaBigDecimal(2)
+        Gen.choose(0, 50) map { (i: Int) => BigDecimal(bd.setScale(i)) }
+    }
+
+    val posOutScaleBigDecimals = {
+        val bd = new JavaBigDecimal(2)
+        Gen.choose(51, 150) map { (i: Int) => BigDecimal(bd.setScale(i)) }
+    }
+
     implicit val arbJavaMathBigInteger = Arbitrary(arbitrary[BigInt].map(_.bigInteger))
+
+    def convertBigDecimalToString(bd: JavaBigDecimal): String = if (bd.scale < 0 || bd.scale > 50) bd.toString else bd.toPlainString
 }
 
 import testStuff._
@@ -240,21 +253,25 @@ class javaBigIntegerCodeStringrTest extends SpecificationWithJUnit with ScalaChe
 
 class javaBigDecimalStringCoderTest extends SpecificationWithJUnit with ScalaCheck {
     def is = s2"""
-        The java.math.BigDecimal coder for strings should
-            be the implicit string decoder for java.math.BigDecimal     $e1
-            be the implicit string encoder for java.math.BigDecimal     $e2
+        The JavaBigDecimal coder for strings should
+            be the implicit string decoder for JavaBigDecimal           $e1
+            be the implicit string encoder for JavaBigDecimal           $e2
             encode BigDecimals straightforwardly                        $e3
             decode BigDecimals straightforwardly                        $e4
             round trip BigDecimals                                      $e5
-            fail to decode arbitrary nonnumeric strings                 $e6
+            encode BigDecimal with scale 0 < s < 50                     $e6
+            encode BigDecimal with scale 51 < s < 150                   $e7
+            fail to decode arbitrary nonnumeric strings                 $e8
     """
 
-    def e1 = StringDecoder[java.math.BigDecimal] ==== javaBigDecimalStringCoder.decode
-    def e2 = StringEncoder[java.math.BigDecimal] ==== javaBigDecimalStringCoder.encode
-    def e3 = Prop.forAll(safeBigDecimals) { d => javaBigDecimalStringCoder.encode(d) ==== Okay(d.toString) }
+    def e1 = StringDecoder[JavaBigDecimal] ==== javaBigDecimalStringCoder.decode
+    def e2 = StringEncoder[JavaBigDecimal] ==== javaBigDecimalStringCoder.encode
+    def e3 = Prop.forAll(safeBigDecimals) { d => javaBigDecimalStringCoder.encode(d) ==== Okay(convertBigDecimalToString(d)) }
     def e4 = Prop.forAll(safeBigDecimals) { d => javaBigDecimalStringCoder.decode(d.toString) ==== Okay(d) }
-    def e5 = Prop.forAll(safeBigDecimals) { d => (javaBigDecimalStringCoder.encode(d) >>= javaBigDecimalStringCoder.decode.apply) ==== Okay(d) }
-    def e6 = Prop.forAll(nonnumericStr) { s => javaBigDecimalStringCoder.decode(s) must beLike { case FailedG(_, _) => ok } }
+    def e5 = Prop.forAll(safeBigDecimals) { d => (javaBigDecimalStringCoder.encode(d) >>= javaBigDecimalStringCoder.decode.apply) ==== Okay(new JavaBigDecimal(d.toString)) }
+    def e6 = Prop.forAll(inScaleBigDecimals) { d => javaBigDecimalStringCoder.encode(d.bigDecimal) ==== Okay(d.bigDecimal.toPlainString) }
+    def e7 = Prop.forAll(posOutScaleBigDecimals) { d => javaBigDecimalStringCoder.encode(d.bigDecimal) ==== Okay(d.bigDecimal.toString) }
+    def e8 = Prop.forAll(nonnumericStr) { s => javaBigDecimalStringCoder.decode(s) must beLike { case FailedG(_, _) => ok } }
 }
 
 class scalaBigIntStringCoderTest extends SpecificationWithJUnit with ScalaCheck {
@@ -284,15 +301,19 @@ class scalaBigDecimalStringCoderTest extends SpecificationWithJUnit with ScalaCh
             encode BigDecimals straightforwardly              $e3
             decode BigDecimals straightforwardly              $e4
             round trip BigDecimals                            $e5
-            fail to decode arbitrary nonnumeric strings       $e6
+            encode BigDecimal with scale 0 < s < 50           $e6
+            encode BigDecimal with scale 51 < s < 150         $e7
+            fail to decode arbitrary nonnumeric strings       $e8
     """
 
     def e1 = StringDecoder[BigDecimal] ==== scalaBigDecimalStringCoder.decode
     def e2 = StringEncoder[BigDecimal] ==== scalaBigDecimalStringCoder.encode
-    def e3 = Prop.forAll(safeBigDecimals.map(BigDecimal.apply)) { d => scalaBigDecimalStringCoder.encode(d) ==== Okay(d.toString) }
-    def e4 = Prop.forAll(safeBigDecimals.map(BigDecimal.apply)) { d => scalaBigDecimalStringCoder.decode(d.toString) ==== Okay(d) }
+    def e3 = Prop.forAll(safeBigDecimals.map(BigDecimal.apply)) { d => scalaBigDecimalStringCoder.encode(d) ==== Okay(convertBigDecimalToString(d.bigDecimal)) }
+    def e4 = Prop.forAll(safeBigDecimals.map(BigDecimal.apply)) { d => scalaBigDecimalStringCoder.decode(d.toString) ==== Okay(BigDecimal(d.bigDecimal.toString)) }
     def e5 = Prop.forAll(safeBigDecimals.map(BigDecimal.apply)) { d => (scalaBigDecimalStringCoder.encode(d) >>= scalaBigDecimalStringCoder.decode.apply) ==== Okay(d) }
-    def e6 = Prop.forAll(nonnumericStr) { s => scalaBigDecimalStringCoder.decode(s) must beLike { case FailedG(_, _) => ok } }
+    def e6 = Prop.forAll(inScaleBigDecimals) { d => scalaBigDecimalStringCoder.encode(d) ==== Okay(d.bigDecimal.toPlainString) }
+    def e7 = Prop.forAll(posOutScaleBigDecimals) { d => scalaBigDecimalStringCoder.encode(d) ==== Okay(d.bigDecimal.toString) }
+    def e8 = Prop.forAll(nonnumericStr) { s => scalaBigDecimalStringCoder.decode(s) must beLike { case FailedG(_, _) => ok } }
 }
 
 class byteBufferStringCoderTest extends SpecificationWithJUnit with ScalaCheck {
