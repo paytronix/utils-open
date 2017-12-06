@@ -436,7 +436,7 @@ package liftjson {
 
         def bigDecimalValue: java.math.BigDecimal =
             currentJValue match {
-                case JDouble(d) => new java.math.BigDecimal(d)
+                case JDouble(d) => java.math.BigDecimal.valueOf(d)
                 case JInt(bi)   => new java.math.BigDecimal(bi.bigInteger)
                 case _          => throw new JsonParseException("not a number", JsonLocation.NA)
             }
