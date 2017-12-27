@@ -159,7 +159,6 @@ object date {
     def periodWithFormatsE(error: ValidationError)(formats: NonEmptyList[PeriodFormatter]): String => Validated[Period] =
         anyE(error)(formats map periodWithFormat)
 
-
     /** Parse a string as a `DateTime` using ISO8601 formats */
     val isoDateTime: String => Validated[DateTime] =
         isoDateTimeE(invalidDateFormatError)
