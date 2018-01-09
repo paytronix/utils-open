@@ -189,7 +189,7 @@ object date {
 
     /** Parse a string as a `LocalTime` using the ISO8601 format `hh:mm:ss.SSS` or `hh:mm:ss` */
     def isoTimeE(error: ValidationError): String => Validated[LocalTime] =
-        localTimeWithFormatsE(error)(nels(ISODateTimeFormat.time, ISODateTimeFormat.timeNoMillis))
+        localTimeWithFormatsE(error)(nels(ISODateTimeFormat.localTimeParser))
 
     def mustBeBeforeError   (limit: ReadableInstant) = ValidationError("invalid_date", "date must be before " + limit)
     def mustNotBeBeforeError(limit: ReadableInstant) = ValidationError("invalid_date", "date must not be before " + limit)
