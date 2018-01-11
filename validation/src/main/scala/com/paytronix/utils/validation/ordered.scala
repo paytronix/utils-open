@@ -21,10 +21,10 @@ import scalaz.Order
 import base.{Validated, ValidationError, predicateE}
 
 object ordered {
-    def tooSmallErrorExclusive[A](a: A) = ValidationError("underflow", "must greater than $a")
-    def tooSmallError[A](a: A)          = ValidationError("underflow", "must greater than or equal to $a")
-    def tooLargeErrorExclusive[A](a: A) = ValidationError("overflow", "must less than $a")
-    def tooLargeError[A](a: A)          = ValidationError("overflow", "must less than or equal to $a")
+    def tooSmallErrorExclusive[A](a: A) = ValidationError("underflow", "must be greater than $a")
+    def tooSmallError[A](a: A)          = ValidationError("underflow", "must be greater than or equal to $a")
+    def tooLargeErrorExclusive[A](a: A) = ValidationError("overflow", "must be less than $a")
+    def tooLargeError[A](a: A)          = ValidationError("overflow", "must be less than or equal to $a")
 
     /** Assert that some value is ordered greater than some value (> x) */
     def greaterThan[A: Order](minimum: A): A => Validated[A] =
