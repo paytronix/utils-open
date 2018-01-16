@@ -163,7 +163,7 @@ class javaDateTest extends SpecificationWithJUnit with ScalaCheck {
             import base.validationFunctionOps
             isoTime and javaSqlTime
         }
-        prop { (dt: DateTime) =>
+        prop { (dt: LocalTime) =>
             val res = ISODateTimeFormat.time.print(dt) is f
 
             def failed(which: String): String => String = s =>
