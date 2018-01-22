@@ -20,6 +20,7 @@ import scala.language.implicitConversions
 
 import java.util.TimeZone
 import org.joda.time.{DateTime, DateTimeZone, LocalDate, LocalDateTime, LocalTime, Period, ReadableInstant}
+import org.joda.time.base.AbstractPartial
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter, ISODateTimeFormat, PeriodFormatter}
 import scalaz.NonEmptyList
 
@@ -214,6 +215,10 @@ object date {
 
     /** Assert that some instant in time is not before some limit */
     def notBeforeE[A <: ReadableInstant](error: ReadableInstant => ValidationError)(limit: ReadableInstant): A => Validated[A] =
+        predicateE(error(limit))(!_.isBefore(limit))
+
+    /** Assert that some instant in time is not before some limit */
+    def notBeforeE[A <: AbstractPartial](error: AbstractPartial => ValidationError)(limit: AbstractPartial): A => Validated[A] =
         predicateE(error(limit))(!_.isBefore(limit))
 
     /** Assert that some instant in time is after some limit */
