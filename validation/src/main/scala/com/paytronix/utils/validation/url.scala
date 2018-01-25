@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,21 @@
 package com.paytronix.utils.validation
 
 import java.net.{MalformedURLException, URL}
-import scala.util.control.Exception.catching
 
-import base.{ValidationError, ValidationFunction, missingValueError}
+import base.{Validated, ValidationError, failure, missingValueError, success}
 
 object url {
-    import string.nonBlank
+    import string.nonBlankE
 
     /** Assert that a String is nonblank and convert it to a URL */
-    def url(missingValue: ValidationError = missingValueError): ValidationFunction[String, URL] =
-        nonBlank(missingValue) and (s => catching(classOf[MalformedURLException])
-                                         .either(new URL(s))
-                                         .left.map(t => ValidationError(Option(t.getMessage) getOrElse t.toString) :: Nil))
-}
+    val url: String => Validated[URL] =
+        urlE(missingValueError, t => ValidationError(Option(t.getMessage) getOrElse t.toString))
 
+    /** Assert that a String is nonblank and convert it to a URL */
+    def urlE(missingValue: ValidationError, parseError: MalformedURLException => ValidationError): String => Validated[URL] =
+        nonBlankE(missingValue) and { s =>
+            try success(new URL(s)) catch { case t: MalformedURLException =>
+                failure(parseError(t))
+            }
+        }
+}

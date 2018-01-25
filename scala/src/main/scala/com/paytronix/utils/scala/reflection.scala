@@ -1,5 +1,5 @@
 //
-// Copyright 2010-2012 Paytronix Systems, Inc.
+// Copyright 2010-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,40 +16,36 @@
 
 package com.paytronix.utils.scala
 
-import java.lang.reflect.{Constructor, Field, Method, Modifier, ParameterizedType, Type, TypeVariable, WildcardType}
-import scala.collection.mutable.ListBuffer
-import scala.reflect.NameTransformer
-import com.thoughtworks.paranamer.{AdaptiveParanamer, AnnotationParanamer, BytecodeReadingParanamer, CachingParanamer}
+import scala.reflect.{ClassTag, classTag}
+import scala.reflect.runtime.{universe => runtimeUniverse}
 
-import result.{Failed, Okay, Result, cast, iterableResultOps, tryCatch, tryCatching}
+import result.{Failed, Okay, Result}
 
-object reflection {
-    val paranamer = new CachingParanamer(new AdaptiveParanamer(new AnnotationParanamer, new BytecodeReadingParanamer))
-
+package object reflection {
     /** Split a fully qualified class name into (package name, class name) */
     def splitFullyQualifiedName(in: String): (String, String) =
-        in.indexOf('.') match {
+        in.lastIndexOf('.') match {
             case -1 => ("", in)
             case pos => (in.substring(0, pos), in.substring(pos+1))
         }
 
     /** Given the encoded name of an object (including the trailing $), reflectively obtain an instance to it */
-    def findObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] = {
-        for {
-            clazz <- classByName(loader, name)
-            field <- tryCatch.value(clazz.getField("MODULE$")) | (name + " is not a Scala object singleton (no MODULE$ field)")
-            _ <- if (Modifier.isStatic(field.getModifiers)) Okay(()) else Failed(name + " is not a Scala object singleton (MODULE$ is not static)")
-            inst <- tryCatch.value(field.get(null))
-        } yield inst
-    }
+    def findObjectInstance(loader: ClassLoader, name: String): Result[AnyRef] =
+        try {
+            val runtimeMirror = runtimeUniverse.runtimeMirror(loader)
+            Okay(runtimeMirror.reflectModule(runtimeMirror.staticModule(name)).instance.asInstanceOf[AnyRef])
+        } catch { case e: Exception => Failed(e) }
 
     /** Look up a class by name, failing if the class is not found or does not conform at least to the given type */
-    def classByName[A](classLoader: ClassLoader, name: String)(implicit m: Manifest[A]): Result[Class[A]] =
-        tryCatch.value(Class.forName(name, true, classLoader).asSubclass(m.erasure).asInstanceOf[Class[A]])
+    def classByName[A: ClassTag](classLoader: ClassLoader, name: String): Result[Class[A]] =
+        try {
+            Okay(Class.forName(name, true, classLoader).asSubclass(classTag[A].runtimeClass).asInstanceOf[Class[A]])
+        } catch { case e: Exception => Failed(e) }
 
     /** Instantiate a Class with its no-arg constructor, capturing exceptions */
     def instantiate[A](clazz: Class[A]): Result[A] =
-        tryCatch.value(clazz.newInstance())
+        try Okay(clazz.newInstance())
+        catch { case e: Exception => Failed(e) }
 
     /** Instantiate a class by name with its no-arg constructor, capturing exceptions */
     def instantiate(classLoader: ClassLoader, name: String): Result[AnyRef] =
@@ -76,103 +72,4 @@ object reflection {
             case Failed(_: ClassNotFoundException|_: InstantiationException) => findObjectInstance(loader, name + "$")
             case f@Failed(_)                                                 => f
         })
-
-    /**
-     * Reduce a type towards a concrete Class.
-     *
-     * For inputs that are:
-     *  - a Class, just reduce to that
-     *  - a ParameterizedType, just reduce to that
-     *  - a type variable, try and reduce to a single upper bound (recursing if necessary). Fails with multiple bounds.
-     *  - a wildcard type, reduce to the upper bound
-     *  - a generic array, fail (don't know what to do about this yet)
-     */
-    def reduceType(ty: Type): Result[Type] = ty match {
-        case c: Class[_]                                       => Okay(c)
-        case pt: ParameterizedType                             => Okay(pt)
-        case tv: TypeVariable[_] if tv.getBounds.length == 1   => reduceType(tv.getBounds()(0))
-        case tv: TypeVariable[_]                               => Failed("Cannot reduce " + tv + " -- confusing bounds")
-        case wt: WildcardType if wt.getUpperBounds.length == 1 => reduceType(wt.getUpperBounds()(0))
-        case wt: WildcardType                                  => Failed("Cannot reduce " + wt + " -- confusing upper bound")
-
-        case _ => Failed("Can't reduce " + ty + " (sorry, too dumb)")
-    }
-
-    /**
-     * Given a generic parameterized type, return the upper bounds or concrete types of each argument.
-     *
-     * That is, for some type Ty[A <: Foo, Bar] return Foo::AnyRef::Nil.
-     *
-     * Note that for specific variables the compiler will refine the upper bound, so for example even though the type of
-     * List is List[A <: Any], a particular list val l: List[String] will be compiled as List[A <: String] and therefore this
-     * function will result in String::Nil for the type of that field.
-     */
-    def getTypeArguments(ty: Type): Result[Seq[Type]] =
-        for {
-            pt <- cast[ParameterizedType](ty) | Failed(ty + " not a ParameterizedType")
-            args <- wrapRefArray(pt.getActualTypeArguments).mapResult(reduceType)
-        } yield args
-
-    /** Return a List of all ancestor classes of the given class, including Object (Any/AnyRef) */
-    def ancestors(clazz: Class[_]): List[Class[_]] = {
-        val buffer = new ListBuffer[Class[_]]
-        var cur = clazz.getSuperclass
-        while (cur != null) {
-            buffer += cur
-            cur = cur.getSuperclass
-        }
-        buffer.toList
-    }
-
-    /** Return a List containing the given class and all its ancestors */
-    def classAndAncestors(clazz: Class[_]): List[Class[_]] =
-        clazz :: ancestors(clazz)
-
-    val AnyRefType  = classOf[AnyRef]
-    val UnitType    = classOf[Unit]
-    val BooleanType = classOf[Boolean]
-    val ByteType    = classOf[Byte]
-    val ShortType   = classOf[Short]
-    val CharType    = classOf[Char]
-    val IntType     = classOf[Int]
-    val LongType    = classOf[Long]
-    val FloatType   = classOf[Float]
-    val DoubleType  = classOf[Double]
-
-    /**
-     * Return true iff the first type is assignable from the second type as clazz1.isAssignableFrom(clazz2) but also consider
-     * primitive types to be <: AnyRef (java.lang.Object) since from a reflection standpoint they are.
-     */
-    def isAssignable(a: Class[_], b: Class[_]): Boolean =
-        a.isAssignableFrom(b) || ((a, b) match {
-            case (AnyRefType, UnitType|BooleanType|ByteType|CharType|ShortType|IntType|LongType|FloatType|DoubleType) => true
-            case _ => false
-        })
-
-    /** Return true iff the second given method could override the first */
-    def canOverride(a: Method, b: Method): Boolean =
-        (a.getName == b.getName && a.getParameterTypes.length == b.getParameterTypes.length &&
-         isAssignable(a.getReturnType, b.getReturnType) &&
-         (a.getParameterTypes zip b.getParameterTypes).foldLeft(true)((prev, cur) => prev && isAssignable(cur._2, cur._1)))
-
-    /** Return true iff the second given constructor could override the first */
-    def canOverride(a: Constructor[_], b: Constructor[_]): Boolean =
-        (a.getParameterTypes.length == b.getParameterTypes.length &&
-         (a.getParameterTypes zip b.getParameterTypes).foldLeft(true)((prev, cur) => prev && isAssignable(cur._2, cur._1)))
-
-    /** Return true iff all the given methods are compatible; that is, there exists some ordering of the methods where each overrides the other in turn */
-    def areMethodsCompatible(in: Iterable[Method]): Boolean =
-        in.size <= 1 || !in.exists(a => !in.exists(b => a != b && (canOverride(a,b) || canOverride(b,a))))
-
-    /** Return true iff all the given constructors are compatible; that is, there exists some ordering of the constructors where each overrides the other in turn */
-    def areConstructorsCompatible(in: Iterable[Constructor[_]]): Boolean =
-        in.size <= 1 || !in.exists(a => !in.exists(b => a != b && (canOverride(a,b) || canOverride(b,a))))
-
-    /** Return the most specific override of a series of compatible methods. If the methods are not compatible, the result is undefined. */
-    def mostSpecificMethod(in: Seq[Method]): Option[Method] =
-        in.foldLeft[Option[Method]](None)((prev, cur) => if (prev.map(canOverride(_, cur)) getOrElse true) Some(cur) else prev)
-
-    /** Return the most specific override of a series of compatible constructors. If the constructors are not compatible, the result is undefined. */
-    def mostSpecificConstructor(in: Seq[Constructor[_]]): Option[Constructor[_]] =
-        in.foldLeft[Option[Constructor[_]]](None)((prev, cur) => if (prev.map(canOverride(_, cur)) getOrElse true) Some(cur) else prev)
 }

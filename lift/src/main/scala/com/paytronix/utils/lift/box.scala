@@ -1,5 +1,5 @@
 //
-// Copyright 2009-2012 Paytronix Systems, Inc.
+// Copyright 2009-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ package com.paytronix.utils.lift
 
 import scala.collection.generic.CanBuild
 import scala.collection.mutable.ArrayBuffer
+import scala.language.implicitConversions
+
 import net.liftweb.common.{Box, Empty, EmptyBox, Failure, Full}
 import org.slf4j.Logger
 
@@ -25,13 +27,13 @@ import log.loggerBoxOps
 
 object box
 {
-    /** Path so that Java code can create an empty box */
+    /** Function so that Java code can create an empty box */
     def empty[A](witness: Class[A]): Box[A] = Empty
 
-    /** Path so that Java code can create an empty box for an int primitive type */
+    /** Function so that Java code can create an empty box for an int primitive type */
     def emptyInt(): Box[Int] = Empty
 
-    /** Path so that Java code can create a full box */
+    /** Function so that Java code can create a full box */
     def full[A](a: A): Box[A] = Full(a)
 
     /** Helper to either return the value contained in a box or throw an exception using failureToException, primarily useful in java code */
@@ -158,7 +160,12 @@ object box
          */
         def mapBox[B, That](f: A => Box[B])(implicit cb: CanBuild[B, That]): Box[That] = {
             val builder = cb()
-            foreachBox(a => f(a).map(builder += _)).map(_ => builder.result())
+            foreachBox { a =>
+                f(a).map { b =>
+                    builder += b
+                    ()
+                }
+            }.map { _ => builder.result() }
         }
 
         /**

@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <!--
-    Copyright 2012 Paytronix Systems, Inc.
+    Copyright 2012-2014 Paytronix Systems, Inc.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>17.2-cheesecake-SNAPSHOT</version>
+    <version>18.1-doritos-SNAPSHOT</version>
 
     <name>Paytronix Utils - Parent</name>
     <inceptionYear>2009</inceptionYear>
@@ -48,10 +48,8 @@
     </prerequisites>
 
     <modules>
-        <module>extendedreflection</module>
         <module>interchange</module>
         <module>lift</module>
-        <module>maven</module>
         <module>scala</module>
         <module>validation</module>
     </modules>
@@ -75,88 +73,150 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <scala.version>2.9.3</scala.version>
-        <scala.compatibility.version>2.9.3</scala.compatibility.version>
-        <lift.version>2.4</lift.version>
-        <lift.scala.compatibility.version>2.9.1</lift.scala.compatibility.version>
+        <scala.version>2.11.8</scala.version>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-compiler</artifactId>
+            <scope>test</scope>
+            <version>2.11.8</version>
+        </dependency>
+    </dependencies>
 
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>com.thoughtworks.paranamer</groupId>
-                <artifactId>paranamer</artifactId>
-                <version>2.2</version>
-            </dependency>
-            <dependency>
-                <groupId>javax.inject</groupId>
-                <artifactId>javax.inject</artifactId>
-                <version>1</version>
-            </dependency>
-            <dependency>
-                <groupId>junit</groupId>
-                <artifactId>junit</artifactId>
-                <version>4.7</version>
-                <scope>test</scope>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro</artifactId>
+                <version>1.7.7</version>
             </dependency>
             <dependency>
                 <groupId>joda-time</groupId>
                 <artifactId>joda-time</artifactId>
-                <version>2.1</version>
+                <version>2.3</version>
             </dependency>
             <dependency>
                 <groupId>org.joda</groupId>
                 <artifactId>joda-convert</artifactId>
-                <version>1.2</version>
+                <version>1.6</version>
             </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>
                 <artifactId>scala-library</artifactId>
-                <version>${scala.version}</version>
+                <version>2.11.8</version>
             </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>
-                <artifactId>scalap</artifactId>
-                <version>${scala.version}</version>
+                <artifactId>scala-reflect</artifactId>
+                <version>2.11.8</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scalacheck</groupId>
+                <artifactId>scalacheck_2.11</artifactId>
+                <version>1.11.3</version>
             </dependency>
             <dependency>
                 <groupId>org.specs2</groupId>
-                <artifactId>specs2_${scala.compatibility.version}</artifactId>
-                <version>1.12.4.1</version>
+                <artifactId>specs2_2.11</artifactId>
+                <version>2.4.15</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scala-compiler</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scala-library</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scala-reflect</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>4.11</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>1.6.4</version>
+                <version>1.7.7</version>
             </dependency>
             <dependency>
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
-                <version>1.0.1</version>
+                <version>1.1.2</version>
             </dependency>
             <dependency>
                 <groupId>net.liftweb</groupId>
-                <artifactId>lift-common_${lift.scala.compatibility.version}</artifactId>
-                <version>${lift.version}</version>
+                <artifactId>lift-common_2.11</artifactId>
+                <version>2.6</version>
             </dependency>
             <dependency>
                 <groupId>net.liftweb</groupId>
-                <artifactId>lift-util_${lift.scala.compatibility.version}</artifactId>
-                <version>${lift.version}</version>
+                <artifactId>lift-util_2.11</artifactId>
+                <version>2.6</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scala-compiler</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>net.liftweb</groupId>
-                <artifactId>lift-json_${lift.scala.compatibility.version}</artifactId>
-                <version>${lift.version}</version>
+                <artifactId>lift-json_2.11</artifactId>
+                <version>2.6</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scalap</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.5.2</version>
+            </dependency>
+            <dependency>
+                <groupId>com.chuusai</groupId>
+                <artifactId>shapeless_2.11</artifactId>
+                <version>2.3.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.maven</groupId>
+                <artifactId>maven-plugin-api</artifactId>
+                <version>3.0.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.maven</groupId>
+                <artifactId>maven-core</artifactId>
+                <version>3.0.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scalaz</groupId>
+                <artifactId>scalaz-core_2.11</artifactId>
+                <version>7.1.0</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scala-compiler</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.scala-lang</groupId>
+                        <artifactId>scala-library</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
             <dependency>
                 <groupId>com.paytronix.utils</groupId>
-                <artifactId>extendedreflection</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.paytronix.utils</groupId>
-                <artifactId>interchange</artifactId>
+                <artifactId>interchange-base</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -174,26 +234,8 @@
                 <artifactId>validation</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <dependency>
-                <groupId>com.chuusai</groupId>
-                <artifactId>shapeless_2.9.2</artifactId>
-                <version>1.2.4</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.maven</groupId>
-                <artifactId>maven-plugin-api</artifactId>
-                <version>3.0.4</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.maven</groupId>
-                <artifactId>maven-core</artifactId>
-                <version>3.0.4</version>
-            </dependency>
-            <dependency>
-                <groupId>org.scalaz</groupId>
-                <artifactId>scalaz-core_${scala.compatibility.version}</artifactId>
-                <version>7.0.2</version>
-            </dependency>
+            <!-- SCALAUPGRADE Remove me after you've removed boxes pls -->
+             <dependency><groupId>net.liftweb</groupId><artifactId>lift-common_2.11</artifactId><version>2.6</version></dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -208,6 +250,12 @@
           <id>oss.sonatype.org-snapshots</id>
           <name>snapshots</name>
           <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+        </repository>
+
+        <repository>
+          <id>scalaz-bintray</id>
+          <name>Scalaz Bintray</name>
+          <url>http://dl.bintray.com/scalaz/releases</url>
         </repository>
     </repositories>
 
@@ -230,8 +278,12 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.0.1</version>
+                <version>3.2.0</version>
                 <configuration>
+                    <useZincServer>true</useZincServer>
+                    <recompileMode>incremental</recompileMode>
+                    <addZincArgs>-no-color</addZincArgs>
+                    <addScalacArgs>-feature</addScalacArgs>
                     <scalaVersion>${scala.version}</scalaVersion>
                     <jvmArgs>
                         <jvmArg>-Xss2048K</jvmArg>
@@ -242,6 +294,13 @@
                         <arg>-unchecked</arg>
                     </args>
                     <testSourceDir>src/test/scala</testSourceDir>
+                    <compilerPlugins>
+                        <compilerPlugin>
+                            <groupId>org.scalamacros</groupId>
+                            <artifactId>paradise_2.11.5</artifactId>
+                            <version>2.1.0-M5</version>
+                         </compilerPlugin>
+                     </compilerPlugins>
                 </configuration>
                 <executions>
                     <execution>
@@ -251,6 +310,17 @@
                             <goal>add-source</goal>
                             <goal>compile</goal>
                         </goals>
+                        <configuration>
+                            <args>
+                                <!--<arg>-optimise</arg>--> <!-- do not under any circumstances enable this until the cyber-future. -->
+                                <arg>-Ywarn-infer-any</arg>
+                                <arg>-Ywarn-value-discard</arg>
+                                <arg>-Ywarn-unused</arg>
+                                <arg>-Ywarn-unused-import</arg>
+                                <arg>-deprecation</arg>
+                                <!--<arg>-Ymacro-debug-lite</arg>-->
+                            </args>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>scala-test-compile</id>
@@ -258,6 +328,17 @@
                         <goals>
                             <goal>testCompile</goal>
                         </goals>
+                        <configuration>
+                            <args>
+                                <!--<arg>-optimise</arg>--> <!-- do not under any circumstances enable this until the cyber-future. -->
+                                <arg>-Ywarn-infer-any</arg>
+                                <arg>-Ywarn-value-discard</arg>
+                                <arg>-Ywarn-unused</arg>
+                                <arg>-Ywarn-unused-import</arg>
+                                <arg>-deprecation</arg>
+                                <!--<arg>-Ymacro-debug-lite</arg>-->
+                            </args>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -265,7 +346,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.3.2</version>
+                <version>3.1</version>
                 <configuration>
                     <args>
                         <arg>-Xlint:deprecation</arg>
@@ -275,17 +356,8 @@
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.12</version>
-                <configuration>
-                    <argLine>-Xmx512m</argLine>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>2.1</version>
+                <version>2.4</version>
                 <configuration>
                     <archive>
                         <manifest>
@@ -309,7 +381,7 @@
                         <plugin>
                             <groupId>net.alchim31.maven</groupId>
                             <artifactId>scala-maven-plugin</artifactId>
-                            <version>3.0.1</version>
+                            <version>3.2.0</version>
                             <configuration>
                                 <scalaVersion>${scala.version}</scalaVersion>
                                 <jvmArgs>
@@ -323,6 +395,15 @@
                             </configuration>
                         </plugin>
                     </reportPlugins>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.17</version>
+                <configuration>
+                    <argLine>-Xmx512m</argLine>
                 </configuration>
             </plugin>
         </plugins>

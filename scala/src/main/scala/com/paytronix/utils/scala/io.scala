@@ -1,5 +1,5 @@
 //
-// Copyright 2009-2012 Paytronix Systems, Inc.
+// Copyright 2009-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,11 +21,8 @@ import java.nio.charset.Charset
 
 import resource.withResource
 
-/**
- * Helpers for I/O
- */
-object io
-{
+/** Helpers for I/O */
+object io {
     /** Apply f(buf, offs, len) to blocks of bytes until inputStream is exhausted */
     def readBytes(inputStream: InputStream, f: (Array[Byte], Int, Int) => Unit): Unit = {
         val buf = new Array[Byte](3072)
@@ -37,8 +34,7 @@ object io
 
     /** Read all the bytes in the given InputStream into a byte array */
     def readBytes(inputStream: InputStream): Array[Byte] =
-        withResource(new ByteArrayOutputStream()) {
-            os =>
+        withResource(new ByteArrayOutputStream()) { os =>
             readBytes(inputStream, os.write(_, _, _))
             os.toByteArray
         }
@@ -55,18 +51,18 @@ object io
     /** Read all the characters in the given Reader into a char array */
     def readChars(reader: Reader): Array[Char] = {
         val sb = new StringBuilder
-        readChars(reader, sb.appendAll(_, _, _))
+        readChars(reader, (chars, offs, len) => { sb.appendAll(chars, offs, len); () })
         sb.toArray
     }
 
     /** Read all the characters in the given reader into a string */
     def readString(reader: Reader): String = {
         val sb = new StringBuilder
-        readChars(reader, sb.appendAll(_, _, _))
+        readChars(reader, (chars, offs, len) => { sb.appendAll(chars, offs, len); () })
         sb.toString
     }
 
     /** Read an entire input stream as UTF-8 into a string */
     def readUtf8String(inputStream: InputStream): String =
         readString(new InputStreamReader(inputStream, Charset.forName("UTF-8")))
- }
+}

@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 //
 
 package com.paytronix.utils.lift
+
+import scala.language.implicitConversions
 
 import net.liftweb.common.{Box, Empty, Failure, Full}
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG}

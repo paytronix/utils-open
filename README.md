@@ -8,8 +8,8 @@ Currently the project is managed using Maven, and as such we don't publish cross
 
 # Paytronix Engineering on Twitter
 
-* @dridus: Ross Mellgren
-* @aldiyen: Matt Czubacki
+* @dridus: Ross MacLeod
+* @aldiyen: Matt Explosion
 
 There are more of us, but not with Twitter accounts!
 
@@ -21,15 +21,15 @@ Scala 2.10 will include a full fledged reflection library, but unfortunately is 
 
 Come 2.10, the Extended Reflection library will likely be updated (and vastly simplifed) to use Scala reflection to produce its metamodel.
 
-## interchange: An automatic and full featured JSON, Avro, and MongoDB mapping library
+## interchange: An automatic and full featured JSON, Avro, and XML mapping library
 
-Interchange is a JSON, Avro, and MongoDB encoding/decoding library. It is designed under the principle that minimal metadata and configuration should be used; instead it uses extended reflection (above) to model the classes to encode/decode.
+Interchange is a JSON (lift-json and Jackson), Avro, and XML encoding/decoding library that can be extended to additional formats. It is designed under the principle that minimal metadata and configuration should be used; instead it uses compile-time metaprogramming extended reflection (above) to model the classes to encode/decode.
 
 It supports numerous data modelling techniques, including POJOs, POSOs, case classes, Java and Scala enumerations, a variety of simple scalar types, Option, Either, Result (see Miscellaneous, below), arrays, maps with both complex and simple keys, secure and insecure coding contexts (e.g. for using the same model classes for both external and internal use) and overridable coding rules per type.
 
 It is usable with only minimal pain from Java as well as Scala.
 
-JSON support is implemented using the Lift JSON library. Avro support is fully implemented, including compile-time generation of Avro schema files directly from classes at compile time or run time. MongoDB support is also implemented to convert BasicDBObjects to your own data model and vice versa.
+JSON support is implemented using the Lift JSON library. Avro support is fully implemented, including compile-time generation of Avro schema files directly from classes at compile time or run time.
 
 ## lift: Lift Utilities
 

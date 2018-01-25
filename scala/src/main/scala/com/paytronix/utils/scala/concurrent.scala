@@ -1,5 +1,5 @@
 //
-// Copyright 2009-2012 Paytronix Systems, Inc.
+// Copyright 2009-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,11 +20,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 import java.util.concurrent.locks.{Condition, Lock => JUCLock, ReadWriteLock => JUCReadWriteLock, ReentrantLock, ReentrantReadWriteLock}
 
-/**
- * Helpers for concurrent programming
- */
-object concurrent
-{
+/** Helpers for concurrent programming */
+object concurrent {
     /** Update a [[java.util.concurrent.atomic.AtomicReference]] by applying an update to the value contained therein, and trying as many times as necessary */
     def atomicUpdate[A](r: AtomicReference[A])(f: A => A): Unit = {
         def tryUpdate: Unit = {
@@ -244,7 +241,7 @@ object concurrent
                 if (enabled) current = updated
                 else sys.error("set retained outside of lock perimeter and used")
             }
-            f(current, set)
+            try f(current, set) finally { enabled = false }
         }
 
         def write[B](f: (A, A => Unit) => B): B =

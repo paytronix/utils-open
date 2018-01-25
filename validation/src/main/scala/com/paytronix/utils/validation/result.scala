@@ -1,5 +1,5 @@
 //
-// Copyright 2012 Paytronix Systems, Inc.
+// Copyright 2012-2014 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,32 +16,32 @@
 
 package com.paytronix.utils.validation
 
+import scalaz.{Failure, Success}
+import scalaz.NonEmptyList.nels
+import scalaz.Validation.success
+
 import com.paytronix.utils.scala.result.{FailedG, Okay, ResultG}
 
-import base.{ValidationError, ValidationFunction, missingValueError}
+import base.{Validated, ValidationError, missingValueError}
 
 object result {
     /** Apply some validation to the value inside a `Result`/`ResultG` */
-    def result[E, A, B](f: ValidationFunction[A, B]): ValidationFunction[ResultG[E, A], ResultG[E, B]] = {
-        case Okay(v) => f(v).right.map(Okay.apply)
-        case f@FailedG(_, _) => Right(f)
+    def result[E, A, B](f: A => Validated[B]): ResultG[E, A] => Validated[ResultG[E, B]] = {
+        case Okay(v)         => f(v).map(Okay.apply)
+        case f@FailedG(_, _) => Success(f)
     }
 
     /** Require that a result be Okay */
-    def okay[E, A]: ValidationFunction[ResultG[E, A], A] = {
-        case Okay(v) => Right(v)
-        case f@FailedG(_, _) => Left(ValidationError(f.message) :: Nil)
-    }
+    def okay[E, A]: ResultG[E, A] => Validated[A] =
+        okayE[E, A, A](_ => missingValueError)(success)
 
     /** Require that a result be Okay and apply a function to it */
-    def okay[E, A, B](f: ValidationFunction[A, B]): ValidationFunction[ResultG[E, A], B] = {
-        case Okay(v) => f(v)
-        case f@FailedG(_, _) => Left(ValidationError(f.message) :: Nil)
-    }
+    def okay[E, A, B](f: A => Validated[B]): ResultG[E, A] => Validated[B] =
+        okayE[E, A, B](_ => missingValueError)(f)
 
     /** Require that a result be Okay applying a validation function when it is and specifying a particular error message when it is not. */
-    def okay[E, A, B](error: ValidationError)(f: ValidationFunction[A, B]): ValidationFunction[ResultG[E, A], B] = {
-        case Okay(v) => f(v)
-        case f@FailedG(_, _) => Left(error :: Nil)
+    def okayE[E, A, B](error: FailedG[E] => ValidationError)(f: A => Validated[B]): ResultG[E, A] => Validated[B] = {
+        case Okay(v)         => f(v)
+        case f@FailedG(_, _) => Failure(nels(error(f)))
     }
 }

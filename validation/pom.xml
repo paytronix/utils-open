@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <!--
-    Copyright 2012 Paytronix Systems, Inc.
+    Copyright 2012-2014 Paytronix Systems, Inc.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -21,33 +21,21 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>17.2-cheesecake-SNAPSHOT</version>
+        <version>18.1-doritos-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>com.paytronix.utils</groupId>
     <artifactId>validation</artifactId>
-    <version>17.2-cheesecake-SNAPSHOT</version>
+    <version>18.1-doritos-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>Paytronix Utils - Validation</name>
     <description>A library of standard validation functions and tools to compose them both for single and multiple values.</description>
     <url>https://paytronix.github.com/utils-open</url>
 
-
     <build>
         <plugins>
-            <plugin>
-                <groupId>net.alchim31.maven</groupId>
-                <artifactId>scala-maven-plugin</artifactId>
-                <configuration>
-                    <args>
-                        <arg>-deprecation</arg>
-                        <arg>-unchecked</arg>
-                        <arg>-Ydependent-method-types</arg>
-                    </args>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
@@ -55,23 +43,18 @@
                     <reportPlugins>
                         <plugin>
                             <artifactId>maven-project-info-reports-plugin</artifactId>
-                            <version>2.2</version>
+                            <version>2.7</version>
                         </plugin>
                         <plugin>
                             <groupId>net.alchim31.maven</groupId>
                             <artifactId>scala-maven-plugin</artifactId>
-                            <version>3.0.1</version>
+                            <version>3.2.0</version>
                             <configuration>
                                 <scalaVersion>${scala.version}</scalaVersion>
                                 <jvmArgs>
                                     <jvmArg>-Xss2048K</jvmArg>
                                     <jvmArg>-Xmx1G</jvmArg>
                                 </jvmArgs>
-                                <args>
-                                    <arg>-deprecation</arg>
-                                    <arg>-unchecked</arg>
-                                    <arg>-Ydependent-method-types</arg>
-                                </args>
                             </configuration>
                         </plugin>
                     </reportPlugins>
@@ -83,19 +66,7 @@
     <dependencies>
         <dependency>
             <groupId>com.chuusai</groupId>
-            <artifactId>shapeless_2.9.2</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.paytronix.utils</groupId>
-            <artifactId>scala</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.thoughtworks.paranamer</groupId>
-            <artifactId>paranamer</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>javax.inject</groupId>
-            <artifactId>javax.inject</artifactId>
+            <artifactId>shapeless_2.11</artifactId>
         </dependency>
         <dependency>
             <groupId>joda-time</groupId>
@@ -106,26 +77,24 @@
             <artifactId>joda-convert</artifactId>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
         </dependency>
+
         <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scalap</artifactId>
+            <groupId>com.paytronix.utils</groupId>
+            <artifactId>scala</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.specs2</groupId>
-            <artifactId>specs2_${scala.compatibility.version}</artifactId>
+            <artifactId>specs2_2.11</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

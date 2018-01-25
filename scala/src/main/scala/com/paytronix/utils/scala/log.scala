@@ -16,14 +16,14 @@
 
 package com.paytronix.utils.scala
 
+import language.implicitConversions
+
 import org.slf4j.Logger
 
 import result.{FailedG, Okay, ResultG}
 
-/**
- * Helpers for logging
- */
-object log {
+/** Helpers for logging using SLF4J */
+package object log {
     /** Enrich loggers to allow logging ResultGs as causes */
     implicit def loggerResultOps(l: Logger): LoggerResultOps =
         new LoggerResultOps(l)
