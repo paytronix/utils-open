@@ -84,7 +84,7 @@ package liftjson {
 
         private def emitValue(jv: JValue): CoderResult[Unit] =
             _stack.top match {
-                case af: ArrayFrame if jv == JNothing && _omitNextMissing =>
+                case af: ArrayFrame if _omitNextMissing && (jv == JNothing || jv == JNull) =>
                     clearLatched()
                     Okay.unit
 
@@ -96,7 +96,7 @@ package liftjson {
                 case of: ObjectFrame if of.fieldName == null =>
                     FailedG("tried to emit a value when no field name given", CoderFailure.terminal)
 
-                case of: ObjectFrame if jv == JNothing && _omitNextMissing =>
+                case of: ObjectFrame if _omitNextMissing && (jv == JNothing || jv == JNull) =>
                     clearLatched()
                     Okay.unit
 
@@ -122,7 +122,6 @@ package liftjson {
             _stack.top match {
                 case of: ObjectFrame =>
                     of.fieldName = name
-                    _omitNextMissing = true
                     Okay.unit
                 case _ =>
                     FailedG("not in an object, can't emit field names", CoderFailure.terminal)

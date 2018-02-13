@@ -40,11 +40,11 @@ object liftJsonTestFixtures {
     }
     def encodeFoo(foo: Foo): JValue =
         JObject(List (
-            Some(JField("a", JInt(BigInt(foo.a)))),
-            Some(JField("b", JString(foo.b))),
-            foo.c.map { i => JField("c", JInt(BigInt(i))) },
-            Some(JField("d", JArray(foo.d.map(JString.apply))))
-        ).flatten)
+            JField("a", JInt(BigInt(foo.a))),
+            JField("b", JString(foo.b)),
+            JField("c", foo.c.map(i => JInt(BigInt(i))).getOrElse(JNull)),
+            JField("d", JArray(foo.d.map(JString.apply)))
+        ))
 
     final case class InnerStructure(a: Int, b: String)
     object InnerStructure {
