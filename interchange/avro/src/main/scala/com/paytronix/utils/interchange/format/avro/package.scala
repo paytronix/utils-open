@@ -30,14 +30,14 @@ import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchValue, t
 
 /**
  * Annotation which allows setting aliases on the generated Avro schema for a type.
- * <strong>Note:</strong> This only works for coders that honor it, which is typically only the 
+ * <strong>Note:</strong> This only works for coders that honor it, which is typically only the
  * macro derived coders.
  */
 class aliases(aliases: String*) extends StaticAnnotation
 
 /**
  * Annotation which allows overriding the Avro schema name of the type.
- * <strong>Note:</strong> This only works for coders that honor it, which is typically only the 
+ * <strong>Note:</strong> This only works for coders that honor it, which is typically only the
  * macro derived coders.
  */
 class name(name: String) extends StaticAnnotation
@@ -192,11 +192,12 @@ trait AvroDecoder[A] extends Decoder[A, AvroFormat.type] with AvroEncoderOrDecod
         } yield result
 
     /** Attempt conversion of an input stream to a value of the mapped type  */
-    def fromInputStream(writerSchema: avro.Schema)(in: InputStream): Result[A] =
+    def fromInputStream(writerSchema: avro.Schema)(in: InputStream): Result[A] = {
         for {
-            decoder <- tryCatchValue(avro.io.DecoderFactory.get.binaryDecoder(in, null)) | "Failed to create Avro decoder"
+            decoder <- tryCatchValue(avro.io.DecoderFactory.get.directBinaryDecoder(in, null)) | "Failed to create Avro decoder"
             result  <- fromDecoder(writerSchema)(decoder)
         } yield result
+    }
 
     /** Attempt decoding from some Avro decoder */
     def fromDecoder(writerSchema: avro.Schema)(in: avro.io.Decoder): Result[A] =
