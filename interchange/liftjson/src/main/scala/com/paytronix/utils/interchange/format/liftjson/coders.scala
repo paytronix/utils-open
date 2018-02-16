@@ -34,7 +34,6 @@ import com.paytronix.utils.interchange.base.container.result.instantiateThrowabl
 import json.coders.{booleanJsonCoder, doubleJsonCoder, intJsonCoder, jsonObjectCoder, jsonObjectEncoder, jsonObjectDecoder, jsonArrayCoder, scalaBigIntJsonCoder, stringJsonCoder}
 import string.coders.stringCoder
 
-
 /** `JsonCoder`s to convert raw JSON into happy `JValue` types */
 object coders {
     // This could've just used a derived adHocUnion coder except there's an infinitely recursive call stack
