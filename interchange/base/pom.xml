@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils.interchange</groupId>
         <artifactId>parent</artifactId>
-        <version>18.2-eclair-SNAPSHOT</version>
+        <version>18.3-boylstonhotfix1-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>interchange-base</artifactId>
     <packaging>jar</packaging>
-    <version>18.2-eclair-SNAPSHOT</version>
+    <version>18.3-boylstonhotfix1-SNAPSHOT</version>
 
     <name>Paytronix Utils - Interchange Base</name>
     <description>Interchange, a library for rich transcoding between objects and various formats.</description>
