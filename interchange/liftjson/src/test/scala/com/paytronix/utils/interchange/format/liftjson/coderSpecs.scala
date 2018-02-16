@@ -16,9 +16,14 @@
 
 package com.paytronix.utils.interchange.format.liftjson
 
-import net.liftweb.json.JsonAST._
-import org.specs2.{ScalaCheck, SpecificationWithJUnit}
+import com.fasterxml.jackson.core.JsonToken
 import net.liftweb.common.{Box, Full, Empty,Failure, ParamFailure,EmptyBox}
+import net.liftweb.json.JsonAST._
+import org.scalacheck.{Arbitrary, Gen, Prop}
+import org.specs2.{ScalaCheck, SpecificationWithJUnit}
+import org.specs2.matcher.{Matcher, MatchResult}
+import scala.collection.JavaConverters.{asJavaCollectionConverter, asScalaBufferConverter, mapAsJavaMapConverter, mapAsScalaMapConverter}
+import Arbitrary.arbitrary
 
 import com.paytronix.utils.interchange.format.json.{JsonCoder, derive,scalar}
 import com.paytronix.utils.interchange.format.json.coders._
@@ -26,20 +31,9 @@ import com.paytronix.utils.interchange.format.liftjson
 import com.paytronix.utils.interchange.format.liftjson.coders._
 import com.paytronix.utils.scala.result.{Okay, Result}
 
-import scala.collection.JavaConverters.{asJavaCollectionConverter, asScalaBufferConverter, mapAsJavaMapConverter, mapAsScalaMapConverter}
-
-import com.fasterxml.jackson.core.JsonToken
-import org.scalacheck.{Arbitrary, Gen, Prop}
-import org.specs2.{ScalaCheck, SpecificationWithJUnit}
-import org.specs2.matcher.{Matcher, MatchResult}
-
-import com.paytronix.utils.interchange.base.{CoderFailure, InsecureContext, Receiver}
-import com.paytronix.utils.interchange.format.string
+import com.paytronix.utils.interchange.base.{CoderFailure, InsecureContext, Receiver, name, coded, notCoded, nullable}
+import com.paytronix.utils.interchange.format.{json, string}
 import com.paytronix.utils.scala.result.{FailedException, FailedG, FailedParameterDefault, Okay, ResultG, unless}
-
-import Arbitrary.arbitrary
-import com.paytronix.utils.interchange.format.json
-
 
 case class InnerClass(test: List[String])
 object InnerClass {
@@ -54,10 +48,10 @@ case class TestClass(
     o: InnerClass,
     b: Boolean
 )
+
 object TestClass {
     implicit val jsonCoder = derive.structure.coder[TestClass]
 }
-
 
 class LiftJsonCoderTest extends SpecificationWithJUnit with ScalaCheck {
 
@@ -66,6 +60,10 @@ class LiftJsonCoderTest extends SpecificationWithJUnit with ScalaCheck {
             encode JObject                                                          $encodeJObjectCase
             decode JObject                                                          $decodeJObjectCase
             encode from case class to JValue to String and all the way back again   $encodeAndDecodeCaseClassCase
+            encode JNull as JSON null                                               $properJNullEncoding
+            encode JNothing as no value                                             $properJNothingEncoding
+            decode JSON null as JNull                                               $properJNullDecoding
+            decode empty JSON value as JNothing                                     $properJNothingDecoding
     """
 
     val jObjectWithAllTypes = {
@@ -98,5 +96,20 @@ class LiftJsonCoderTest extends SpecificationWithJUnit with ScalaCheck {
             { x => jValueCoder.decode.fromString(x) } >>=
             { x => testClassCoder.decode.fromJValue(x) }
         } === Okay(testInstance)
+    }
+
+    def properJNullEncoding = {
+        jValueCoder.encode.toString(JObject(List(JField("field", JNull)))) === Okay("""{"field":null}""")
+    }
+
+    def properJNothingEncoding = {
+        jValueCoder.encode.toString(JField("field", JNothing)) === Okay("")
+    }
+
+    def properJNullDecoding = {
+        jValueCoder.decode.fromString("""{"field":null}""") === Okay(JObject(List(JField("field", JNull))))
+    }
+    def properJNothingDecoding = {
+        jValueCoder.decode.fromString("{}") === Okay(JObject(List()))
     }
 }
