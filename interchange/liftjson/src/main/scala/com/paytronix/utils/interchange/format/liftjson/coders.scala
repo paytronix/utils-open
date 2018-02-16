@@ -81,7 +81,7 @@ object coders {
                     case jString: JString => tryEncode(jString, jStringCoder.encode)
                     case jArray: JArray   => tryEncode(jArray,  jArrayCoder.encode)
                     case jObject: JObject => tryEncode(jObject, jObjectCoder.encode)
-                    case JNull|JNothing   => generator.writeNull()
+                    case JNull|JNothing   => generator.writeNothingOrNull()
                     case _: JField        => FailedG(s"JFields cannot be encoded by this coder", interchange.base.CoderFailure.terminal)
                 }
             }
