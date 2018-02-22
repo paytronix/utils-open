@@ -34,7 +34,6 @@ import com.paytronix.utils.interchange.base.container.result.instantiateThrowabl
 import json.coders.{booleanJsonCoder, doubleJsonCoder, intJsonCoder, jsonObjectCoder, jsonObjectEncoder, jsonObjectDecoder, jsonArrayCoder, scalaBigIntJsonCoder, stringJsonCoder}
 import string.coders.stringCoder
 
-
 /** `JsonCoder`s to convert raw JSON into happy `JValue` types */
 object coders {
     // This could've just used a derived adHocUnion coder except there's an infinitely recursive call stack
@@ -52,7 +51,9 @@ object coders {
                     receiver(subReceiver.value)
                 }
 
-                if (!parser.hasValue || parser.currentToken == JsonToken.VALUE_NULL) {
+                if (!parser.hasValue) {
+                    receiver(JNothing)
+                } else if (parser.currentToken == JsonToken.VALUE_NULL) {
                     receiver(JNull)
                 } else {
                     // JString is first because it will only decode actual JSON strings, but the int, boolean, and double
@@ -75,14 +76,15 @@ object coders {
                 def tryEncode[A <: JValue](value: A, encoder: JsonEncoder[A]): CoderResult[Unit] = tryCatchResultG(interchange.base.terminal)(encoder.run(value, generator))
 
                 jValue match {
-                    case jInt: JInt       => tryEncode(jInt,    jIntCoder.encode)
-                    case jBool: JBool     => tryEncode(jBool,   jBoolCoder.encode)
-                    case jDouble: JDouble => tryEncode(jDouble, jDoubleCoder.encode)
-                    case jString: JString => tryEncode(jString, jStringCoder.encode)
-                    case jArray: JArray   => tryEncode(jArray,  jArrayCoder.encode)
-                    case jObject: JObject => tryEncode(jObject, jObjectCoder.encode)
-                    case JNull|JNothing   => generator.writeNull()
-                    case _: JField        => FailedG(s"JFields cannot be encoded by this coder", interchange.base.CoderFailure.terminal)
+                    case jInt: JInt          => tryEncode(jInt,    jIntCoder.encode)
+                    case jBool: JBool        => tryEncode(jBool,   jBoolCoder.encode)
+                    case jDouble: JDouble    => tryEncode(jDouble, jDoubleCoder.encode)
+                    case jString: JString    => tryEncode(jString, jStringCoder.encode)
+                    case jArray: JArray      => tryEncode(jArray,  jArrayCoder.encode)
+                    case jObject: JObject    => tryEncode(jObject, jObjectCoder.encode)
+                    case JNothing            => generator.writeNothingOrNull()
+                    case JNull               => generator.writeNull()
+                    case JField(name, value) => generator.writeFieldName(name) >> run(value, generator)
                 }
             }
         }
