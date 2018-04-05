@@ -237,7 +237,6 @@ class javaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaCheck
             should decode from strings $decodeCase
             should decode from numbers without a decimal $decodeIntegralCase
             should decode from numbers with a decimal $decodeRealCase
-            should fail to decode a missing value $decodeMissingCase
     """
 
     def encodeCase = Prop.forAll(safeJavaBigDecimals) { bd => scalar.javaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
@@ -249,7 +248,7 @@ class javaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaCheck
     def decodeRealCase = prop { (d: Double) =>
         decode(scalar.javaBigDecimalJsonCoder.decode)(d.toString) ==== Okay(new java.math.BigDecimal(d.toString))
     }
-    def decodeMissingCase = checkMissing(scalar.javaBigDecimalJsonCoder.decode)
+    // def decodeMissingCase = checkMissing(scalar.javaBigDecimalJsonCoder.decode)
 }
 
 class scalaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
@@ -259,7 +258,6 @@ class scalaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaChec
             should decode from strings $decodeCase
             should decode from numbers without a decimal $decodeIntegralCase
             should decode from numbers with a decimal $decodeRealCase
-            should fail to decode a missing value $decodeMissingCase
     """
 
     def encodeCase = Prop.forAll(safeScalaBigDecimals) { bd => scalar.scalaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
@@ -271,7 +269,7 @@ class scalaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaChec
     def decodeRealCase = prop { (d: Double) =>
         decode(scalar.scalaBigDecimalJsonCoder.decode)(d.toString) ==== Okay(BigDecimal(d.toString))
     }
-    def decodeMissingCase = checkMissing(scalar.scalaBigDecimalJsonCoder.decode)
+    // def decodeMissingCase = checkMissing(scalar.scalaBigDecimalJsonCoder.decode)
 }
 
 class charJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
