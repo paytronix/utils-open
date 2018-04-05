@@ -92,7 +92,7 @@ trait scalar extends scalarLPI {
     }
 
     /** `JsonCoder` for Java Boolean. Encodes as a JSON boolean */
-    implicit lazy val javaBooleanJsonCoder = booleanJsonCoder.mapBijection(bijection (
+    implicit lazy val javaBooleanJsonCoder = booleanJsonCoder.mapNullableBijection(bijection (
         (i: JavaBoolean) => tryCatchValue(i: Boolean): Result[Boolean],
         (i: Boolean) => Okay(boolean2Boolean(i)): Result[JavaBoolean]
     ))
@@ -194,7 +194,7 @@ trait scalar extends scalarLPI {
     }
 
     /** `JsonCoder` for Java Integer. Encodes as a JSON number */
-    implicit lazy val javaIntegerJsonCoder = intJsonCoder.mapBijection(bijection (
+    implicit lazy val javaIntegerJsonCoder = intJsonCoder.mapNullableBijection(bijection (
         (i: JavaInteger) => tryCatchValue(i.toInt): Result[Int],
         (i: Int) => Okay(int2Integer(i)): Result[JavaInteger]
     ))
@@ -232,7 +232,7 @@ trait scalar extends scalarLPI {
     }
 
     /** `JsonCoder` for Java Long. Encodes as a JSON number */
-    implicit lazy val javaLongJsonCoder = longJsonCoder.mapBijection(bijection (
+    implicit lazy val javaLongJsonCoder = longJsonCoder.mapNullableBijection(bijection (
         (i: JavaLong) => tryCatchValue(i.toLong): Result[Long],
         (i: Long) => Okay(long2Long(i)): Result[JavaLong]
     ))
@@ -304,24 +304,28 @@ trait scalar extends scalarLPI {
     /** JsonCoder for `java.math.BigInteger`. Encodes as a JSON string (to avoid issues with overflow) */
     implicit object javaBigIntegerJsonCoder extends JsonCoder[java.math.BigInteger] {
         object encode extends JsonEncoder[java.math.BigInteger] {
-            val mightBeNull = false
+            val mightBeNull = true
             val codesAsObject = false
 
             def run(in: java.math.BigInteger, out: InterchangeJsonGenerator) =
                 tryCatchResultG(terminal) {
-                    out.writeNumber(in)
+                    Option(in) match {
+                        case Some(bigInt) => out.writeNumber(bigInt)
+                        case None         => out.writeNull()
+                    }
                     Okay.unit
                 }
         }
         object decode extends JsonDecoder[java.math.BigInteger] {
-            val mightBeNull = false
+            val mightBeNull = true
             val codesAsObject = false
 
             def run(in: InterchangeJsonParser, out: Receiver[java.math.BigInteger]) =
                 in.requireValue >> {
                     in.currentToken match {
-                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
-                        case JsonToken.VALUE_STRING     => javaBigIntegerStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case JsonToken.VALUE_NULL       => out(null)
+                        case JsonToken.VALUE_STRING     => 
+                            javaBigIntegerStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
                         case JsonToken.VALUE_NUMBER_INT =>
                             try out(in.bigIntegerValue) catch {
                                 case _: JsonParseException => FailedG("number out of bounds", in.terminal)
@@ -342,26 +346,31 @@ trait scalar extends scalarLPI {
     /** JsonCoder for `java.math.BigDecimal`. Encodes as a JSON string (to avoid issues with precision of IEEE754) */
     implicit object javaBigDecimalJsonCoder extends JsonCoder[java.math.BigDecimal] {
         object encode extends JsonEncoder[java.math.BigDecimal] {
-            val mightBeNull = false
+            val mightBeNull = true
             val codesAsObject = false
 
-            def run(in: java.math.BigDecimal, out: InterchangeJsonGenerator) =
-                tryCatchResultG(terminal) {
-                    if (in.scale < 0 || in.scale > 50)
-                        out.writeString(in.toString)
-                    else
-                        out.writeString(in.toPlainString)
-                    Okay.unit
+            def run(in: java.math.BigDecimal, out: InterchangeJsonGenerator) = {
+                Option(in) match { 
+                    case Some(bigDecimal) => 
+                        tryCatchResultG(terminal) {
+                            if (bigDecimal.scale < 0 || bigDecimal.scale > 50)
+                                out.writeString(bigDecimal.toString)
+                            else
+                                out.writeString(bigDecimal.toPlainString)
+                        }
+                    case None => out.writeNull()
                 }
+                Okay.unit
+            }
         }
         object decode extends JsonDecoder[java.math.BigDecimal] {
-            val mightBeNull = false
+            val mightBeNull = true
             val codesAsObject = false
 
             def run(in: InterchangeJsonParser, out: Receiver[java.math.BigDecimal]) =
                 in.requireValue >> {
                     in.currentToken match {
-                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_NULL       => out(null)
                         case JsonToken.VALUE_STRING     => javaBigDecimalStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
                         case JsonToken.VALUE_NUMBER_INT =>
                             try out(new java.math.BigDecimal(in.bigIntegerValue)) catch {
@@ -588,10 +597,10 @@ trait scalar extends scalarLPI {
         implicit val localDateJsonCoder        : JsonCoder[LocalDate]        = stringJsonCoder.mapBijection(datetime.iso8601.localDateBijection)
         implicit val localDateTimeJsonCoder    : JsonCoder[LocalDateTime]    = stringJsonCoder.mapBijection(datetime.iso8601.localDateTimeBijection)
         implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapBijection(datetime.iso8601.localTimeBijection)
-        implicit val javaDateJsonCoder         : JsonCoder[JavaDate]         = stringJsonCoder.mapBijection(datetime.iso8601.javaDateBijection)
-        implicit val javaSqlDateJsonCoder      : JsonCoder[JavaSqlDate]      = stringJsonCoder.mapBijection(datetime.iso8601.javaSqlDateBijection)
-        implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapBijection(datetime.iso8601.javaSqlTimeBijection)
-        implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapBijection(datetime.iso8601.javaSqlTimestampBijection)
+        implicit val javaDateJsonCoder         : JsonCoder[JavaDate]         = stringJsonCoder.mapNullableBijection(datetime.iso8601.javaDateBijection)
+        implicit val javaSqlDateJsonCoder      : JsonCoder[JavaSqlDate]      = stringJsonCoder.mapNullableBijection(datetime.iso8601.javaSqlDateBijection)
+        implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapNullableBijection(datetime.iso8601.javaSqlTimeBijection)
+        implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapNullableBijection(datetime.iso8601.javaSqlTimestampBijection)
     }
 
     object dateAsClassic {
@@ -599,21 +608,21 @@ trait scalar extends scalarLPI {
         implicit val localDateJsonCoder        : JsonCoder[LocalDate]        = stringJsonCoder.mapBijection(datetime.classic.localDateBijection)
         implicit val localDateTimeJsonCoder    : JsonCoder[LocalDateTime]    = stringJsonCoder.mapBijection(datetime.classic.localDateTimeBijection)
         implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapBijection(datetime.classic.localTimeBijection)
-        implicit val javaDateJsonCoder         : JsonCoder[JavaDate]         = stringJsonCoder.mapBijection(datetime.classic.javaDateBijection)
-        implicit val javaSqlDateJsonCoder      : JsonCoder[JavaSqlDate]      = stringJsonCoder.mapBijection(datetime.classic.javaSqlDateBijection)
-        implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapBijection(datetime.classic.javaSqlTimeBijection)
-        implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapBijection(datetime.classic.javaSqlTimestampBijection)
+        implicit val javaDateJsonCoder         : JsonCoder[JavaDate]         = stringJsonCoder.mapNullableBijection(datetime.classic.javaDateBijection)
+        implicit val javaSqlDateJsonCoder      : JsonCoder[JavaSqlDate]      = stringJsonCoder.mapNullableBijection(datetime.classic.javaSqlDateBijection)
+        implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapNullableBijection(datetime.classic.javaSqlTimeBijection)
+        implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapNullableBijection(datetime.classic.javaSqlTimestampBijection)
     }
 
     object dateAsSqlServer {
         implicit val dateTimeJsonCoder         : JsonCoder[DateTime]         = stringJsonCoder.mapBijection(datetime.sqlServer.dateTimeBijection)
         implicit val localDateJsonCoder        : JsonCoder[LocalDate]        = stringJsonCoder.mapBijection(datetime.sqlServer.localDateBijection)
         implicit val localDateTimeJsonCoder    : JsonCoder[LocalDateTime]    = stringJsonCoder.mapBijection(datetime.sqlServer.localDateTimeBijection)
-        implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapBijection(datetime.sqlServer.localTimeBijection)
-        implicit val javaDateJsonCoder         : JsonCoder[JavaDate]         = stringJsonCoder.mapBijection(datetime.sqlServer.javaDateBijection)
-        implicit val javaSqlDateJsonCoder      : JsonCoder[JavaSqlDate]      = stringJsonCoder.mapBijection(datetime.sqlServer.javaSqlDateBijection)
-        implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapBijection(datetime.sqlServer.javaSqlTimeBijection)
-        implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapBijection(datetime.sqlServer.javaSqlTimestampBijection)
+        implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapNullableBijection(datetime.sqlServer.localTimeBijection)
+        implicit val javaDateJsonCoder         : JsonCoder[JavaDate]         = stringJsonCoder.mapNullableBijection(datetime.sqlServer.javaDateBijection)
+        implicit val javaSqlDateJsonCoder      : JsonCoder[JavaSqlDate]      = stringJsonCoder.mapNullableBijection(datetime.sqlServer.javaSqlDateBijection)
+        implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapNullableBijection(datetime.sqlServer.javaSqlTimeBijection)
+        implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapNullableBijection(datetime.sqlServer.javaSqlTimestampBijection)
     }
 
     /** `JsonCoder` for `org.joda.time.Duration`. Encodes as a JSON number */
