@@ -201,7 +201,6 @@ class javaBigIntegerJsonCoderTest extends SpecificationWithJUnit with ScalaCheck
             should decode from strings $decodeCase
             should decode from numbers without a decimal $decodeIntegralCase
             should not decode from numbers with a decimal $decodeRealCase
-            should fail to decode a missing value $decodeMissingCase
     """
 
     def encodeCase = prop { (bi: java.math.BigInteger) => scalar.javaBigIntegerJsonCoder.encode.toString(bi) ==== Okay(bi.toString) }
@@ -210,7 +209,7 @@ class javaBigIntegerJsonCoderTest extends SpecificationWithJUnit with ScalaCheck
     def decodeRealCase = prop { (d: Double) =>
         decode(scalar.javaBigIntegerJsonCoder.decode)(d.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeMissingCase = checkMissing(scalar.javaBigIntegerJsonCoder.decode)
+    // def decodeMissingCase = checkMissing(scalar.javaBigIntegerJsonCoder.decode)
 }
 
 class scalaBigIntJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
@@ -220,7 +219,6 @@ class scalaBigIntJsonCoderTest extends SpecificationWithJUnit with ScalaCheck wi
             should decode from strings $decodeCase
             should decode from numbers without a decimal $decodeIntegralCase
             should not decode from numbers with a decimal $decodeRealCase
-            should fail to decode a missing value $decodeMissingCase
     """
 
     def encodeCase = prop { (bi: BigInt) => scalar.scalaBigIntJsonCoder.encode.toString(bi) ==== Okay(bi.toString) }
@@ -229,7 +227,7 @@ class scalaBigIntJsonCoderTest extends SpecificationWithJUnit with ScalaCheck wi
     def decodeRealCase = prop { (d: Double) =>
         decode(scalar.scalaBigIntJsonCoder.decode)(d.toString) must beLike { case FailedG(_, _) => ok }
     }
-    def decodeMissingCase = checkMissing(scalar.scalaBigIntJsonCoder.decode)
+    // def decodeMissingCase = checkMissing(scalar.scalaBigIntJsonCoder.decode)
 }
 
 class javaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {

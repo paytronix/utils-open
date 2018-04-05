@@ -758,6 +758,17 @@ trait JsonEncoder[A] extends Encoder[A, JsonFormat.type] with JsonEncoderOrDecod
         def run(b: B, sink: InterchangeJsonGenerator) = atTerminal(k(b)) >>= { outer.run(_, sink) }
     }
 
+    def mapKleisiWithNull[B](k: B => Result[A]): JsonEncoder[B] = new JsonEncoder[B] {
+        val mightBeNull = true
+        val codesAsObject = outer.codesAsObject
+
+        def run(b: B, sink: InterchangeJsonGenerator) = Option(b) match {
+            case Some(b) => atTerminal(k(b)) >>= { outer.run(_, sink) }
+            case None    => sink.writeNull()
+        }
+    }
+
+
     /** Encode a value to a byte array encoded using UTF-8 */
     def toBytes(in: A, enc: JsonEncoding = JsonEncoding.UTF8, pretty: Boolean = false)
                (implicit jsonFactory: JsonFactory = JsonFormat.defaultFactory): Result[Array[Byte]] =
@@ -830,6 +841,30 @@ trait JsonDecoder[A] extends Decoder[A, JsonFormat.type] with JsonEncoderOrDecod
                         case failed: FailedG[_] => failed.mapFailure { _ => source.terminal }
                     }
                 case failed => failed
+            }
+        }
+
+    }
+
+    def mapKleisiWithNull[B >: Null](k: A => Result[B]): JsonDecoder[B] = new JsonDecoder[B] {
+        val mightBeNull = true
+        val codesAsObject = outer.codesAsObject
+
+        def run(source: InterchangeJsonParser, outB: Receiver[B]) = {
+            source.requireValue >> {
+                source.currentToken match {
+                    case JsonToken.VALUE_NULL   => outB(null)
+                    case _                      =>
+                        val outA = new Receiver[A]
+                        outer.run(source, outA) match {
+                            case _: Okay[_] =>
+                                k(outA.value) match {
+                                    case Okay(b) => outB(b)
+                                    case failed: FailedG[_] => failed.mapFailure { _ => source.terminal }
+                                }
+                            case failed => failed
+                        }
+                }
             }
         }
     }
@@ -920,6 +955,9 @@ trait JsonCoder[A] extends Coder[JsonEncoder, JsonDecoder, A, JsonFormat.type] {
      */
     def mapBijection[B](bijection: BijectionT[Result, Result, B, A]) =
         JsonCoder.make(encode.mapKleisli(bijection.to), decode.mapKleisli(bijection.from))
+
+    def mapNullableBijection[B >: Null](bijection: BijectionT[Result, Result, B, A]) =
+        JsonCoder.make(encode.mapKleisiWithNull(bijection.to), decode.mapKleisiWithNull(bijection.from))
 
     /** Wrap the decoder with a `defaultJsonDecoder` to provide a default in the case where the value is missing or null */
     def default(value: A): JsonCoder[A] =
