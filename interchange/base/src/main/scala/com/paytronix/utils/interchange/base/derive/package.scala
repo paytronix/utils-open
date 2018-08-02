@@ -17,15 +17,11 @@
 package com.paytronix.utils.interchange.base.derive
 
 import scala.language.higherKinds
-import scala.language.experimental.macros
 import scala.reflect.macros.Universe
 import scala.reflect.macros.whitebox.Context
-
 import scalaz.NonEmptyList
 
 import com.paytronix.utils.interchange.base
-
-import NonEmptyList.{nel, nels}
 
 /**
  * Trait which implements a family of macros used to generate various coders for some format.
@@ -96,8 +92,8 @@ trait DeriveCoderMacros extends DeriveUtils {
         nullable: Tree => Tree,
         default: Tree => Tree => Tree
     ): Tree = {
-        val nullableTpe = typeOf[com.paytronix.utils.interchange.base.nullable]
-        val defaultTpe = typeOf[com.paytronix.utils.interchange.base.default]
+        val nullableTpe = typeOf[base.nullable]
+        val defaultTpe = typeOf[base.default]
         List (
             annotations.collectFirst { case annot if annot.tree.tpe =:= nullableTpe => annot }.map { _ => nullable },
             annotations.collectFirst { case annot if annot.tree.tpe =:= defaultTpe && annot.tree.children.size > 1 =>

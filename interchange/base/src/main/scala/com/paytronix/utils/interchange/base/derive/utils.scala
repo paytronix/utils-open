@@ -16,7 +16,6 @@
 
 package com.paytronix.utils.interchange.base.derive
 
-import scala.reflect.macros.Universe
 import scala.reflect.macros.whitebox.Context
 
 import scalaz.syntax.foldable.ToFoldableOps
@@ -29,7 +28,7 @@ trait DeriveUtils {
     val c: Context
 
     import c.universe.{
-        Annotation, AssignOrNamedArg, AssignOrNamedArgTag,  Bind, Block, ClassDef, ClassDefTag, EmptyTree, Flag, Ident, IdentTag,
+        Annotation, AssignOrNamedArg, AssignOrNamedArgTag, Bind, Block, ClassDef, ClassDefTag, EmptyTree, Flag, Ident, IdentTag,
         MethodSymbol, MethodType, MethodTypeTag, Modifiers, ModuleDef, ModuleDefTag, NoPrefix, NullaryMethodType, NullaryMethodTypeTag,
         Quasiquote, SingleType, SingleTypeTag, Symbol, Template, TermName, TermNameTag, TermSymbol, Tree, TreeTag, Type,
         TypeName, termNames, typeOf
