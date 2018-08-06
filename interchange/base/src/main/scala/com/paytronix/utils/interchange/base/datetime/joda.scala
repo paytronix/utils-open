@@ -16,7 +16,7 @@
 
 package com.paytronix.utils.interchange.base.datetime
 
-import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZonedDateTime, ZoneOffset, ZoneId}
+import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZonedDateTime, ZoneOffset}
 import org.joda.time.{
     DateTime          => JodaDateTime,
     DateTimeZone      => JodaDateTimeZone,
@@ -32,10 +32,14 @@ import BijectionT.bijection
 
 /** Conversions between Joda Time and Java Time types */
 object joda {
+    // Conversions between time offset representations. Always use the offset rather than the zone name, as they don't always match 1:1
+    private def jodaDateTimeZone(dtz: ZoneOffset): JodaDateTimeZone = JodaDateTimeZone.forOffsetMillis(dtz.getTotalSeconds * 1000)
+    private def javaZoneOffset(jdtz: JodaDateTimeZone): ZoneOffset = ZoneOffset.ofTotalSeconds(jdtz.getOffset(System.currentTimeMillis) / 1000)
+
     val dateTimeBijection: BijectionT[Result, Result, JodaDateTime, ZonedDateTime] =
         bijection (
-            (jdt: JodaDateTime)  => tryCatchValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(jdt.getMillis), ZoneId.of(jdt.getZone.getID))): Result[ZonedDateTime],
-            (zdt: ZonedDateTime) => tryCatchValue(new JodaDateTime(zdt.toInstant.toEpochMilli, JodaDateTimeZone.forID(zdt.getZone.getId))): Result[JodaDateTime]
+            (jdt: JodaDateTime)  => tryCatchValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(jdt.getMillis), javaZoneOffset(jdt.getZone))): Result[ZonedDateTime],
+            (zdt: ZonedDateTime) => tryCatchValue(new JodaDateTime(zdt.toInstant.toEpochMilli, jodaDateTimeZone(zdt.getOffset))): Result[JodaDateTime]
         )
     val localDateBijection: BijectionT[Result, Result, JodaLocalDate, LocalDate] =
         bijection (
@@ -49,16 +53,8 @@ object joda {
         )
     val localTimeBijection: BijectionT[Result, Result, JodaLocalTime, LocalTime] =
         bijection (
+            // Java Time treats all LocalTime values having no offset, but Joda treats constructors args as being adjusted for local time zone unless specified
             (jlt: JodaLocalTime) => Okay(LocalTime.ofNanoOfDay(jlt.getMillisOfDay * 1000000L)): Result[LocalTime],
-            (lt: LocalTime) => Okay(new JodaLocalTime(lt.toNanoOfDay / 1000000)): Result[JodaLocalTime]
+            (lt: LocalTime)      => Okay(new JodaLocalTime(lt.toNanoOfDay / 1000000, JodaDateTimeZone.UTC)): Result[JodaLocalTime]
         )
 }
-
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
-// MATT make unit tests for this... especially around the stupid railroad time in 1883 or whatever the eff
