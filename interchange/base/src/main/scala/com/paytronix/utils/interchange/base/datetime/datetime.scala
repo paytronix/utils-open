@@ -62,7 +62,7 @@ class DateTimeStringBijections (
     private def fail(encodeFormatter: DateTimeFormatter): Failed =
         Failed("incorrectly formatted date -- expected format like  " + ZonedDateTime.now.format(encodeFormatter))
 
-    val dateTimeBijection: BijectionT[Result, Result, ZonedDateTime, String] =
+    val zonedDateTimeBijection: BijectionT[Result, Result, ZonedDateTime, String] =
         bijection (
             zdt => tryCatchValue(zdt.format(dateTimeFormatters.head)): Result[String],
             s => firstOrLastG(fail(dateTimeFormatters.head), dateTimeFormatters) { formatter =>
@@ -95,7 +95,7 @@ class DateTimeStringBijections (
         )
 
     val javaDateBijection: BijectionT[Result, Result, UtilDate, String] =
-        dateTimeBijection <=< javaDates.javaDateBijection
+        zonedDateTimeBijection <=< javaDates.javaDateBijection
 
     val javaSqlDateBijection: BijectionT[Result, Result, SqlDate, String] =
         localDateBijection <=< javaDates.javaSqlDateBijection
@@ -104,11 +104,11 @@ class DateTimeStringBijections (
         localTimeBijection <=< javaDates.javaSqlTimeBijection
 
     val javaSqlTimestampBijection: BijectionT[Result, Result, SqlTimestamp, String] =
-        dateTimeBijection <=< javaDates.javaSqlTimestampBijection
+        zonedDateTimeBijection <=< javaDates.javaSqlTimestampBijection
 }
 
 object long {
-    val dateTimeBijection: BijectionT[Result, Result, ZonedDateTime, Long] =
+    val zonedDateTimeBijection: BijectionT[Result, Result, ZonedDateTime, Long] =
         bijection (
             (zdt: ZonedDateTime) => Okay(zdt.toInstant.toEpochMilli): Result[Long],
             (l: Long) => tryCatchValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(l), ZoneId.systemDefault)): Result[ZonedDateTime]
@@ -133,7 +133,7 @@ object long {
         )
 
     val javaDateBijection: BijectionT[Result, Result, UtilDate, Long] =
-        dateTimeBijection <=< javaDates.javaDateBijection
+        zonedDateTimeBijection <=< javaDates.javaDateBijection
 
     val javaSqlDateBijection: BijectionT[Result, Result, SqlDate, Long] =
         localDateBijection <=< javaDates.javaSqlDateBijection
@@ -142,7 +142,7 @@ object long {
         localTimeBijection <=< javaDates.javaSqlTimeBijection
 
     val javaSqlTimestampBijection: BijectionT[Result, Result, SqlTimestamp, Long] =
-        dateTimeBijection <=< javaDates.javaSqlTimestampBijection
+        zonedDateTimeBijection <=< javaDates.javaSqlTimestampBijection
 }
 
 object iso8601 extends DateTimeStringBijections (

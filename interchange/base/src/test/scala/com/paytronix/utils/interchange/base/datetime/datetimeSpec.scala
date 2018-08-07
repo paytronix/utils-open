@@ -95,7 +95,7 @@ class iso8601Test extends SpecificationWithJUnit with ScalaCheck {
             hh:mm:ss.sss                    $e31
     """
 
-    val roundTripDateTime      = iso8601.dateTimeBijection      >=> iso8601.dateTimeBijection.flip
+    val roundTripDateTime      = iso8601.zonedDateTimeBijection >=> iso8601.zonedDateTimeBijection.flip
     val roundTripLocalDate     = iso8601.localDateBijection     >=> iso8601.localDateBijection.flip
     val roundTripLocalDateTime = iso8601.localDateTimeBijection >=> iso8601.localDateTimeBijection.flip
     val roundTripLocalTime     = iso8601.localTimeBijection     >=> iso8601.localTimeBijection.flip
@@ -109,18 +109,18 @@ class iso8601Test extends SpecificationWithJUnit with ScalaCheck {
     val nano: Int = 1000000
 
     // Parsing tests
-    def e5  = iso8601.dateTimeBijection.from("2014-07-01T13:14:15.161Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def e6  = iso8601.dateTimeBijection.from("2014-07-01T13:14:15.161+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def e7  = iso8601.dateTimeBijection.from("2014-07-01T13:14:15.161-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def e8  = iso8601.dateTimeBijection.from("2014-07-01T13:14:15Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def e9  = iso8601.dateTimeBijection.from("2014-07-01T13:14:15+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def e10 = iso8601.dateTimeBijection.from("2014-07-01T13:14:15-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def e11 = iso8601.dateTimeBijection.from("20140701T131415.161Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def e12 = iso8601.dateTimeBijection.from("20140701T131415.161+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def e13 = iso8601.dateTimeBijection.from("20140701T131415.161-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def e14 = iso8601.dateTimeBijection.from("20140701T131415Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def e15 = iso8601.dateTimeBijection.from("20140701T131415+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def e16 = iso8601.dateTimeBijection.from("20140701T131415-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def e5  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def e6  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def e7  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def e8  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def e9  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def e10 = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def e11 = iso8601.zonedDateTimeBijection.from("20140701T131415.161Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def e12 = iso8601.zonedDateTimeBijection.from("20140701T131415.161+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def e13 = iso8601.zonedDateTimeBijection.from("20140701T131415.161-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def e14 = iso8601.zonedDateTimeBijection.from("20140701T131415Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def e15 = iso8601.zonedDateTimeBijection.from("20140701T131415+04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def e16 = iso8601.zonedDateTimeBijection.from("20140701T131415-04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
     def e17 = iso8601.localDateBijection.from("2014-07-01") ==== Okay(LocalDate.of(2014, 7, 1))
     def e18 = iso8601.localDateBijection.from("20140701") ==== Okay(LocalDate.of(2014, 7, 1))
     def e19 = iso8601.localDateTimeBijection.from("2014-07-01T13:14:15.161") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
@@ -132,9 +132,9 @@ class iso8601Test extends SpecificationWithJUnit with ScalaCheck {
     def e25 = iso8601.localTimeBijection.from("121314") ==== Okay(LocalTime.of(12, 13, 14, 0))
 
     // Formatting tests
-    def e26 = iso8601.dateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC)) ==== Okay("2014-07-01T13:14:15.000Z")
-    def e27 = iso8601.dateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56))) ==== Okay("2014-07-01T13:14:15.000+04:56")
-    def e28 = iso8601.dateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56))) ==== Okay("2014-07-01T13:14:15.000-04:56")
+    def e26 = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC)) ==== Okay("2014-07-01T13:14:15.000Z")
+    def e27 = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56))) ==== Okay("2014-07-01T13:14:15.000+04:56")
+    def e28 = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56))) ==== Okay("2014-07-01T13:14:15.000-04:56")
     def e29 = iso8601.localDateBijection.to(LocalDate.of(2014, 7, 1)) ==== Okay("2014-07-01")
     def e30 = iso8601.localDateTimeBijection.to(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0)) ==== Okay("2014-07-01T13:14:15.000")
     def e31 = iso8601.localTimeBijection.to(LocalTime.of(12, 13, 14, 0)) ==== Okay("12:13:14.000")
@@ -149,7 +149,7 @@ class longTest extends SpecificationWithJUnit with ScalaCheck {
             org.joda.time.LocalTime         $e4
     """
 
-    val roundTripDateTime      = long.dateTimeBijection      >=> long.dateTimeBijection.flip
+    val roundTripDateTime      = long.zonedDateTimeBijection      >=> long.zonedDateTimeBijection.flip
     val roundTripLocalDate     = long.localDateBijection     >=> long.localDateBijection.flip
     val roundTripLocalDateTime = long.localDateTimeBijection >=> long.localDateTimeBijection.flip
     val roundTripLocalTime     = long.localTimeBijection     >=> long.localTimeBijection.flip

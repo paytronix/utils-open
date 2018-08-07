@@ -26,6 +26,11 @@ import org.joda.time.{
 }
 import scalaz.BijectionT
 
+import com.paytronix.utils.interchange.base.datetime.{
+    long    => javaLong,
+    iso8601 => javaIso8601,
+    classic => javaClassic
+}
 import com.paytronix.utils.scala.result.{Okay, Result, tryCatchValue}
 
 import BijectionT.bijection
@@ -57,4 +62,26 @@ object joda {
             (jlt: JodaLocalTime) => Okay(LocalTime.ofNanoOfDay(jlt.getMillisOfDay * 1000000L)): Result[LocalTime],
             (lt: LocalTime)      => Okay(new JodaLocalTime(lt.toNanoOfDay / 1000000, JodaDateTimeZone.UTC)): Result[JodaLocalTime]
         )
+
+    object long {
+        val dateTimeBijection:      BijectionT[Result, Result, JodaDateTime, Long]      = javaLong.zonedDateTimeBijection <=< joda.dateTimeBijection
+        val localDateBijection:     BijectionT[Result, Result, JodaLocalDate, Long]     = javaLong.localDateBijection     <=< joda.localDateBijection
+        val localDateTimeBijection: BijectionT[Result, Result, JodaLocalDateTime, Long] = javaLong.localDateTimeBijection <=< joda.localDateTimeBijection
+        val localTimeBijection:     BijectionT[Result, Result, JodaLocalTime, Long]     = javaLong.localTimeBijection     <=< joda.localTimeBijection
+    }
+
+    object iso8601 {
+        val dateTimeBijection:      BijectionT[Result, Result, JodaDateTime, String]      = javaIso8601.zonedDateTimeBijection <=< joda.dateTimeBijection
+        val localDateBijection:     BijectionT[Result, Result, JodaLocalDate, String]     = javaIso8601.localDateBijection     <=< joda.localDateBijection
+        val localDateTimeBijection: BijectionT[Result, Result, JodaLocalDateTime, String] = javaIso8601.localDateTimeBijection <=< joda.localDateTimeBijection
+        val localTimeBijection:     BijectionT[Result, Result, JodaLocalTime, String]     = javaIso8601.localTimeBijection     <=< joda.localTimeBijection
+    }
+
+    object classic {
+        val dateTimeBijection:      BijectionT[Result, Result, JodaDateTime, String]      = javaClassic.zonedDateTimeBijection <=< joda.dateTimeBijection
+        val localDateBijection:     BijectionT[Result, Result, JodaLocalDate, String]     = javaClassic.localDateBijection     <=< joda.localDateBijection
+        val localDateTimeBijection: BijectionT[Result, Result, JodaLocalDateTime, String] = javaClassic.localDateTimeBijection <=< joda.localDateTimeBijection
+        val localTimeBijection:     BijectionT[Result, Result, JodaLocalTime, String]     = javaClassic.localTimeBijection     <=< joda.localTimeBijection
+    }
+
 }

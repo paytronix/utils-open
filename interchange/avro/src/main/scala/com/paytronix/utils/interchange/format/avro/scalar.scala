@@ -455,7 +455,7 @@ trait scalar extends scalarLPI {
         new scalaEnumAvroCoder
     }
 
-    implicit lazy val dateTimeAvroCoderLong         = dateAsLong.dateTimeAvroCoder
+    implicit lazy val zonedDateTimeAvroCoderLong    = dateAsLong.zonedDateTimeAvroCoder
     implicit lazy val localDateAvroCoderLong        = dateAsLong.localDateAvroCoder
     implicit lazy val localDateTimeAvroCoderLong    = dateAsLong.localDateTimeAvroCoder
     implicit lazy val localTimeAvroCoderLong        = dateAsLong.localTimeAvroCoder
@@ -465,18 +465,18 @@ trait scalar extends scalarLPI {
     implicit lazy val javaSqlTimestampAvroCoderLong = dateAsLong.javaSqlTimestampAvroCoder
 
     object dateAsLong {
-        implicit lazy val dateTimeAvroCoder         = longAvroCoder.mapBijection(datetime.long.dateTimeBijection)
-        implicit lazy val localDateAvroCoder        = longAvroCoder.mapBijection(datetime.long.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder    = longAvroCoder.mapBijection(datetime.long.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder        = longAvroCoder.mapBijection(datetime.long.localTimeBijection)
-        implicit lazy val javaDateAvroCoder         = longAvroCoder.mapBijection(datetime.long.javaDateBijection)
-        implicit lazy val javaSqlDateAvroCoder      = longAvroCoder.mapBijection(datetime.long.javaSqlDateBijection)
-        implicit lazy val javaSqlTimeAvroCoder      = longAvroCoder.mapBijection(datetime.long.javaSqlTimeBijection)
-        implicit lazy val javaSqlTimestampAvroCoder = longAvroCoder.mapBijection(datetime.long.javaSqlTimestampBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = longAvroCoder.mapBijection(datetime.long.zonedDateTimeBijection)
+        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = longAvroCoder.mapBijection(datetime.long.localDateBijection)
+        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = longAvroCoder.mapBijection(datetime.long.localDateTimeBijection)
+        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = longAvroCoder.mapBijection(datetime.long.localTimeBijection)
+        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = longAvroCoder.mapBijection(datetime.long.javaDateBijection)
+        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = longAvroCoder.mapBijection(datetime.long.javaSqlDateBijection)
+        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = longAvroCoder.mapBijection(datetime.long.javaSqlTimeBijection)
+        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = longAvroCoder.mapBijection(datetime.long.javaSqlTimestampBijection)
     }
 
     object dateAsIso8601String {
-        implicit lazy val dateTimeAvroCoder         : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.iso8601.dateTimeBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.iso8601.zonedDateTimeBijection)
         implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapBijection(datetime.iso8601.localDateBijection)
         implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapBijection(datetime.iso8601.localDateTimeBijection)
         implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapBijection(datetime.iso8601.localTimeBijection)
@@ -487,7 +487,7 @@ trait scalar extends scalarLPI {
     }
 
     object dateAsClassicString {
-        implicit lazy val dateTimeAvroCoder         : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.classic.dateTimeBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.classic.zonedDateTimeBijection)
         implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapBijection(datetime.classic.localDateBijection)
         implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapBijection(datetime.classic.localDateTimeBijection)
         implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapBijection(datetime.classic.localTimeBijection)
@@ -498,7 +498,7 @@ trait scalar extends scalarLPI {
     }
 
     object dateAsSqlServerString {
-        implicit lazy val dateTimeAvroCoder         : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.sqlServer.dateTimeBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.sqlServer.zonedDateTimeBijection)
         implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapBijection(datetime.sqlServer.localDateBijection)
         implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapBijection(datetime.sqlServer.localDateTimeBijection)
         implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapBijection(datetime.sqlServer.localTimeBijection)
