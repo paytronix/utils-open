@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>${project.version}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,6 @@
     <groupId>com.paytronix.utils.interchange</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>${project.version}</version>
 
     <name>Paytronix Utils - Interchange</name>
     <description>Family of libraries which implement rich transcoding to and from various formats with minimal required metadata but high customizability.</description>

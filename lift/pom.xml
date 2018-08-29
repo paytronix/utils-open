@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>${project.version}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,6 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>lift</artifactId>
     <packaging>jar</packaging>
-    <version>${project.version}</version>
 
     <name>Paytronix Utils - Lift Support</name>
     <description>Library providing utilities for Lift, particularly for bridging interchange and ResultG with Lift's Box type.</description>

@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.paytronix.utils.interchange</groupId>
         <artifactId>parent</artifactId>
-        <version>${project.version}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -27,7 +27,6 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>interchange-liftjson</artifactId>
     <packaging>jar</packaging>
-    <version>${project.version}</version>
 
     <name>Paytronix Utils - Interchange Lift JSON</name>
     <description>Interchange library for transcoding objects to Lift JSON AST</description>

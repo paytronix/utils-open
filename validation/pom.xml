@@ -21,13 +21,12 @@
     <parent>
         <groupId>com.paytronix.utils</groupId>
         <artifactId>parent</artifactId>
-        <version>${project.version}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <groupId>com.paytronix.utils</groupId>
     <artifactId>validation</artifactId>
-    <version>${project.version}</version>
     <packaging>jar</packaging>
 
     <name>Paytronix Utils - Validation</name>
