@@ -20,7 +20,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>18.4-javatime-SNAPSHOT</version>
+    <version>${project.version}</version>
 
     <name>Paytronix Utils - Parent</name>
     <inceptionYear>2009</inceptionYear>
@@ -72,6 +72,7 @@
     </distributionManagement>
 
     <properties>
+        <project.version>18.4-javatime-SNAPSHOT</project.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.8</scala.version>
     </properties>
