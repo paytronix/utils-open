@@ -19,12 +19,12 @@ package com.paytronix.utils.interchange.format.string
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
+import java.time.{LocalDate, LocalDateTime, LocalTime, ZonedDateTime}
 import java.util.{Date => JavaDate}
 import javax.xml.bind.DatatypeConverter
 import scala.reflect.{ClassTag, classTag}
 import scala.reflect.runtime.universe.{TypeTag, typeTag}
 
-import org.joda.time.{DateTime, LocalDate, LocalDateTime, LocalTime}
 import scalaz.BijectionT.bijection
 
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
@@ -224,7 +224,7 @@ trait scalar {
         StringCoder.make(encode, decode)
     }
 
-    implicit val dateTimeStringCoderIso8601         = dateAsIso8601.dateTimeStringCoder
+    implicit val dateTimeStringCoderIso8601         = dateAsIso8601.zonedDateTimeStringCoder
     implicit val localDateStringCoderIso8601        = dateAsIso8601.localDateStringCoder
     implicit val localDateTimeStringCoderIso8601    = dateAsIso8601.localDateTimeStringCoder
     implicit val localTimeStringCoderIso8601        = dateAsIso8601.localTimeStringCoder
@@ -234,7 +234,7 @@ trait scalar {
     implicit val javaSqlTimestampStringCoderIso8601 = dateAsIso8601.javaSqlTimestampStringCoder
 
     object dateAsIso8601 {
-        implicit val dateTimeStringCoder         : StringCoder[DateTime]         = stringCoder.mapBijection(datetime.iso8601.dateTimeBijection)
+        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapBijection(datetime.iso8601.zonedDateTimeBijection)
         implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapBijection(datetime.iso8601.localDateBijection)
         implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapBijection(datetime.iso8601.localDateTimeBijection)
         implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapBijection(datetime.iso8601.localTimeBijection)
@@ -245,7 +245,7 @@ trait scalar {
     }
 
     object dateAsClassic {
-        implicit val dateTimeStringCoder         : StringCoder[DateTime]         = stringCoder.mapBijection(datetime.classic.dateTimeBijection)
+        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapBijection(datetime.classic.zonedDateTimeBijection)
         implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapBijection(datetime.classic.localDateBijection)
         implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapBijection(datetime.classic.localDateTimeBijection)
         implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapBijection(datetime.classic.localTimeBijection)
@@ -256,7 +256,7 @@ trait scalar {
     }
 
     object dateAsSqlServer {
-        implicit val dateTimeStringCoder         : StringCoder[DateTime]         = stringCoder.mapBijection(datetime.sqlServer.dateTimeBijection)
+        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapBijection(datetime.sqlServer.zonedDateTimeBijection)
         implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapBijection(datetime.sqlServer.localDateBijection)
         implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapBijection(datetime.sqlServer.localDateTimeBijection)
         implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapBijection(datetime.sqlServer.localTimeBijection)
