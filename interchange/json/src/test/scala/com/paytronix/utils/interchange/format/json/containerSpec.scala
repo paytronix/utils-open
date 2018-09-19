@@ -37,15 +37,13 @@ object TestObjectFixture {
 
     final case class TestObj2(t: TestObj) {
         def json(result: ResultFieldBehavior.Value) ={
-            val a = t.a
-            val b = t.b
             import ResultFieldBehavior._
             val resultField = result match {
                 case ResultFieldSuccess => """ ,"result":"success" """.trim
                 case ResultFieldBaz     => """ ,"result":"baz" """.trim
                 case _                  => ""
             }
-            s"""{"t":{"a":$a,"b":$b}$resultField}"""
+            s"""{"t":{"a":${t.a},"b":${t.b}}$resultField}"""
         }
     }
 
