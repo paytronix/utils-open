@@ -147,9 +147,10 @@ object long {
 
 object iso8601 extends DateTimeStringBijections (
     dateTimeFormatters = NonEmptyList (
-        // ISO_OFFSET_DATETIME doesn't print millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
+        // ISO_OFFSET_DATETIME doesn't print seconds or millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
         DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXX"),
-        DateTimeFormatter.ISO_OFFSET_DATE_TIME, // ISODateTimeFormat.dateTime.withOffsetParsed,         -- yyyy-MM-dd'T'HH:mm:ss.SSSZZ
+        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXX"), // This is required to allow offsets without a colon, e.g. +0100
+        DateTimeFormatter.ISO_OFFSET_DATE_TIME, // Seems to be equivalent to: uuuu-MM-dd'T'HH:mm:[ss][.SSS]XXX
         DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS]XX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
         DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS]XXX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
         DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS] XX"),
