@@ -184,7 +184,10 @@ object classic extends DateTimeStringBijections (
         DateTimeFormatter.ofPattern("E, dd MMM yy HH:mm:ss[.SSS] XXX"),
         DateTimeFormatter.ISO_OFFSET_DATE_TIME,
         DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XX"),
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XXX")
+        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XXX"),
+        // For some terrible reason our documentation says timezone is optional so we'll fall back to this
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC)
     ),
     localDateFormatters = NonEmptyList (
         DateTimeFormatter.ofPattern("uuuu-MM-dd"),    // DateTimeFormat.forPattern("yyyy-MM-dd"),
