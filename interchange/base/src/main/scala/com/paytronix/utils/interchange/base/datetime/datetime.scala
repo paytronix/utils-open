@@ -147,13 +147,15 @@ object long {
 
 object iso8601 extends DateTimeStringBijections (
     dateTimeFormatters = NonEmptyList (
-        // ISO_OFFSET_DATETIME doesn't print millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
+        // ISO_OFFSET_DATETIME doesn't print seconds or millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
         DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXX"),
-        DateTimeFormatter.ISO_OFFSET_DATE_TIME, // ISODateTimeFormat.dateTime.withOffsetParsed,         -- yyyy-MM-dd'T'HH:mm:ss.SSSZZ
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS]XX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS]XXX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS] XX"),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS] XXX")
+        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.SSS][ ]XXX"),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.SSS][ ]XX"), // This is required to allow offsets without a colon, e.g. +0100
+        DateTimeFormatter.ISO_OFFSET_DATE_TIME, // Seems to be equivalent to: uuuu-MM-dd'T'HH:mm:[ss][.SSS]XXX
+        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
+        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XXX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XX"),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XXX")
     ),
     localDateFormatters = NonEmptyList (
         DateTimeFormatter.ISO_DATE, //DateTimeFormat.forPattern("yyyy-MM-dd"),
@@ -175,14 +177,18 @@ object iso8601 extends DateTimeStringBijections (
 
 object classic extends DateTimeStringBijections (
     dateTimeFormatters = NonEmptyList (
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss XX"),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss XXX"),
-        DateTimeFormatter.ofPattern("E MMM dd HH:mm:ss X uuuu"),
-        DateTimeFormatter.ofPattern("E, dd MMM yy HH:mm:ss XX"),
-        DateTimeFormatter.ofPattern("E, dd MMM yy HH:mm:ss XXX"),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XX"),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XXX"),
+        DateTimeFormatter.ofPattern("E MMM dd HH:mm:ss[.SSS] X uuuu"),
+        DateTimeFormatter.ofPattern("E, dd MMM yy HH:mm:ss[.SSS] XX"),
+        DateTimeFormatter.ofPattern("E, dd MMM yy HH:mm:ss[.SSS] XXX"),
         DateTimeFormatter.ISO_OFFSET_DATE_TIME,
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS]XX"),
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS]XXX")
+        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XX"),
+        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XXX"),
+        // For some terrible reason our documentation says timezone is optional so we'll fall back to this
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.SSS][ ]XX")
     ),
     localDateFormatters = NonEmptyList (
         DateTimeFormatter.ofPattern("uuuu-MM-dd"),    // DateTimeFormat.forPattern("yyyy-MM-dd"),

@@ -72,7 +72,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>18.4-valley_road-SNAPSHOT</revision>
+        <revision>18.6-valley_road-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.8</scala.version>
     </properties>
@@ -349,6 +349,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
                     <args>
                         <arg>-Xlint:deprecation</arg>
                     </args>
