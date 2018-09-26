@@ -20,7 +20,7 @@
     <groupId>com.paytronix.utils</groupId>
     <artifactId>parent</artifactId>
     <packaging>pom</packaging>
-    <version>18.3-boylstonhotfix1-SNAPSHOT</version>
+    <version>${revision}</version>
 
     <name>Paytronix Utils - Parent</name>
     <inceptionYear>2009</inceptionYear>
@@ -72,6 +72,7 @@
     </distributionManagement>
 
     <properties>
+        <revision>18.5-tufts_hotfix_1-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.8</scala.version>
     </properties>
@@ -348,6 +349,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
                     <args>
                         <arg>-Xlint:deprecation</arg>
                     </args>
@@ -405,6 +408,31 @@
                 <configuration>
                     <argLine>-Xmx512m</argLine>
                 </configuration>
+            </plugin>
+
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>flatten-maven-plugin</artifactId>
+              <version>1.0.0</version>
+              <configuration>
+                <updatePomFile>true</updatePomFile>
+              </configuration>
+              <executions>
+                <execution>
+                  <id>flatten</id>
+                  <phase>process-resources</phase>
+                  <goals>
+                    <goal>flatten</goal>
+                  </goals>
+                </execution>
+                <execution>
+                  <id>flatten.clean</id>
+                  <phase>clean</phase>
+                  <goals>
+                    <goal>clean</goal>
+                  </goals>
+                </execution>
+              </executions>
             </plugin>
         </plugins>
     </build>

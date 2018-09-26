@@ -16,5 +16,4 @@
 
 package com.paytronix.utils.interchange.format.avro
 
-object coders extends scalar with container with tuple
-
+object coders extends scalar with container with tuple with joda

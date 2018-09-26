@@ -1,5 +1,5 @@
 //
-// Copyright 2014 Paytronix Systems, Inc.
+// Copyright 2014-2018 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.lang.{Boolean => JavaBoolean, Integer => JavaInteger, Long => JavaLo
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
+import java.time.{Duration, LocalDate, LocalDateTime, LocalTime, ZonedDateTime}
 import java.util.{Arrays, Date => JavaDate}
 import scala.annotation.{Annotation, StaticAnnotation}
 import scala.collection.JavaConverters.seqAsJavaListConverter
@@ -28,7 +29,6 @@ import scala.reflect.{ClassTag, classTag}
 import scala.reflect.runtime.universe.{TypeTag, typeTag}
 
 import com.fasterxml.jackson.core.{JsonParseException, JsonToken}
-import org.joda.time.{DateTime, LocalDate, LocalDateTime, LocalTime, Duration}
 import scalaz.BijectionT.bijection
 
 import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
@@ -574,7 +574,7 @@ trait scalar extends scalarLPI {
         new scalaEnumJsonCoder
     }
 
-    implicit val dateTimeJsonCoderIso8601         = dateAsIso8601.dateTimeJsonCoder
+    implicit val zonedDateTimeJsonCoderIso8601    = dateAsIso8601.zonedDateTimeJsonCoder
     implicit val localDateJsonCoderIso8601        = dateAsIso8601.localDateJsonCoder
     implicit val localDateTimeJsonCoderIso8601    = dateAsIso8601.localDateTimeJsonCoder
     implicit val localTimeJsonCoderIso8601        = dateAsIso8601.localTimeJsonCoder
@@ -584,7 +584,7 @@ trait scalar extends scalarLPI {
     implicit val javaSqlTimestampJsonCoderIso8601 = dateAsIso8601.javaSqlTimestampJsonCoder
 
     object dateAsIso8601 {
-        implicit val dateTimeJsonCoder         : JsonCoder[DateTime]         = stringJsonCoder.mapBijection(datetime.iso8601.dateTimeBijection)
+        implicit val zonedDateTimeJsonCoder    : JsonCoder[ZonedDateTime]    = stringJsonCoder.mapBijection(datetime.iso8601.zonedDateTimeBijection)
         implicit val localDateJsonCoder        : JsonCoder[LocalDate]        = stringJsonCoder.mapBijection(datetime.iso8601.localDateBijection)
         implicit val localDateTimeJsonCoder    : JsonCoder[LocalDateTime]    = stringJsonCoder.mapBijection(datetime.iso8601.localDateTimeBijection)
         implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapBijection(datetime.iso8601.localTimeBijection)
@@ -595,7 +595,7 @@ trait scalar extends scalarLPI {
     }
 
     object dateAsClassic {
-        implicit val dateTimeJsonCoder         : JsonCoder[DateTime]         = stringJsonCoder.mapBijection(datetime.classic.dateTimeBijection)
+        implicit val zonedDateTimeJsonCoder    : JsonCoder[ZonedDateTime]    = stringJsonCoder.mapBijection(datetime.classic.zonedDateTimeBijection)
         implicit val localDateJsonCoder        : JsonCoder[LocalDate]        = stringJsonCoder.mapBijection(datetime.classic.localDateBijection)
         implicit val localDateTimeJsonCoder    : JsonCoder[LocalDateTime]    = stringJsonCoder.mapBijection(datetime.classic.localDateTimeBijection)
         implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapBijection(datetime.classic.localTimeBijection)
@@ -606,7 +606,7 @@ trait scalar extends scalarLPI {
     }
 
     object dateAsSqlServer {
-        implicit val dateTimeJsonCoder         : JsonCoder[DateTime]         = stringJsonCoder.mapBijection(datetime.sqlServer.dateTimeBijection)
+        implicit val zonedDateTimeJsonCoder    : JsonCoder[ZonedDateTime]    = stringJsonCoder.mapBijection(datetime.sqlServer.zonedDateTimeBijection)
         implicit val localDateJsonCoder        : JsonCoder[LocalDate]        = stringJsonCoder.mapBijection(datetime.sqlServer.localDateBijection)
         implicit val localDateTimeJsonCoder    : JsonCoder[LocalDateTime]    = stringJsonCoder.mapBijection(datetime.sqlServer.localDateTimeBijection)
         implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapBijection(datetime.sqlServer.localTimeBijection)
@@ -618,8 +618,8 @@ trait scalar extends scalarLPI {
 
     /** `JsonCoder` for `org.joda.time.Duration`. Encodes as a JSON number */
     implicit lazy val durationJsonCoder = longJsonCoder.mapBijection(bijection (
-        (d: Duration) => Okay(d.getMillis): Result[Long],
-        (d: Long)     => Okay(new Duration(d)): Result[Duration]
+        (d: Duration) => Okay(d.toMillis): Result[Long],
+        (d: Long)     => Okay(Duration.ofMillis(d)): Result[Duration]
     ))
 }
 

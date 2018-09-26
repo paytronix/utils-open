@@ -10,3 +10,4 @@ sourcetreeconfig
 .idea
 *.iml
 .iml
+.flattened-pom.xml
