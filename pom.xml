@@ -72,7 +72,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>18.5-develop-SNAPSHOT</revision>
+        <revision>18.6-develop-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.8</scala.version>
     </properties>

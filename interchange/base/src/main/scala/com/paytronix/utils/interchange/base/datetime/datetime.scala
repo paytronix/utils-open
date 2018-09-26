@@ -187,7 +187,8 @@ object classic extends DateTimeStringBijections (
         DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XXX"),
         // For some terrible reason our documentation says timezone is optional so we'll fall back to this
         DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC)
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.SSS][ ]XX")
     ),
     localDateFormatters = NonEmptyList (
         DateTimeFormatter.ofPattern("uuuu-MM-dd"),    // DateTimeFormat.forPattern("yyyy-MM-dd"),
