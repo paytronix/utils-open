@@ -19,7 +19,8 @@ package com.paytronix.utils.interchange.base.datetime
 import java.sql.{Date => SqlDate, Time => SqlTime, Timestamp => SqlTimestamp}
 import java.util.{Date => UtilDate}
 import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZonedDateTime, ZoneOffset, ZoneId}
-import java.time.format.DateTimeFormatter
+import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder}
+import java.time.temporal.ChronoField
 import scalaz.{BijectionT, NonEmptyList}
 
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, firstOrLastG, tryCatchValue}
@@ -215,7 +216,7 @@ object classic extends DateTimeStringBijections (
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]"),
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]"),
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]"),
-        (new DateTimeFormatterBuilder).appendPattern("E MMM dd HH:mm[:ss]").appendFraction(ChronoField.MICRO_OF_SECOND, 0, 9, true).appendPattern(" uuuu").toFormatter,
+        (new DateTimeFormatterBuilder).appendPattern("E MMM dd HH:mm[:ss]").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).appendPattern(" uuuu").toFormatter,
         DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM uu HH:mm[:ss]")
     ),
     localTimeFormatters = NonEmptyList (
