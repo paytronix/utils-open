@@ -178,13 +178,13 @@ object iso8601 extends DateTimeStringBijections (
         // ISO_LOCAL_DATE_TIME doesn't print millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
         DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS"),
         DateTimeFormatter.ISO_LOCAL_DATE_TIME, // Seems to be equivalent to uuuu-MM-dd'T'HH:mm[:ss][.SSS]
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmmss")
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]")
     ),
     localTimeFormatters = NonEmptyList (
         // ISO_LOCAL_TIME doesn't print millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
         DateTimeFormatter.ofPattern("HH:mm:ss.SSS"),
-        DateTimeFormatter.ISO_LOCAL_TIME,
-        DateTimeFormatters.withOptionalFractionalSecondRange("HHmmss")
+        DateTimeFormatter.ISO_LOCAL_TIME, // Seems to be equivalent to HH:mm[:ss][.SSS]
+        DateTimeFormatters.withOptionalFractionalSecondRange("HHmm[ss]")
     )
 )
 
@@ -193,6 +193,8 @@ object classic extends DateTimeStringBijections (
         DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss xx"),
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XX")),
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XXX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XXX")),
         DateTimeFormatters.withOptionalFractionalSecondRange("E MMM dd HH:mm[:ss]", Some(" XX uuuu")),
         DateTimeFormatters.withOptionalFractionalSecondRange("E MMM dd HH:mm[:ss]", Some(" XXX uuuu")),
         DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM yy HH:mm[:ss]", Some(" XX")),
@@ -213,6 +215,7 @@ object classic extends DateTimeStringBijections (
     localDateTimeFormatters = NonEmptyList (
         DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss"),
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]"),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]"),
         (new DateTimeFormatterBuilder).appendPattern("E MMM dd HH:mm[:ss]").appendFraction(ChronoField.MICRO_OF_SECOND, 0, 9, true).appendPattern(" uuuu").toFormatter,
         DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM uu HH:mm[:ss]")
     ),
