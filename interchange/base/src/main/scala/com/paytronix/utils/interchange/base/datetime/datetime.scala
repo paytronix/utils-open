@@ -19,7 +19,8 @@ package com.paytronix.utils.interchange.base.datetime
 import java.sql.{Date => SqlDate, Time => SqlTime, Timestamp => SqlTimestamp}
 import java.util.{Date => UtilDate}
 import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZonedDateTime, ZoneOffset, ZoneId}
-import java.time.format.DateTimeFormatter
+import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder}
+import java.time.temporal.ChronoField
 import scalaz.{BijectionT, NonEmptyList}
 
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, firstOrLastG, tryCatchValue}
@@ -28,6 +29,17 @@ import BijectionT.bijection
 
 object constants {
     val epoch = LocalDate.ofEpochDay(0L)
+}
+
+object DateTimeFormatters {
+    /** Create a DateTimeFormatter with a range of fractional seconds, because the string-based formatting does not allow for variable-length fractions */
+    def withOptionalFractionalSecondRange(dateTimePattern: String, offsetPattern: Option[String] = None): DateTimeFormatter = {
+        val builder = new DateTimeFormatterBuilder
+        builder.appendPattern(dateTimePattern)
+        builder.appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+        offsetPattern.foreach(p => builder.appendPattern(p))
+        builder.toFormatter
+    }
 }
 
 object javaDates {
@@ -149,13 +161,12 @@ object iso8601 extends DateTimeStringBijections (
     dateTimeFormatters = NonEmptyList (
         // ISO_OFFSET_DATETIME doesn't print seconds or millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
         DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXX"),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.SSS][ ]XXX"),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.SSS][ ]XX"), // This is required to allow offsets without a colon, e.g. +0100
-        DateTimeFormatter.ISO_OFFSET_DATE_TIME, // Seems to be equivalent to: uuuu-MM-dd'T'HH:mm:[ss][.SSS]XXX
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XXX"), // ISODateTimeFormat.basicDateTime.withOffsetParsed,         -- yyyyMMdd'T'HHmmss.SSSZ
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XX"),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XXX")
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XXX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XX")), // This is required to allow offsets without a colon, e.g. +0100
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]", Some("[ ]XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]", Some("[ ]XXX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XXX"))
     ),
     localDateFormatters = NonEmptyList (
         DateTimeFormatter.ISO_DATE, //DateTimeFormat.forPattern("yyyy-MM-dd"),
@@ -164,44 +175,54 @@ object iso8601 extends DateTimeStringBijections (
     localDateTimeFormatters = NonEmptyList (
         // ISO_LOCAL_DATE_TIME doesn't print millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
         DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS"),
-        DateTimeFormatter.ISO_LOCAL_DATE_TIME, //DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"),
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS]") // DateTimeFormat.forPattern("yyyyMMdd'T'HHmmss.SSS"),
+        DateTimeFormatter.ISO_LOCAL_DATE_TIME, // Seems to be equivalent to uuuu-MM-dd'T'HH:mm[:ss][.SSS]
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]")
     ),
     localTimeFormatters = NonEmptyList (
         // ISO_LOCAL_TIME doesn't print millis at all if they're zero, but the old Joda Time code did so we need this for backwards compatibility when rendering datetimes
         DateTimeFormatter.ofPattern("HH:mm:ss.SSS"),
-        DateTimeFormatter.ISO_LOCAL_TIME,
-        DateTimeFormatter.ofPattern("HHmmss[.SSS]")
+        DateTimeFormatter.ISO_LOCAL_TIME, // Seems to be equivalent to HH:mm[:ss][.SSS]
+        DateTimeFormatters.withOptionalFractionalSecondRange("HHmm[ss]")
     )
 )
 
 object classic extends DateTimeStringBijections (
     dateTimeFormatters = NonEmptyList (
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XX"),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS][ ]XXX"),
-        DateTimeFormatter.ofPattern("E MMM dd HH:mm:ss[.SSS] X uuuu"),
-        DateTimeFormatter.ofPattern("E, dd MMM yy HH:mm:ss[.SSS] XX"),
-        DateTimeFormatter.ofPattern("E, dd MMM yy HH:mm:ss[.SSS] XXX"),
-        DateTimeFormatter.ISO_OFFSET_DATE_TIME,
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XX"),
-        DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss[.SSS][ ]XXX"),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss xx"),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XXX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XXX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("E MMM dd HH:mm[:ss]", Some(" XX uuuu")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("E MMM dd HH:mm[:ss]", Some(" XXX uuuu")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM yy HH:mm[:ss]", Some(" XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM yy HH:mm[:ss]", Some(" XXX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd HHmm[ss]", Some("[ ]XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd HHmm[ss]", Some("[ ]XXX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]", Some("[ ]XX")),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]", Some("[ ]XXX")),
         // For some terrible reason our documentation says timezone is optional so we'll fall back to this
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss[.SSS]").withZone(ZoneOffset.UTC),
-        DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss[.SSS][ ]XX")
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]").withZone(ZoneOffset.UTC),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]").withZone(ZoneOffset.UTC)
     ),
     localDateFormatters = NonEmptyList (
-        DateTimeFormatter.ofPattern("uuuu-MM-dd"),    // DateTimeFormat.forPattern("yyyy-MM-dd"),
-        DateTimeFormatter.ofPattern("E MMM dd uuuu"), // DateTimeFormat.forPattern("E MMM dd yyyy"),
-        DateTimeFormatter.ofPattern("E, dd MMM uu")   // DateTimeFormat.forPattern("E, dd MMM yy")
+        DateTimeFormatter.ISO_DATE,      // Seems to be equivalent to uuuu-MM-dd
+        DateTimeFormatter.BASIC_ISO_DATE, // Seems to be equivalent to uuuuMMdd
+        DateTimeFormatter.ofPattern("E MMM dd uuuu"),
+        DateTimeFormatter.ofPattern("E, dd MMM uu")
     ),
     localDateTimeFormatters = NonEmptyList (
-        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss"),    //DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss"),
-        DateTimeFormatter.ofPattern("E MMM dd HH:mm:ss uuuu"), //DateTimeFormat.forPattern("E MMM dd HH:mm:ss yyyy"),
-        DateTimeFormatter.ofPattern("E, dd MMM uu HH:mm:ss")  //DateTimeFormat.forPattern("E, dd MMM yy HH:mm:ss"),
+        DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss"),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]"),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]"),
+        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]"),
+        (new DateTimeFormatterBuilder).appendPattern("E MMM dd HH:mm[:ss]").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).appendPattern(" uuuu").toFormatter,
+        DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM uu HH:mm[:ss]")
     ),
     localTimeFormatters = NonEmptyList (
-        DateTimeFormatter.ofPattern("HH:mm:ss[.SSS]")
+        DateTimeFormatters.withOptionalFractionalSecondRange("HH:mm:ss"),
+        DateTimeFormatters.withOptionalFractionalSecondRange("HH:mm[:ss]"),
+        DateTimeFormatters.withOptionalFractionalSecondRange("HHmm[ss]")
     )
 )
 
