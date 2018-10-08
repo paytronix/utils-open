@@ -341,26 +341,6 @@ class classicTest extends SpecificationWithJUnit with ScalaCheck {
 
     val nano: Int = 1000000
 
-/*
-    val dateTimeFormatters = NonEmptyList (
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XX")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]", Some("[ ]XXX")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XX")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XXX")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("E MMM dd HH:mm[:ss]", Some(" XX uuuu")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("E MMM dd HH:mm[:ss]", Some(" XXX uuuu")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM yy HH:mm[:ss]", Some(" XX")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM yy HH:mm[:ss]", Some(" XXX")),
-        DateTimeFormatter.ISO_OFFSET_DATE_TIME,
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]", Some("[ ]XX")),
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]", Some("[ ]XXX")),
-        // For some terrible reason our documentation says timezone is optional so we'll fall back to this
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]").withZone(ZoneOffset.UTC),
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]").withZone(ZoneOffset.UTC),
-        DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]", Some("[ ]XX"))
-    )
-*/
-
     // Parsing tests
     def zdtSpcColonsZed                  = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161Z")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
     def zdtSpcColonsFractionalSixZed     = iso8601.zonedDateTimeBijection.from("2014-07-01 13:14:15.123456Z")    ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456000, ZoneOffset.UTC))
