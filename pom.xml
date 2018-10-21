@@ -74,7 +74,7 @@
     <properties>
         <revision>18.7-valley_road-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <scala.version>2.11.8</scala.version>
+        <scala.version>2.11.12</scala.version>
     </properties>
 
     <dependencies>
@@ -82,7 +82,7 @@
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-compiler</artifactId>
             <scope>test</scope>
-            <version>2.11.8</version>
+            <version>${scala.version}</version>
         </dependency>
     </dependencies>
 
@@ -106,12 +106,12 @@
             <dependency>
                 <groupId>org.scala-lang</groupId>
                 <artifactId>scala-library</artifactId>
-                <version>2.11.8</version>
+                <version>${scala.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.scala-lang</groupId>
                 <artifactId>scala-reflect</artifactId>
-                <version>2.11.8</version>
+                <version>${scala.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.scalacheck</groupId>
