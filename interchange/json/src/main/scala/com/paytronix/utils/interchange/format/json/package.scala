@@ -173,6 +173,7 @@ final class InterchangeJacksonJsonGenerator(generator: JsonGenerator) extends In
             val nextObjectFilter = _nextObjectFilter
             aboutToWriteToken()
             if (nextObjectFilter != null) {
+                _nextObjectFilter = null
                 _objectFilters ::= nextObjectFilter
                 if (!nextObjectFilter.suppressStartAndEnd) generator.writeStartObject()
                 nextObjectFilter.beginning()

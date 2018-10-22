@@ -11,3 +11,4 @@ sourcetreeconfig
 *.iml
 .iml
 .flattened-pom.xml
+tags

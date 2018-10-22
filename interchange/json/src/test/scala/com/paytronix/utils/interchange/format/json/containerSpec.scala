@@ -35,6 +35,18 @@ object TestObjectFixture {
         val NoResultField, ResultFieldSuccess, ResultFieldBaz = Value
     }
 
+    final case class TestObj2(t: TestObj) {
+        def json(result: ResultFieldBehavior.Value) ={
+            import ResultFieldBehavior._
+            val resultField = result match {
+                case ResultFieldSuccess => """ ,"result":"success" """.trim
+                case ResultFieldBaz     => """ ,"result":"baz" """.trim
+                case _                  => ""
+            }
+            s"""{"t":{"a":${t.a},"b":${t.b}}$resultField}"""
+        }
+    }
+
     final case class TestObj(a: Int, b: Float) {
         def json(result: ResultFieldBehavior.Value) = {
             import ResultFieldBehavior._
@@ -109,6 +121,62 @@ object TestObjectFixture {
                 in.advanceTokenUnguarded() >>
                 in.require(JsonToken.END_OBJECT) >>
                 out(TestObj(a, b))
+            }
+        }
+    )
+
+    def object2Coder(resultField: ResultFieldBehavior.Value): JsonCoder[TestObj2] = JsonCoder.make (
+        new JsonEncoder[TestObj2] {
+            val mightBeNull = false
+            val codesAsObject = true
+            def run(in: TestObj2, out: InterchangeJsonGenerator) =
+                out.writeStartObject() >>
+                out.writeFieldName("t") >> out.writeStartObject() >>
+                out.writeFieldName("a") >> out.writeNumber(in.t.a) >>
+                out.writeFieldName("b") >> out.writeNumber(in.t.b) >>
+                out.writeEndObject() >>
+                out.writeEndObject()
+        },
+        new JsonDecoder[TestObj2] {
+            val mightBeNull = false
+            val codesAsObject = true
+            def run(in: InterchangeJsonParser, out: Receiver[TestObj2]) = {
+                var a: Int = 0
+                var b: Float = 0.0f
+
+                in.require(JsonToken.START_OBJECT) >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.FIELD_NAME) >> unless(in.fieldName == "t")(in.unexpectedToken("field t")) >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.START_OBJECT) >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.FIELD_NAME) >> unless(in.fieldName == "a")(in.unexpectedToken("field a")) >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.VALUE_NUMBER_INT) >> { a = in.intValue; Okay.unit } >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.FIELD_NAME) >> unless(in.fieldName == "b")(in.unexpectedToken("field b")) >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.VALUE_NUMBER_FLOAT) >> { b = in.floatValue; Okay.unit } >>
+                {
+                    resultField match {
+                        case NoResultField => Okay.unit
+                        case ResultFieldSuccess =>
+                            in.advanceTokenUnguarded() >>
+                            in.require(JsonToken.FIELD_NAME) >> unless(in.fieldName == "result")(in.unexpectedToken("field result")) >>
+                            in.advanceTokenUnguarded() >>
+                            in.require(JsonToken.VALUE_STRING) >> unless(in.stringValue == "success")(in.unexpectedToken("field result to equal success"))
+                        case ResultFieldBehavior.ResultFieldBaz =>
+                            in.advanceTokenUnguarded() >>
+                            in.require(JsonToken.FIELD_NAME) >> unless(in.fieldName == "result")(in.unexpectedToken("field result")) >>
+                            in.advanceTokenUnguarded() >>
+                            in.require(JsonToken.VALUE_STRING) >> unless(in.stringValue == "baz")(in.unexpectedToken("field result to equal baz"))
+                    }
+                } >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.END_OBJECT) >>
+                in.advanceTokenUnguarded() >>
+                in.require(JsonToken.END_OBJECT) >>
+                out(TestObj2(TestObj(a, b)))
             }
         }
     )
@@ -275,6 +343,7 @@ class resultGJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with J
 
         `resultGJsonCoder` when `Okay` value cannot be null and is an object
             should encode Okay as {…,"result":"success"}                             $encodeObjectOkayCase
+            should encode Okay as {…,"result":"success"}                             $encodeNestedObjectOkayCase
             should encode Okay as {…} and not overwrite result                       $encodeObjectOkayWithResultCase
             should encode FailedG correctly                                          $encodeObjectFailedCase
             should encode FailedG with a cause correctly                             $encodeObjectFailedWithCauseCase
@@ -314,6 +383,7 @@ class resultGJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with J
 
     val objectJSON = TestObj(123, 45.67f).json(NoResultField)
     val objectWithResultSuccessJSON = TestObj(123, 45.67f).json(ResultFieldSuccess)
+    val nestedObjectWithResultSuccessJSON = TestObj2(TestObj(123, 45.67f)).json(ResultFieldSuccess)
     val objectWithResultBazJSON = TestObj(123, 45.67f).json(ResultFieldBaz)
 
     val failedUnit: Failed = FailedG(new TestException("test"), ())
@@ -396,10 +466,13 @@ class resultGJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with J
 
 
     val objectRGC = container.resultGJsonCoder(scalar.intJsonCoder, objectCoder(ResultFieldSuccess))
+    val object2RGC = container.resultGJsonCoder(scalar.intJsonCoder, object2Coder(ResultFieldSuccess))
     val objectWithResultRGC = container.resultGJsonCoder(scalar.intJsonCoder, objectCoder(ResultFieldBaz))
 
     def encodeObjectOkayCase =
         objectRGC.encode.toString(Okay(TestObj(123, 45.67f))) ==== Okay(objectWithResultSuccessJSON)
+    def encodeNestedObjectOkayCase =
+        object2RGC.encode.toString(Okay(TestObj2(TestObj(123, 45.67f)))) ==== Okay(nestedObjectWithResultSuccessJSON)
     def encodeObjectOkayWithResultCase =
         objectWithResultRGC.encode.toString(Okay(TestObj(123, 45.67f))) ==== Okay(objectWithResultBazJSON)
     def encodeObjectFailedCase =
