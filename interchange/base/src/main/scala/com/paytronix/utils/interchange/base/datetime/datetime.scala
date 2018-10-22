@@ -217,7 +217,7 @@ object classic extends DateTimeStringBijections (
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd HH:mm[:ss]"),
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuu-MM-dd'T'HH:mm[:ss]"),
         DateTimeFormatters.withOptionalFractionalSecondRange("uuuuMMdd'T'HHmm[ss]"),
-        (new DateTimeFormatterBuilder).appendPattern("E MMM dd HH:mm[:ss]").appendFraction(ChronoField.MICRO_OF_SECOND, 0, 9, true).appendPattern(" uuuu").toFormatter,
+        (new DateTimeFormatterBuilder).appendPattern("E MMM dd HH:mm[:ss]").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).appendPattern(" uuuu").toFormatter,
         DateTimeFormatters.withOptionalFractionalSecondRange("E, dd MMM uu HH:mm[:ss]")
     ),
     localTimeFormatters = NonEmptyList (
