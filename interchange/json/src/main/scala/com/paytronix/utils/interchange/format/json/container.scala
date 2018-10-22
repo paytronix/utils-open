@@ -796,7 +796,7 @@ trait container extends containerLPI {
     def jsonObjectDecoder[K, V, M](implicit canBuildFrom: CanBuildFrom[Nothing, (K, V), M], keyDecoder: StringDecoder[K], valueDecoder: JsonDecoder[V]) =
         new JsonDecoder[M] {
             val mightBeNull = false
-            val codesAsObject = false
+            val codesAsObject = true
 
             def run(in: InterchangeJsonParser, out: Receiver[M]) = {
                 val builder = canBuildFrom()
