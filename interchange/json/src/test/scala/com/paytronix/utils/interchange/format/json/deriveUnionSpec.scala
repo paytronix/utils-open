@@ -23,7 +23,8 @@ import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 
 import com.paytronix.utils.interchange.test.fixtures.{
     UntaggedUnionBase, UntaggedUnionFirst, UntaggedUnionSecond, UntaggedUnionInvalid,
-    TaggedUnionBase, TaggedUnionFirst, TaggedUnionSecond, TaggedUnionSingleton, TaggedUnionSingletonWithProperties, TaggedUnionInvalid
+    TaggedUnionBase, TaggedUnionFirst, TaggedUnionSecond, TaggedUnionSingleton, TaggedUnionSingletonWithProperties, TaggedUnionInvalid,
+    FlattenedTaggedUnionChild, FlattenedTaggedUnion
 }
 import com.paytronix.utils.scala.result.{FailedG, Okay}
 
@@ -36,6 +37,7 @@ class deriveTaggedUnionCoderTest extends SpecificationWithJUnit with ScalaCheck 
             must encode second correctly $encodeSecondCase
             must encode singleton correctly $encodeSingletonCase
             must encode singleton with properties correctly $encodeSingletonWithPropertiesCase
+            must encode with flattened objects correctly $encodeFlattenedCase
             must decode first correctly $decodeFirstCase
             must decode second correctly $decodeSecondCase
             must decode singleton correctly $decodeSingletonCase
@@ -45,10 +47,18 @@ class deriveTaggedUnionCoderTest extends SpecificationWithJUnit with ScalaCheck 
     """
 
     import scalar.{intJsonCoder, stringJsonCoder}
+
+    case class FlatTaggedUnionContainer(@flatten taggedUnion: FlattenedTaggedUnion)
     implicit val firstCoder = derive.structure.coder[TaggedUnionFirst]
     implicit val secondCoder = derive.structure.coder[TaggedUnionSecond]
     implicit val singletonCoder = derive.structure.coder[TaggedUnionSingleton.type]
     implicit val singletonWithPropertiesCoder = derive.structure.coder[TaggedUnionSingletonWithProperties.type]
+    implicit val flattenedChild = derive.structure.coder[FlattenedTaggedUnionChild]
+    implicit val flattenedTaggedUnionCoder = derive.taggedUnion.coder[FlattenedTaggedUnion] (
+        "tag",
+        derive.taggedUnion.alternate[FlattenedTaggedUnionChild]("first")
+    )
+    lazy val flattenedContainerEncoder = derive.structure.coder[FlatTaggedUnionContainer]
 
     lazy val coder = derive.taggedUnion.coder[TaggedUnionBase] (
         "tag",
@@ -58,6 +68,7 @@ class deriveTaggedUnionCoderTest extends SpecificationWithJUnit with ScalaCheck 
         derive.taggedUnion.alternate[TaggedUnionSingletonWithProperties.type]("singletonWithProperties")
     )
 
+
     def encodeFirstCase =
         coder.encode.toString(TaggedUnionFirst(1)) ==== Okay(""" {"tag":"first","a":1} """.trim)
     def encodeSecondCase =
@@ -66,7 +77,8 @@ class deriveTaggedUnionCoderTest extends SpecificationWithJUnit with ScalaCheck 
         coder.encode.toString(TaggedUnionSingleton) ==== Okay(""" {"tag":"singleton"} """.trim)
     def encodeSingletonWithPropertiesCase =
         coder.encode.toString(TaggedUnionSingletonWithProperties) ==== Okay(""" {"tag":"singletonWithProperties","codedProperty":"bar"} """.trim)
-
+    def encodeFlattenedCase = 
+        flattenedContainerEncoder.encode.toString(FlatTaggedUnionContainer(FlattenedTaggedUnionChild(1))) ==== Okay(""" {"tag":"first","a":1} """.trim)
     def decodeFirstCase =
         decode(coder.decode)(""" {"a":1,"tag":"first"} """.trim) ==== Okay(TaggedUnionFirst(1))
     def decodeSecondCase =

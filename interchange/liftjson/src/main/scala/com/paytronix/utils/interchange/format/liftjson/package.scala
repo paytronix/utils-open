@@ -139,9 +139,7 @@ package liftjson {
             }
 
         def omitNextMissing(): Unit = { _omitNextMissing = true }
-        def filterNextObject(filter: ObjectFilter): Unit = { _nextObjectFilter = filter }
-        
-        def amendFilter(newFilter: ObjectFilter): Unit = {
+        def filterNextObject(newFilter: ObjectFilter): Unit = {
             _nextObjectFilter = Option(_nextObjectFilter) match {
                 case Some(oldFilter) => ObjectFilter.combineFilters(oldFilter, newFilter)
                 case None            => newFilter 
