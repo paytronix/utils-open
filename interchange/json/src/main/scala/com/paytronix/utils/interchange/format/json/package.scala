@@ -84,7 +84,6 @@ trait InterchangeJsonGenerator {
     def writeFieldNameNotMissing(name: String): CoderResult[Unit]
     def omitNextMissing(): Unit
     def filterNextObject(filter: ObjectFilter): Unit
-    def amendFilter(newFilter: ObjectFilter): Unit 
     def writeBoolean(b: Boolean): CoderResult[Unit]
     def writeNumber(s: Short): CoderResult[Unit]
     def writeNumber(i: Int): CoderResult[Unit]
@@ -154,9 +153,7 @@ final class InterchangeJacksonJsonGenerator(generator: JsonGenerator) extends In
         })
 
     def omitNextMissing(): Unit = { _omitNextMissing = true }
-    def filterNextObject(filter: ObjectFilter): Unit = { _nextObjectFilter = filter }
-    
-    def amendFilter(newFilter: ObjectFilter): Unit = {
+    def filterNextObject(newFilter: ObjectFilter): Unit = {
         _nextObjectFilter = Option(_nextObjectFilter) match {
             case Some(oldFilter) => ObjectFilter.combineFilters(oldFilter, newFilter)
             case None            => newFilter 
