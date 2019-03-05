@@ -61,6 +61,17 @@ object InterchangeJsonGenerator {
         val flatten = new ObjectFilter {
             override val suppressStartAndEnd = true
         }
+
+        // The operator >> as used in this function is basically a flatmap, 
+        // and the lines return Okay.unit if both things happen successfully
+        def combineFilters(a: ObjectFilter, b: ObjectFilter): ObjectFilter = new ObjectFilter {
+            override val suppressStartAndEnd = a.suppressStartAndEnd || b.suppressStartAndEnd 
+            override def beginning(): CoderResult[Unit] = a.beginning() >> b.beginning()
+
+            override def fieldName(name: String): CoderResult[Unit] = a.fieldName(name) >> b.fieldName(name)
+
+            override def end(): CoderResult[Unit] = a.end() >> b.end()
+        }
     }
 }
 
@@ -142,7 +153,12 @@ final class InterchangeJacksonJsonGenerator(generator: JsonGenerator) extends In
         })
 
     def omitNextMissing(): Unit = { _omitNextMissing = true }
-    def filterNextObject(filter: ObjectFilter): Unit = { _nextObjectFilter = filter }
+    def filterNextObject(newFilter: ObjectFilter): Unit = {
+        _nextObjectFilter = Option(_nextObjectFilter) match {
+            case Some(oldFilter) => ObjectFilter.combineFilters(oldFilter, newFilter)
+            case None            => newFilter 
+        }
+    }
 
     def writeBoolean(b: Boolean): CoderResult[Unit] =
         aboutToWriteToken() >> tryCatchResultG(terminal) { generator.writeBoolean(b); Okay.unit }

@@ -139,7 +139,13 @@ package liftjson {
             }
 
         def omitNextMissing(): Unit = { _omitNextMissing = true }
-        def filterNextObject(filter: ObjectFilter): Unit = { _nextObjectFilter = filter }
+        def filterNextObject(newFilter: ObjectFilter): Unit = {
+            _nextObjectFilter = Option(_nextObjectFilter) match {
+                case Some(oldFilter) => ObjectFilter.combineFilters(oldFilter, newFilter)
+                case None            => newFilter 
+            }
+        }
+
         def writeBoolean(b: Boolean): CoderResult[Unit] = emitValue(JBool(b))
         def writeNumber(s: Short): CoderResult[Unit] = emitValue(JInt(BigInt(s)))
         def writeNumber(i: Int): CoderResult[Unit] = emitValue(JInt(BigInt(i)))
