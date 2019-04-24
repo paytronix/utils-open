@@ -39,11 +39,11 @@ import BijectionT.bijection
 object joda {
     // Conversions between time offset representations. Always use the offset rather than the zone name, as they don't always match 1:1
     private def jodaDateTimeZone(dtz: ZoneOffset): JodaDateTimeZone = JodaDateTimeZone.forOffsetMillis(dtz.getTotalSeconds * 1000)
-    private def javaZoneOffset(jdtz: JodaDateTimeZone): ZoneOffset = ZoneOffset.ofTotalSeconds(jdtz.getOffset(System.currentTimeMillis) / 1000)
+    private def javaZoneOffset(jdtz: JodaDateTimeZone, instantMillis: long): ZoneOffset = ZoneOffset.ofTotalSeconds(jdtz.getOffset(instantMillis) / 1000)
 
     val dateTimeBijection: BijectionT[Result, Result, JodaDateTime, ZonedDateTime] =
         bijection (
-            (jdt: JodaDateTime)  => tryCatchValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(jdt.getMillis), javaZoneOffset(jdt.getZone))): Result[ZonedDateTime],
+            (jdt: JodaDateTime)  => tryCatchValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(jdt.getMillis), javaZoneOffset(jdt.getZone, jdt.getMillis))): Result[ZonedDateTime],
             (zdt: ZonedDateTime) => tryCatchValue(new JodaDateTime(zdt.toInstant.toEpochMilli, jodaDateTimeZone(zdt.getOffset))): Result[JodaDateTime]
         )
     val localDateBijection: BijectionT[Result, Result, JodaLocalDate, LocalDate] =
