@@ -72,7 +72,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>19.3-develop-SNAPSHOT</revision>
+        <revision>19.3-csl-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.12</scala.version>
     </properties>

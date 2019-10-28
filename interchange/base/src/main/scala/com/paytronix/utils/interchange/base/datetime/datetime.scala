@@ -18,7 +18,7 @@ package com.paytronix.utils.interchange.base.datetime
 
 import java.sql.{Date => SqlDate, Time => SqlTime, Timestamp => SqlTimestamp}
 import java.util.{Date => UtilDate}
-import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZonedDateTime, ZoneOffset, ZoneId}
+import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, OffsetTime, ZonedDateTime, ZoneOffset, ZoneId}
 import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder}
 import java.time.temporal.ChronoField
 import scalaz.{BijectionT, NonEmptyList}
@@ -69,7 +69,8 @@ class DateTimeStringBijections (
     dateTimeFormatters:      NonEmptyList[DateTimeFormatter],
     localDateFormatters:     NonEmptyList[DateTimeFormatter],
     localDateTimeFormatters: NonEmptyList[DateTimeFormatter],
-    localTimeFormatters:     NonEmptyList[DateTimeFormatter]
+    localTimeFormatters:     NonEmptyList[DateTimeFormatter],
+    offsetTimeFormatters:    NonEmptyList[DateTimeFormatter]
 ) {
     private def fail(encodeFormatter: DateTimeFormatter): Failed =
         Failed("incorrectly formatted date -- expected format like  " + ZonedDateTime.now.format(encodeFormatter))
@@ -104,6 +105,14 @@ class DateTimeStringBijections (
             s => firstOrLastG(fail(localTimeFormatters.head), localTimeFormatters) { formatter =>
                 tryCatchValue(LocalTime.parse(s, formatter))
             }: Result[LocalTime]
+        )
+
+    val offsetTimeBijection: BijectionT[Result, Result, OffsetTime, String] =
+        bijection (
+            foo => tryCatchValue(foo.format(offsetTimeFormatters.head)): Result[String],
+            s => firstOrLastG(fail(offsetTimeFormatters.head), offsetTimeFormatters) { formatter =>
+                tryCatchValue(OffsetTime.parse(s, formatter))
+            }: Result[OffsetTime]
         )
 
     val javaDateBijection: BijectionT[Result, Result, UtilDate, String] =
@@ -184,6 +193,9 @@ object iso8601 extends DateTimeStringBijections (
         DateTimeFormatter.ofPattern("HH:mm:ss.SSS"),
         DateTimeFormatter.ISO_LOCAL_TIME, // Seems to be equivalent to HH:mm[:ss][.SSS]
         DateTimeFormatters.withOptionalFractionalSecondRange("HHmm[ss]")
+    ),
+    offsetTimeFormatters = NonEmptyList (
+        DateTimeFormatter.ISO_OFFSET_TIME
     )
 )
 
@@ -224,6 +236,9 @@ object classic extends DateTimeStringBijections (
         DateTimeFormatters.withOptionalFractionalSecondRange("HH:mm:ss"),
         DateTimeFormatters.withOptionalFractionalSecondRange("HH:mm[:ss]"),
         DateTimeFormatters.withOptionalFractionalSecondRange("HHmm[ss]")
+    ),
+    offsetTimeFormatters = NonEmptyList (
+        DateTimeFormatter.ISO_OFFSET_TIME
     )
 )
 
@@ -239,5 +254,8 @@ object sqlServer extends DateTimeStringBijections (
     ),
     localTimeFormatters = NonEmptyList (
         DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+    ),
+    offsetTimeFormatters = NonEmptyList (
+        DateTimeFormatter.ISO_OFFSET_TIME
     )
 )
