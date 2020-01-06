@@ -20,7 +20,7 @@ import java.lang.{Boolean => JavaBoolean, Integer => JavaInteger, Long => JavaLo
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
-import java.time.{Duration, LocalDate, LocalDateTime, LocalTime, ZonedDateTime}
+import java.time.{Duration, LocalDate, LocalDateTime, LocalTime, OffsetTime, ZonedDateTime}
 import java.util.{Arrays, Date => JavaDate}
 import scala.annotation.{Annotation, StaticAnnotation}
 import scala.collection.JavaConverters.seqAsJavaListConverter
@@ -578,6 +578,7 @@ trait scalar extends scalarLPI {
     implicit val localDateJsonCoderIso8601        = dateAsIso8601.localDateJsonCoder
     implicit val localDateTimeJsonCoderIso8601    = dateAsIso8601.localDateTimeJsonCoder
     implicit val localTimeJsonCoderIso8601        = dateAsIso8601.localTimeJsonCoder
+    implicit val offsetTimeJsonCoderIso8601       = dateAsIso8601.offsetTimeJsonCoder
     implicit val javaDateJsonCoderIso8601         = dateAsIso8601.javaDateJsonCoder
     implicit val javaSqlDateJsonCoderIso8601      = dateAsIso8601.javaSqlDateJsonCoder
     implicit val javaSqlTimeJsonCoderIso8601      = dateAsIso8601.javaSqlTimeJsonCoder
@@ -588,6 +589,7 @@ trait scalar extends scalarLPI {
         implicit val localDateJsonCoder        : JsonCoder[LocalDate]        = stringJsonCoder.mapBijection(datetime.iso8601.localDateBijection)
         implicit val localDateTimeJsonCoder    : JsonCoder[LocalDateTime]    = stringJsonCoder.mapBijection(datetime.iso8601.localDateTimeBijection)
         implicit val localTimeJsonCoder        : JsonCoder[LocalTime]        = stringJsonCoder.mapBijection(datetime.iso8601.localTimeBijection)
+        implicit val offsetTimeJsonCoder       : JsonCoder[OffsetTime]       = stringJsonCoder.mapBijection(datetime.iso8601.offsetTimeBijection)
         implicit val javaDateJsonCoder         : JsonCoder[JavaDate]         = stringJsonCoder.mapBijection(datetime.iso8601.javaDateBijection)
         implicit val javaSqlDateJsonCoder      : JsonCoder[JavaSqlDate]      = stringJsonCoder.mapBijection(datetime.iso8601.javaSqlDateBijection)
         implicit val javaSqlTimeJsonCoder      : JsonCoder[JavaSqlTime]      = stringJsonCoder.mapBijection(datetime.iso8601.javaSqlTimeBijection)
