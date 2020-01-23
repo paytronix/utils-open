@@ -18,7 +18,7 @@ package com.paytronix.utils.interchange.format.avro
 
 import scala.reflect.macros.whitebox.Context
 
-import scalaz.NonEmptyList
+import scalaz.{IList, NonEmptyList}
 
 import com.paytronix.utils.interchange.base
 
@@ -301,7 +301,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
 
         val schemas = targetSubtypes.map(encoderOrDecoderFor).map { coder =>
             q"$coder.schema"
-        }.list
+        }.list.toList
 
         q"org.apache.avro.Schema.createUnion(java.util.Arrays.asList(..$schemas))"
     }
@@ -314,7 +314,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val avroEncoder = TermName(c.freshName())
         val instance = TermName(c.freshName())
 
-        val encodeAlts = targetSubtypes.list.zipWithIndex.map { case (subtype, index) =>
+        val encodeAlts = targetSubtypes.list.toList.zipWithIndex.map { case (subtype, index) =>
             val encoder = encoderFor(subtype)
             val value = TermName(c.freshName())
             cq"""
@@ -367,7 +367,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val receiver = TermName(c.freshName())
         val invalidIndex = TermName(c.freshName())
 
-        val decodeAlts = targetSubtypes.list.zipWithIndex.map { case (subtype, index) =>
+        val decodeAlts = targetSubtypes.list.toList.zipWithIndex.map { case (subtype, index) =>
             val decoder = decoderFor(subtype)
             val subReceiver = TermName(c.freshName())
             val failed = TermName(c.freshName())
@@ -438,7 +438,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
 
         targets match {
             case Nil => sys.error("union cannot be made with no alternates!")
-            case hd :: tl => nel(hd, tl)
+            case hd :: tl => nel(hd, IList.fromList(tl))
         }
     }
 
@@ -454,7 +454,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
                 q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}",
                 q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
             )
-        }.list
+        }.list.toList
 
         val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
         val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
@@ -479,7 +479,6 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         null
     }
 
-
     def unionDecoderDef[A: c.WeakTypeTag](alternates: c.Tree*): c.Expr[AvroDecoder[A]] = try {
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
@@ -488,7 +487,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
 
         val declareDecoders = (targetSubtypes zip subtypeDecoderNames).map { case (tpe, decoderName) =>
             q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}"
-        }.list
+        }.list.toList
 
         val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
 
@@ -515,7 +514,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
 
         val declareEncoders = (targetSubtypes zip subtypeEncoderNames).map { case (tpe, encoderName) =>
             q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
-        }.list
+        }.list.toList
 
         val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
 

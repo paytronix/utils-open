@@ -20,7 +20,7 @@ import scala.reflect.macros.whitebox.Context
 
 import scalaz.syntax.foldable.ToFoldableOps
 import scalaz.syntax.std.list.ToListOpsFromList /* groupWhen */
-import scalaz.NonEmptyList
+import scalaz.{IList, INil, NonEmptyList}
 
 import com.paytronix.utils.interchange.base.{name, coded, notCoded}
 
@@ -262,7 +262,7 @@ Type: $tpe
 
         //System.out.println("sortedCollectedMembers: " + sortedCollectedMembers)
 
-        val groupedCollectedMembers = sortedCollectedMembers.groupWhen { (a, b) => a.name == b.name && a.tpe =:= b.tpe }
+        val groupedCollectedMembers: List[NonEmptyList[Accessor]] = sortedCollectedMembers.groupWhen { (a, b) => a.name == b.name && a.tpe =:= b.tpe }
 
         //System.out.println("groupedCollectedMembers: " + groupedCollectedMembers)
 
@@ -273,7 +273,7 @@ Type: $tpe
         val listPsyms = filteredMembers.map {
             // super awesome hax. this one catches when we'd consider isFoo a property named foo in the JavaBean style that doesn't have
             // an associated JavaBean setter and rewrites it back to the scala style named "isFoo"
-            case NonEmptyList(Getter(name, true, method, tpe)) if
+            case NonEmptyList((Getter(name, true, method, tpe), INil())) if
                 method.name.decodedName.toString.length > 2 &&
                 method.name.decodedName.toString.startsWith("is") &&
                 Character.isUpperCase(method.name.decodedName.toString.charAt(2)) =>
@@ -299,8 +299,8 @@ Type: $tpe
         val toReturn = listPsyms.map { psyms =>
             val name           = psyms.head.name
             val tpe            = psyms.head.tpe
-            val getters        = psyms.list.collect { case g: Getter => g }
-            val setters        = psyms.list.collect { case s: Setter => s }
+            val getters        = psyms.list.collect { case g: Getter => g }.toList
+            val setters        = psyms.list.collect { case s: Setter => s }.toList
             // Just as a note, constructor argument terms will never be found for Java classes,
             // as the constructor argument names are not preserved and are given names like
             // x$1, x$2, x$3, etc. -- I don't know why this is.

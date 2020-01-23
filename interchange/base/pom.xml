@@ -33,6 +33,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>jakarta.xml.bind</groupId>
+            <artifactId>jakarta.xml.bind-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
         </dependency>
@@ -52,17 +56,24 @@
             <groupId>com.paytronix.utils</groupId>
             <artifactId>scala</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.scalacheck</groupId>
-            <artifactId>scalacheck_2.11</artifactId>
-            <!-- don't pull in scalacheck to all uses of the library, even though the fixtures included do depend on it -->
-            <scope>provided</scope>
+            <artifactId>scalacheck_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.specs2</groupId>
-            <artifactId>specs2_2.11</artifactId>
+            <artifactId>specs2-core_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-junit_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-scalacheck_${scala.compatibility.version}</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

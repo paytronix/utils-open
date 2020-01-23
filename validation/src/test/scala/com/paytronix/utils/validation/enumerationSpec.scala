@@ -17,7 +17,7 @@
 package com.paytronix.utils.validation
 
 import org.specs2.SpecificationWithJUnit
-import scalaz.{Failure, NonEmptyList}
+import scalaz.{Failure, IList, NonEmptyList}
 
 import base.{ValidationError, valueOps}
 import enumeration._

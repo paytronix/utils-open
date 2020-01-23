@@ -35,11 +35,11 @@
     <dependencies>
         <dependency>
             <groupId>net.liftweb</groupId>
-            <artifactId>lift-common_2.11</artifactId>
+            <artifactId>lift-common_${scala.compatibility.version}</artifactId>
         </dependency>
         <dependency>
             <groupId>net.liftweb</groupId>
-            <artifactId>lift-util_2.11</artifactId>
+            <artifactId>lift-util_${scala.compatibility.version}</artifactId>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
@@ -47,7 +47,7 @@
         </dependency>
         <dependency>
             <groupId>org.specs2</groupId>
-            <artifactId>specs2_2.11</artifactId>
+            <artifactId>specs2-core_${scala.compatibility.version}</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

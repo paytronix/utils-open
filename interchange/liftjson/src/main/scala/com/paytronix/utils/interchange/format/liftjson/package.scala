@@ -19,8 +19,7 @@ package com.paytronix.utils.interchange.format
 import scala.collection.mutable.Stack
 
 import com.fasterxml.jackson.core.{JsonLocation, JsonParseException, JsonToken}
-import net.liftweb.json.JsonAST.{JValue, JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString, render}
-import net.liftweb.json.Printer.compact
+import net.liftweb.json.JsonAST.{JValue, JArray, JBool, JDouble, JField, JInt, JNothing, JNull, JObject, JString, compactRender}
 
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, Receiver, formatFailedPath}
 import com.paytronix.utils.interchange.format.json.{JsonDecoder, JsonEncoder, InterchangeJsonGenerator, InterchangeJsonParser}
@@ -142,7 +141,7 @@ package liftjson {
         def filterNextObject(newFilter: ObjectFilter): Unit = {
             _nextObjectFilter = Option(_nextObjectFilter) match {
                 case Some(oldFilter) => ObjectFilter.combineFilters(oldFilter, newFilter)
-                case None            => newFilter 
+                case None            => newFilter
             }
         }
 
@@ -267,7 +266,6 @@ package liftjson {
                         case JBool(true)    => JsonToken.VALUE_TRUE
                         case JBool(false)   => JsonToken.VALUE_FALSE
                         case JDouble(_)     => JsonToken.VALUE_NUMBER_FLOAT
-                        case JField(_, _)   => JsonToken.FIELD_NAME
                         case JInt(_)        => JsonToken.VALUE_NUMBER_INT
                         case JNull|JNothing => JsonToken.VALUE_NULL
                         case JObject(_)     => JsonToken.START_OBJECT
@@ -453,8 +451,8 @@ package liftjson {
                 case JInt(bi)     => bi.toString
                 case JDouble(d)   => d.toString
                 case JBool(b)     => b.toString
-                case a@JArray(_)  => compact(render(a))
-                case o@JObject(_) => compact(render(o))
+                case a@JArray(_)  => compactRender(a)
+                case o@JObject(_) => compactRender(o)
                 case JNull        => "null"
                 case _            => throw new JsonParseException("not a string", JsonLocation.NA)
             }

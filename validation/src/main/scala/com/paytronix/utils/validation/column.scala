@@ -17,6 +17,7 @@
 package com.paytronix.utils.validation
 
 import scalaz.Failure
+import scalaz.IList
 import scalaz.NonEmptyList.nel
 
 import base.{Validated, ValidationError, failure, success, validationFunctionOps}
@@ -100,7 +101,7 @@ object column {
                 case (output, Nil) =>
                     success(output)
                 case (_, unknownCol :: unknownCols) =>
-                    Failure(nel(unknownCol, unknownCols).map { case (name, _) => unknownColumn(name) })
+                    Failure(nel(unknownCol, IList.fromList(unknownCols)).map { case (name, _) => unknownColumn(name) })
             }
         }
 

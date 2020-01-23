@@ -16,6 +16,7 @@
 
 package com.paytronix.utils.scala
 
+import annotation.tailrec
 import language.{higherKinds, implicitConversions}
 import language.experimental.macros
 
@@ -24,7 +25,9 @@ import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 import _root_.scala.reflect.{ClassTag, classTag}
 
-import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse}
+import cats.{Applicative, Eval, Foldable, Functor, Monad, Traverse}
+import cats.data.Validated
+import cats.data.Validated.{Invalid, Valid}
 
 // FIXME? gotta be a better way
 import scala.annotation.unchecked.uncheckedVariance
@@ -78,7 +81,7 @@ object result {
     /**
      * Like an Either that always carries a Throwable, or a Box without Empty that carries an error of type E or success of type A.
      * G suffix means "Generic".
-     * Operates like an Option, Box, or right-biased Either (\/) for the most part
+     * Operates like an Option, Box, or right-biased Either (Validated) for the most part
      */
     sealed abstract class ResultG[+E, +A] extends Product with Serializable {
         /**
@@ -235,8 +238,8 @@ object result {
         /** Yields `Right` if `Okay`, `Left` otherwise */
         def toEither: Either[(Throwable, E), A]
 
-        /** Yields `\/-` if `Okay`, `-\/` otherwise */
-        def toDisjunction: (Throwable, E) \/ A
+        /** Yields `Valid` if `Okay`, `Invalid` otherwise */
+        def toValidated: Validated[(Throwable, E), A]
 
         /** Yields `Success` if `Okay`, `Failure` otherwise */
         def toTry: scala.util.Try[A]
@@ -312,31 +315,72 @@ object result {
 
     object ResultG extends FailedParameterImplicits {
         /** Implicitly convert ResultG to Seq, for flatten and similar */
-        implicit def resultAsSeq[E, A](in: ResultG[E, A]): Seq[A] =
+        implicit def resultAsSeq[E, A](in: ResultG[E, A]): Seq[A] = {
             in match {
                 case Okay(value) => Seq(value)
                 case _ => Seq.empty
             }
+        }
 
-        /** Grant Scalaz powers to ResultG */
-        implicit def resultGMonad[E] = new Traverse[({ type F[A] = ResultG[E, A] })#F] with Monad[({ type F[A] = ResultG[E, A] })#F] {
-            def point[A](a: => A) =
-                Okay(a)
+        /** Applicative implementation for ResultG */
+        implicit def applicativeForResultG[E] = new Applicative[({ type F[A] = ResultG[E, A]})#F] {
+            override def pure[A](a: A): ResultG[E, A] = Okay(a)
 
-            def bind[A, B](fa: ResultG[E, A])(f: A => ResultG[E, B]) =
-                fa flatMap f
+            override def map[A, B](fa: ResultG[E, A])(f: A => B): ResultG[E, B] = fa match {
+                case FailedG(t, p) => FailedG(t, p)
+                case Okay(a)       => Okay(f(a))
+            }
 
-            def traverseImpl[G[_] : Applicative, A, B](fa: ResultG[E, A])(f: A => G[B]) =
-                fa match {
-                    case FailedG(throwable, x)  => Applicative[G].point(FailedG(throwable, x))
-                    case Okay(x) => Applicative[G].map(f(x))(Okay(_))
+            override def ap[A, B](ff: ResultG[E, A => B])(f: ResultG[E, A]): ResultG[E, B] = for {
+                func   <- ff
+                value  <- f
+            } yield func(value)
+        }
+
+        /** Monad implementation for ResultG */
+        implicit def resultGMonad[E](implicit app: Applicative[ResultG[E, *]]) = {
+            new Monad[ResultG[E, *]] {
+                // Define flatMap using Option's flatten method
+                override def flatMap[A, B](fa: ResultG[E, A])(f: A => ResultG[E, B]): ResultG[E, B] = fa.flatMap(x => f(x))
+                  //app.map(fa)(f).flattenapp.map(fa)(f).flatten
+
+                override def pure[A](a: A): ResultG[E, A] = app.pure(a)
+
+                @tailrec
+                override def tailRecM[A, B](init: A)(fn: A => ResultG[E, Either[A, B]]): ResultG[E, B] = {
+                    fn(init) match {
+                        case f: FailedG[E]  => f
+                        case Okay(Right(b)) => Okay(b)
+                        case Okay(Left(a))  => tailRecM(a)(fn)
+                    }
+                }
+            }
+        }
+
+        /** Traverse implementation for ResultG */
+        implicit def resultGTraverse[E](implicit app: Applicative[ResultG[E, *]]) = {
+            new Traverse[ResultG[E, *]] {
+                override def traverse[G[_] : Applicative, A, B](fa: ResultG[E, A])(f: A => G[B]) = {
+                    fa match {
+                        case FailedG(throwable, x)  => Applicative[G].pure(FailedG(throwable, x))
+                        case Okay(x) => Applicative[G].map(f(x))(Okay(_))
+                    }
                 }
 
-            override def foldRight[A, B](fa: ResultG[E, A], z: => B)(f: (A, => B) => B) =
-                fa match {
-                    case FailedG(_, _) => z
-                    case Okay(a) => f(a, z)
+                override def foldRight[A, B](fa: ResultG[E, A], z: Eval[B])(f: (A, Eval[B]) => B) = {
+                    fa match {
+                        case FailedG(_, _) => z.value
+                        case Okay(a) => f(a, z)
+                    }
                 }
+
+                override def foldLeft[A, B](fa: ResultG[E, A], z: B)(f: (B, A) => B) = {
+                    fa match {
+                        case FailedG(_, _) => z
+                        case Okay(a) => f(z, a)
+                    }
+                }
+            }
         }
 
         /** Allow unifying a `ResultG` where the failure parameter is compatible with the success type */
@@ -439,8 +483,8 @@ object result {
         def toEither: Either[Nothing, A] =
             Right(result)
 
-        def toDisjunction: (Throwable, Nothing) \/ A =
-            \/-(result)
+        def toValidated: Validated[(Throwable, Nothing), A] =
+            Valid(result)
 
         def toTry: scala.util.Try[A] =
             scala.util.Success(result)
@@ -497,8 +541,8 @@ object result {
         def toEither: Either[(Throwable, E), Nothing] =
             Left((throwable, parameter))
 
-        def toDisjunction: (Throwable, E) \/ Nothing =
-            -\/((throwable, parameter))
+        def toValidated: Validated[(Throwable, E), Nothing] =
+            Invalid((throwable, parameter))
 
         def toTry: scala.util.Try[Nothing] =
             scala.util.Failure(throwable)
@@ -635,23 +679,23 @@ object result {
             }
     }
 
-    /** Enrichment of Either with a .toResult method */
-    implicit class disjunctionOps[A](val in: Throwable \/ A) extends AnyVal {
+    /** Enrichment of Validated with a .toResult method */
+    implicit class validatedOps[A](val in: Validated[Throwable, A]) extends AnyVal {
         /** Convert Left to Failed and Right to Okay */
         def toResult: Result[A] =
             in match {
-                case -\/(t)  => Failed(t)
-                case \/-(a) => Okay(a)
+                case Invalid(t)  => Failed(t)
+                case Valid(a) => Okay(a)
             }
     }
 
-    /** Enrich `(Throwable, E) \/ A` with a `.toResult` method */
-    implicit class disjunctionOpsG[E, A](val in: (Throwable, E) \/ A) extends AnyVal {
-        /** Convert `-\/` to `FailedG` and `\/-` to `Okay` */
+    /** Enrich `Validated[(Throwable, E), A]` with a `.toResult` method */
+    implicit class validatedOpsG[E, A](val in: Validated[(Throwable, E), A]) extends AnyVal {
+        /** Convert `Invalid` to `FailedG` and `Valid` to `Okay` */
         def toResult: ResultG[E, A] =
             in match {
-                case -\/((t, e)) => FailedG(t, e)
-                case \/-(a)      => Okay(a)
+                case Invalid((t, e)) => FailedG(t, e)
+                case Valid(a)      => Okay(a)
             }
     }
 
@@ -740,15 +784,15 @@ object result {
      * application if none result in {@link Okay}
      */
     def firstOrLastG[XS[_]: Foldable, A, B, E](default: ResultG[E, B], xs: XS[A])(f: A => ResultG[E, B]): ResultG[E, B] =
-        Foldable[XS].foldLeft[A, ResultG[E, B] \/ Okay[B]](xs, -\/(default)) { (accum, a) =>
+        Foldable[XS].foldLeft[A, Validated[ResultG[E, B], Okay[B]]](xs, Invalid(default)) { (accum, a) =>
             accum match {
-                case -\/(last) =>
+                case Invalid(last) =>
                     f(a) match {
-                        case success @ Okay(_) => \/-(success)
-                        case failed            => -\/(failed)
+                        case success@Okay(_) => Valid(success)
+                        case failed          => Invalid(failed)
                     }
 
-                case success @ \/-(_) => success
+                case success @ Valid(_) => success
             }
         }.fold(identity, identity)
 

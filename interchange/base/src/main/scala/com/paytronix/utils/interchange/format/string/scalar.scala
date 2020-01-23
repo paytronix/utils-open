@@ -172,7 +172,7 @@ trait scalar {
         object encode extends StringEncoder[ByteBuffer] {
             def run(in: ByteBuffer, out: Receiver[String]) =
                 tryCatchResultG(terminal) {
-                    if (in.hasArray && in.capacity == in.limit && in.position == 0)
+                    if (in.hasArray && in.capacity == in.limit() && in.position() == 0)
                         out(DatatypeConverter.printBase64Binary(in.array))
                     else {
                         // FIXME not the most efficient, better to chop it up into blocks divisible by 3 (base64 uses 3-grams)

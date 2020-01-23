@@ -18,7 +18,6 @@ package com.paytronix.utils.interchange.format.liftjson
 
 import net.liftweb.json.JsonAST._
 import net.liftweb.json.JsonParser.parse
-import net.liftweb.json.Printer.compact
 import org.scalacheck.Arbitrary
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 
@@ -140,9 +139,9 @@ class liftJsonTest extends SpecificationWithJUnit with ScalaCheck {
         val decRes = optionStackCoder.decode.fromJValue(intermediate)
         decRes match {
             case Okay(os2) =>
-                (os2 ==== os).updateMessage(s"${Thread.currentThread}: intermediate: ${compact(render(intermediate))}: " + _)
+                (os2 ==== os).updateMessage(s"${Thread.currentThread}: intermediate: ${compactRender(intermediate)}: " + _)
             case f@FailedG(t, _) =>
-                println(s"${Thread.currentThread}: Failed with intermediate result: ${compact(render(intermediate))}:")
+                println(s"${Thread.currentThread}: Failed with intermediate result: ${compactRender(intermediate)}:")
                 t.printStackTrace(System.out)
                 ko(f.message)
         }
@@ -163,14 +162,14 @@ class liftJsonTest extends SpecificationWithJUnit with ScalaCheck {
             case Okay(r2) =>
                 r match {
                     case Okay(foo) =>
-                        (r2 ==== Okay(foo)).updateMessage(s"${Thread.currentThread}: intermediate: ${compact(render(intermediate))}: " + _)
+                        (r2 ==== Okay(foo)).updateMessage(s"${Thread.currentThread}: intermediate: ${compactRender(intermediate)}: " + _)
                     case f@FailedG(_, _) =>
                         (r2 must beLike { case f2@FailedG(_, _) => (f2.message ==== f.message) and (f2.parameter ==== f.parameter) })
-                            .updateMessage(s"${Thread.currentThread}: intermediate: ${compact(render(intermediate))}: " + _)
+                            .updateMessage(s"${Thread.currentThread}: intermediate: ${compactRender(intermediate)}: " + _)
                 }
 
             case f@FailedG(t, _) =>
-                println(s"${Thread.currentThread}: Failed with intermediate result: ${compact(render(intermediate))}:")
+                println(s"${Thread.currentThread}: Failed with intermediate result: ${compactRender(intermediate)}:")
                 t.printStackTrace(System.out)
                 ko(f.message)
         }
@@ -191,9 +190,9 @@ class liftJsonTest extends SpecificationWithJUnit with ScalaCheck {
         val encRes = StructureWithFlattening.jsonCoder.encode.toJValue(swf)
         val intermediate = encRes.orThrow
         StructureWithFlattening.jsonCoder.decode.fromJValue(intermediate) match {
-            case Okay(swf2) => (swf2 ==== swf).updateMessage(s"${Thread.currentThread}: intermediate: ${compact(render(intermediate))}: " + _)
+            case Okay(swf2) => (swf2 ==== swf).updateMessage(s"${Thread.currentThread}: intermediate: ${compactRender(intermediate)}: " + _)
             case f@FailedG(t, _) =>
-                println(s"${Thread.currentThread}: Failed with intermediate result: ${compact(render(intermediate))}:")
+                println(s"${Thread.currentThread}: Failed with intermediate result: ${compactRender(intermediate)}:")
                 t.printStackTrace(System.out)
                 ko(f.message)
         }

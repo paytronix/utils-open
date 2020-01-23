@@ -16,7 +16,6 @@
 
 package com.paytronix.utils.interchange.base.datetime
 
-//import org.joda.time.{DateTime, DateTimeZone, Instant, LocalDate, LocalDateTime, LocalTime}
 import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZonedDateTime, ZoneId, ZoneOffset}
 import org.scalacheck.{Arbitrary, Gen}
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}

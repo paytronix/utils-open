@@ -32,6 +32,17 @@ import Arbitrary.arbitrary
 
 import arbitraries._
 
+object BigDecimalRender {
+    def renderBigDecimal(bd: java.math.BigDecimal): String = {
+        if (bd.scale < 0 || bd.scale > 50) {
+            bd.toString
+        } else {
+            bd.toPlainString
+        }
+    }
+    def renderBigDecimal(bd: BigDecimal): String = renderBigDecimal(bd.underlying)
+}
+
 class unitJsonCoderTest extends SpecificationWithJUnit with JsonMatchers {
     def is = s2"""
         `unitJsonCoder`
@@ -242,7 +253,7 @@ class javaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaCheck
             should fail to decode a missing value $decodeMissingCase
     """
 
-    def encodeCase = Prop.forAll(safeJavaBigDecimals) { bd => scalar.javaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
+    def encodeCase = Prop.forAll(safeJavaBigDecimals) { bd => scalar.javaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + BigDecimalRender.renderBigDecimal(bd) + "\"") }
     def decodeCase = Prop.forAll(safeJavaBigDecimals) { bd => decode(scalar.javaBigDecimalJsonCoder.decode)(s""" "${bd.toString}" """) ==== Okay(bd) }
     def decodeIntegralCase = prop { (bi: java.math.BigInteger) =>
         val bd = new java.math.BigDecimal(bi)
@@ -264,7 +275,7 @@ class scalaBigDecimalJsonCoderTest extends SpecificationWithJUnit with ScalaChec
             should fail to decode a missing value $decodeMissingCase
     """
 
-    def encodeCase = Prop.forAll(safeScalaBigDecimals) { bd => scalar.scalaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + bd.toString + "\"") }
+    def encodeCase = Prop.forAll(safeScalaBigDecimals) { bd => scalar.scalaBigDecimalJsonCoder.encode.toString(bd) ==== Okay("\"" + BigDecimalRender.renderBigDecimal(bd) + "\"") }
     def decodeCase = Prop.forAll(safeScalaBigDecimals) { bd => decode(scalar.scalaBigDecimalJsonCoder.decode)(s""" "${bd.toString}" """) ==== Okay(bd) }
     def decodeIntegralCase = prop { (bi: java.math.BigInteger) =>
         val bd = BigDecimal(BigInt(bi))
