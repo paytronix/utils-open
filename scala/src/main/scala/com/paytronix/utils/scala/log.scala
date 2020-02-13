@@ -55,45 +55,65 @@ package object log {
     /** Enrichment of ResultG that allows logging as part of a chain of result operations */
     class ResultLoggerOps[R <: ResultG[_, _]](result: R) {
         /** If not Okay then log the failure at trace level */
-        def logTrace(message: String = "")(implicit logger: Logger): R = {
+        def logTrace(message: String = "", includeStackTrace: Boolean = true)(implicit logger: Logger): R = {
             result match {
-                case FailedG(throwable, _) => logger.trace(if (message == "") "Failed with:" else message, throwable)
+                case FailedG(throwable, _) => if (includeStackTrace) {
+                    logger.trace(if (message == "") "Failed with:" else message, throwable)
+                } else {
+                    logger.trace(if (message == "") "Failed with:" + throwable.getMessage else message)
+                }
                 case _ => ()
             }
             result
         }
 
         /** If not Okay then log the failure at debug level */
-        def logDebug(message: String = "")(implicit logger: Logger): R = {
+        def logDebug(message: String = "", includeStackTrace: Boolean = true)(implicit logger: Logger): R = {
             result match {
-                case FailedG(throwable, _) => logger.debug(if (message == "") "Failed with:" else message, throwable)
+                case FailedG(throwable, _) => if (includeStackTrace) {
+                    logger.debug(if (message == "") "Failed with:" else message, throwable)
+                } else {
+                    logger.debug(if (message == "") "Failed with:" + throwable.getMessage else message)
+                }
                 case _ => ()
             }
             result
         }
 
         /** If not Okay then log the failure at info level */
-        def logInfo(message: String = "")(implicit logger: Logger): R = {
+        def logInfo(message: String = "", includeStackTrace: Boolean = true)(implicit logger: Logger): R = {
             result match {
-                case FailedG(throwable, _) => logger.info(if (message == "") "Failed with:" else message, throwable)
+                case FailedG(throwable, _) => if (includeStackTrace) {
+                    logger.info(if (message == "") "Failed with:" else message, throwable)
+                } else {
+                    logger.info(if (message == "") "Failed with:" + throwable.getMessage else message)
+                }
                 case _ => ()
             }
             result
         }
 
         /** If not Okay then log the failure at warning level */
-        def logWarn(message: String = "")(implicit logger: Logger): R = {
+        def logWarn(message: String = "", includeStackTrace: Boolean = true)(implicit logger: Logger): R = {
             result match {
-                case FailedG(throwable, _) => logger.warn(if (message == "") "Failed with:" else message, throwable)
+                case FailedG(throwable, _) => if (includeStackTrace) {
+                    logger.warn(if (message == "") "Failed with:" else message, throwable)
+                } else {
+                    logger.warn(if (message == "") "Failed with:" + throwable.getMessage else message)
+                }
                 case _ => ()
             }
             result
         }
 
         /** If not Okay then log the failure at error level */
-        def logError(message: String = "")(implicit logger: Logger): R = {
+        def logError(message: String = "", includeStackTrace: Boolean = true)(implicit logger: Logger): R = {
             result match {
-                case FailedG(throwable, _) => logger.error(if (message == "") "Failed with:" else message, throwable)
+                case FailedG(throwable, _) => if (includeStackTrace) {
+                    logger.error(if (message == "") "Failed with:" else message, throwable)
+                } else {
+                    logger.error(if (message == "") "Failed with:" + throwable.getMessage else message)
+                }
                 case _ => ()
             }
             result
