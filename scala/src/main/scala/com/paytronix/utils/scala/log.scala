@@ -60,7 +60,7 @@ package object log {
                 case FailedG(throwable, _) => if (includeStackTrace) {
                     logger.trace(if (message == "") "Failed with:" else message, throwable)
                 } else {
-                    logger.trace(if (message == "") "Failed with:" else message + throwable.getMessage)
+                    logger.trace(if (message == "") "Failed with:" + throwable.getMessage else message)
                 }
                 case _ => ()
             }
@@ -73,7 +73,7 @@ package object log {
                 case FailedG(throwable, _) => if (includeStackTrace) {
                     logger.debug(if (message == "") "Failed with:" else message, throwable)
                 } else {
-                    logger.debug(if (message == "") "Failed with:" else message + throwable.getMessage)
+                    logger.debug(if (message == "") "Failed with:" + throwable.getMessage else message)
                 }
                 case _ => ()
             }
@@ -86,7 +86,7 @@ package object log {
                 case FailedG(throwable, _) => if (includeStackTrace) {
                     logger.info(if (message == "") "Failed with:" else message, throwable)
                 } else {
-                    logger.info(if (message == "") "Failed with:" else message + throwable.getMessage)
+                    logger.info(if (message == "") "Failed with:" + throwable.getMessage else message)
                 }
                 case _ => ()
             }
@@ -99,7 +99,7 @@ package object log {
                 case FailedG(throwable, _) => if (includeStackTrace) {
                     logger.warn(if (message == "") "Failed with:" else message, throwable)
                 } else {
-                    logger.warn(if (message == "") "Failed with:" else message + throwable.getMessage)
+                    logger.warn(if (message == "") "Failed with:" + throwable.getMessage else message)
                 }
                 case _ => ()
             }
@@ -112,7 +112,7 @@ package object log {
                 case FailedG(throwable, _) => if (includeStackTrace) {
                     logger.error(if (message == "") "Failed with:" else message, throwable)
                 } else {
-                    logger.error(if (message == "") "Failed with:" else message + throwable.getMessage)
+                    logger.error(if (message == "") "Failed with:" + throwable.getMessage else message)
                 }
                 case _ => ()
             }
