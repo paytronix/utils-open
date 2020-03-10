@@ -236,7 +236,7 @@ sealed abstract  class FlattenedTaggedUnion
 case class FlattenedTaggedUnionChild(a: Int) extends FlattenedTaggedUnion
 object FlattenedTaggedUnionChild {
     implicit val arb: Arbitrary[FlattenedTaggedUnionChild] = Arbitrary(arbitrary[Int].map(FlattenedTaggedUnionChild.apply))
-} 
+}
 
 final case class WrapperClass(field: Option[CaseClass])
 //object WrapperClassCoding extends WrapperCoding

@@ -28,14 +28,14 @@ trait DeriveUtils {
     val c: Context
 
     import c.universe.{
-        Annotation, AssignOrNamedArg, AssignOrNamedArgTag, Bind, Block, ClassDef, ClassDefTag, EmptyTree, Flag, Ident, IdentTag,
+        Annotation, Bind, Block, ClassDef, ClassDefTag, Constant, EmptyTree, Flag, Ident, IdentTag, Literal,
         MethodSymbol, MethodType, MethodTypeTag, Modifiers, ModuleDef, ModuleDefTag, NoPrefix, NullaryMethodType, NullaryMethodTypeTag,
         Quasiquote, SingleType, SingleTypeTag, Symbol, Template, TermName, TermNameTag, TermSymbol, Tree, TreeTag, Type,
         TypeName, termNames, typeOf
     }
 
     /** Distilled information about a single property of a structure */
-    final case class Property (
+    final case class Property(
         externalName:          String,
         internalName:          String,
         decoderName:           TermName,
@@ -63,7 +63,7 @@ trait DeriveUtils {
     }
 
     /** Distilled information about a structure, either object or class */
-    final case class Structure (
+    final case class Structure(
         tpe:                    Type,
         annotations:            List[Annotation],
         properties:             List[Property],
@@ -322,18 +322,20 @@ Type: $tpe
             ).flatten.distinct
 
             object Named {
-                def unapply(in: Annotation): Option[String] =
-                    if (in.tree.tpe =:= nameTpe)
+                def unapply(in: Annotation): Option[String] = {
+                    if (in.tree.tpe =:= nameTpe) {
                         in.tree.children.tail.collectFirst {
-                            case AssignOrNamedArg(Ident(TermName(name)), rhs) =>
-                                c.eval(c.Expr[String](c.untypecheck(rhs.duplicate)))
+                            case Literal(Constant(name: String)) => name
                         }
-                    else None
+                    } else {
+                        None
+                    }
+                }
             }
 
             val externalName = annotations.collectFirst { case Named(externalName) => externalName } getOrElse name
 
-            Property (
+            Property(
                 externalName  = externalName,
                 internalName  = name,
                 decoderName   = TermName(name + "Decoder"),
