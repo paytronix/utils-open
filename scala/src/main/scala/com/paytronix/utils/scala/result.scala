@@ -323,7 +323,7 @@ object result {
         }
 
         /** Applicative implementation for ResultG */
-        implicit def applicativeForResultG[E] = new Applicative[({ type F[A] = ResultG[E, A]})#F] {
+        implicit def applicativeForResultG[E] = new Applicative[ResultG[E, *]] {
             override def pure[A](a: A): ResultG[E, A] = Okay(a)
 
             override def map[A, B](fa: ResultG[E, A])(f: A => B): ResultG[E, B] = fa match {
@@ -367,9 +367,9 @@ object result {
                     }
                 }
 
-                override def foldRight[A, B](fa: ResultG[E, A], z: Eval[B])(f: (A, Eval[B]) => B) = {
+                override def foldRight[A, B](fa: ResultG[E, A], z: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = {
                     fa match {
-                        case FailedG(_, _) => z.value
+                        case FailedG(_, _) => z
                         case Okay(a) => f(a, z)
                     }
                 }
