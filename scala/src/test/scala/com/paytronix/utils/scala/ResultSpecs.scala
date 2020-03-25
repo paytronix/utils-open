@@ -144,7 +144,7 @@ class OkayTest extends SpecificationWithJUnit {
     def filterNot1 = okay.withFailedType[Unit].filterNot(_ == "foo") must beFailedWith("value did not pass filter")
     def filterNot2 = okay.withFailedType[Unit].filterNot(_ == "bar") ==== okay
     def flatMap1 = okay.flatMap(s => Okay(s + "bar")) ==== Okay("foobar")
-    def flatMap2 = okay.flatMap(s => Failed("foo")) must beFailedWith("foo")
+    def flatMap2 = okay.flatMap(_ => Failed("foo")) must beFailedWith("foo")
     def foreach1 = { var isGood = false; okay.foreach(s => isGood = s == "foo"); isGood must beTrue }
     def getOrElse1 = okay.getOrElse(sys.error("not lazy enough!")) ==== "foo"
     def isOkay1 = okay.isOkay must beTrue
@@ -223,7 +223,7 @@ class FailedGTest extends SpecificationWithJUnit {
     def orElse2 = (failedInt | parameter("bar"))         must (beFailedWith("failed message", "bar") and beFailedWithoutCause)
     def orElse3 = (failedInt | MyFailedParameter("bar")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause)
     def orElse4 = (failedInt | ("bar" -> Nil))           must (beFailedWith("bar", Nil) and beFailedWithCause("failed message"))
-    def orElse5 = (failedInt | Failed("bar"))            must (beFailedWith("bar") and beFailedWithoutCause)
+    def orElse5 = (failedInt | Failed("bar"))            must (beFailedWith("bar") and beFailedWithCause("failed message"))
     def orElse6 = (failedInt | Okay("bar"))              ==== Okay("bar")
     def orElse7 = (failedInt | { case FailedG(throwable, _) => FailedG(throwable, "foo" + throwable.getMessage) }) must beFailedWith("failed message", "foofailed message") and beFailedWithoutCause
     def then1 = failedInt >> Okay("bar") ==== failedInt

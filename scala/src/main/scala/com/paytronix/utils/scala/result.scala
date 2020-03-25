@@ -25,7 +25,7 @@ import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 import _root_.scala.reflect.{ClassTag, classTag}
 
-import cats.{Applicative, Eval, Foldable, Functor, Monad, Traverse}
+import cats.{Applicative, Eval, Foldable, Monad, Traverse}
 import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 
@@ -271,7 +271,7 @@ object result {
         def asA[B](implicit tag: ClassTag[B], fpd: FailedParameterDefault[E /* haaaack */ @uncheckedVariance]): ResultG[E, B] =
             flatMap { v =>
                 try Okay(classTag[B].runtimeClass.cast(v).asInstanceOf[B])
-                catch { case e: ClassCastException =>
+                catch { case _: ClassCastException =>
                     val what = v.asInstanceOf[AnyRef] match {
                         case null => "null"
                         case other => other.getClass.getName
@@ -418,12 +418,18 @@ object result {
             failed => FailedG(pair._1, failed.throwable, pair._2)
 
         /** Allow a ResultG to be used with ResultG's `|` to replace a failure with some alternate. For example `rslt | Okay("default value")` */
-        implicit def resultAsReplacement[E, A](replacement: => ResultG[E, A]): FailedG[Any] => ResultG[E, A] =
-            _ => replacement
+        implicit def resultAsReplacement[E, A](replacement: => ResultG[E, A]): FailedG[Any] => ResultG[E, A] = {
+            cause => replacement match {
+                // People keep doing maybeFailedThing | Failed("Some error message") which loses the original stack trace, so this is an
+                // attempt to prevent that from happening
+                case FailedG(fe: FailedException, param) if fe.getCause == null => FailedG(fe.getMessage, cause.throwable, param)
+                case other => other
+            }
+        }
     }
 
     /** Allow any value to be used with ResultG's `|` to attach or replace a failure parameter. For example `rslt | parameter(1)` */
-    def parameter[E](parameter: E): FailedG[Any] => FailedG[E] =
+    def parameter[E](parameter: => E): FailedG[Any] => FailedG[E] =
         failed => FailedG(failed.throwable, parameter)
 
     object Okay {
@@ -453,7 +459,7 @@ object result {
 
         def asAG[F, B](clazz: Class[B], parameter: F): ResultG[F, B] =
             try Okay(clazz.cast(result).asInstanceOf[B])
-            catch { case e: ClassCastException =>
+            catch { case _: ClassCastException =>
                 val what = result.asInstanceOf[AnyRef] match {
                     case null => "null"
                     case other => other.getClass.getName
@@ -463,7 +469,7 @@ object result {
 
         def asAG[F, B](clazz: Class[B], otherwise: ResultG[F, B]): ResultG[F, B] =
             try Okay(clazz.cast(result).asInstanceOf[B])
-            catch { case e: ClassCastException => otherwise }
+            catch { case _: ClassCastException => otherwise }
 
         def iterator: Iterator[A] =
             Iterator.single(result)
@@ -786,7 +792,7 @@ object result {
     def firstOrLastG[XS[_]: Foldable, A, B, E](default: ResultG[E, B], xs: XS[A])(f: A => ResultG[E, B]): ResultG[E, B] =
         Foldable[XS].foldLeft[A, Validated[ResultG[E, B], Okay[B]]](xs, Invalid(default)) { (accum, a) =>
             accum match {
-                case Invalid(last) =>
+                case Invalid(last@_) =>
                     f(a) match {
                         case success@Okay(_) => Valid(success)
                         case failed          => Invalid(failed)
