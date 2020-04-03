@@ -24,8 +24,8 @@ import org.joda.time.{
     LocalDateTime     => JodaLocalDateTime,
     LocalTime         => JodaLocalTime
 }
-import scalaz.BijectionT
 
+import com.paytronix.utils.interchange.base.TypeConverter
 import com.paytronix.utils.interchange.base.datetime.{
     long    => javaLong,
     iso8601 => javaIso8601,
@@ -33,55 +33,53 @@ import com.paytronix.utils.interchange.base.datetime.{
 }
 import com.paytronix.utils.scala.result.{Okay, Result, tryCatchValue}
 
-import BijectionT.bijection
-
 /** Conversions between Joda Time and Java Time types */
 object joda {
     // Conversions between time offset representations. Always use the offset rather than the zone name, as they don't always match 1:1
     private def jodaDateTimeZone(dtz: ZoneOffset): JodaDateTimeZone = JodaDateTimeZone.forOffsetMillis(dtz.getTotalSeconds * 1000)
     private def javaZoneOffset(jdtz: JodaDateTimeZone, instantMillis: Long): ZoneOffset = ZoneOffset.ofTotalSeconds(jdtz.getOffset(instantMillis) / 1000)
 
-    val dateTimeBijection: BijectionT[Result, Result, JodaDateTime, ZonedDateTime] =
-        bijection (
+    val dateTimeConverter: TypeConverter[JodaDateTime, ZonedDateTime] =
+        TypeConverter(
             (jdt: JodaDateTime)  => tryCatchValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(jdt.getMillis), javaZoneOffset(jdt.getZone, jdt.getMillis))): Result[ZonedDateTime],
             (zdt: ZonedDateTime) => tryCatchValue(new JodaDateTime(zdt.toInstant.toEpochMilli, jodaDateTimeZone(zdt.getOffset))): Result[JodaDateTime]
         )
-    val localDateBijection: BijectionT[Result, Result, JodaLocalDate, LocalDate] =
-        bijection (
+    val localDateConverter: TypeConverter[JodaLocalDate, LocalDate] =
+        TypeConverter(
             (jld: JodaLocalDate) => Okay(LocalDateTime.ofInstant(Instant.ofEpochMilli(jld.toDateTimeAtStartOfDay(JodaDateTimeZone.UTC).getMillis), ZoneOffset.UTC).toLocalDate): Result[LocalDate],
             (ld: LocalDate)      => Okay(new JodaLocalDate(ld.atStartOfDay.toInstant(ZoneOffset.UTC).toEpochMilli, JodaDateTimeZone.UTC)): Result[JodaLocalDate]
         )
-    val localDateTimeBijection: BijectionT[Result, Result, JodaLocalDateTime, LocalDateTime] =
-        bijection (
+    val localDateTimeConverter: TypeConverter[JodaLocalDateTime, LocalDateTime] =
+        TypeConverter(
             (jldt: JodaLocalDateTime) => Okay(LocalDateTime.ofInstant(Instant.ofEpochMilli(jldt.toDateTime(JodaDateTimeZone.UTC).getMillis), ZoneOffset.UTC)): Result[LocalDateTime],
             (ldt: LocalDateTime)      => Okay(new JodaLocalDateTime(ldt.toInstant(ZoneOffset.UTC).toEpochMilli, JodaDateTimeZone.UTC)): Result[JodaLocalDateTime]
         )
-    val localTimeBijection: BijectionT[Result, Result, JodaLocalTime, LocalTime] =
-        bijection (
+    val localTimeConverter: TypeConverter[JodaLocalTime, LocalTime] =
+        TypeConverter(
             // Java Time treats all LocalTime values having no offset, but Joda treats constructors args as being adjusted for local time zone unless specified
             (jlt: JodaLocalTime) => Okay(LocalTime.ofNanoOfDay(jlt.getMillisOfDay * 1000000L)): Result[LocalTime],
             (lt: LocalTime)      => Okay(new JodaLocalTime(lt.toNanoOfDay / 1000000, JodaDateTimeZone.UTC)): Result[JodaLocalTime]
         )
 
     object long {
-        val dateTimeBijection:      BijectionT[Result, Result, JodaDateTime, Long]      = javaLong.zonedDateTimeBijection <=< joda.dateTimeBijection
-        val localDateBijection:     BijectionT[Result, Result, JodaLocalDate, Long]     = javaLong.localDateBijection     <=< joda.localDateBijection
-        val localDateTimeBijection: BijectionT[Result, Result, JodaLocalDateTime, Long] = javaLong.localDateTimeBijection <=< joda.localDateTimeBijection
-        val localTimeBijection:     BijectionT[Result, Result, JodaLocalTime, Long]     = javaLong.localTimeBijection     <=< joda.localTimeBijection
+        val dateTimeConverter:      TypeConverter[JodaDateTime, Long]      = joda.dateTimeConverter.compose(javaLong.zonedDateTimeConverter)
+        val localDateConverter:     TypeConverter[JodaLocalDate, Long]     = joda.localDateConverter.compose(javaLong.localDateConverter)
+        val localDateTimeConverter: TypeConverter[JodaLocalDateTime, Long] = joda.localDateTimeConverter.compose(javaLong.localDateTimeConverter)
+        val localTimeConverter:     TypeConverter[JodaLocalTime, Long]     = joda.localTimeConverter.compose(javaLong.localTimeConverter)
     }
 
     object iso8601 {
-        val dateTimeBijection:      BijectionT[Result, Result, JodaDateTime, String]      = javaIso8601.zonedDateTimeBijection <=< joda.dateTimeBijection
-        val localDateBijection:     BijectionT[Result, Result, JodaLocalDate, String]     = javaIso8601.localDateBijection     <=< joda.localDateBijection
-        val localDateTimeBijection: BijectionT[Result, Result, JodaLocalDateTime, String] = javaIso8601.localDateTimeBijection <=< joda.localDateTimeBijection
-        val localTimeBijection:     BijectionT[Result, Result, JodaLocalTime, String]     = javaIso8601.localTimeBijection     <=< joda.localTimeBijection
+        val dateTimeConverter:      TypeConverter[JodaDateTime, String]      = joda.dateTimeConverter.compose(javaIso8601.zonedDateTimeConverter)
+        val localDateConverter:     TypeConverter[JodaLocalDate, String]     = joda.localDateConverter.compose(javaIso8601.localDateConverter)
+        val localDateTimeConverter: TypeConverter[JodaLocalDateTime, String] = joda.localDateTimeConverter.compose(javaIso8601.localDateTimeConverter)
+        val localTimeConverter:     TypeConverter[JodaLocalTime, String]     = joda.localTimeConverter.compose(javaIso8601.localTimeConverter)
     }
 
     object classic {
-        val dateTimeBijection:      BijectionT[Result, Result, JodaDateTime, String]      = javaClassic.zonedDateTimeBijection <=< joda.dateTimeBijection
-        val localDateBijection:     BijectionT[Result, Result, JodaLocalDate, String]     = javaClassic.localDateBijection     <=< joda.localDateBijection
-        val localDateTimeBijection: BijectionT[Result, Result, JodaLocalDateTime, String] = javaClassic.localDateTimeBijection <=< joda.localDateTimeBijection
-        val localTimeBijection:     BijectionT[Result, Result, JodaLocalTime, String]     = javaClassic.localTimeBijection     <=< joda.localTimeBijection
+        val dateTimeConverter:      TypeConverter[JodaDateTime, String]      = joda.dateTimeConverter.compose(javaClassic.zonedDateTimeConverter)
+        val localDateConverter:     TypeConverter[JodaLocalDate, String]     = joda.localDateConverter.compose(javaClassic.localDateConverter)
+        val localDateTimeConverter: TypeConverter[JodaLocalDateTime, String] = joda.localDateTimeConverter.compose(javaClassic.localDateTimeConverter)
+        val localTimeConverter:     TypeConverter[JodaLocalTime, String]     = joda.localTimeConverter.compose(javaClassic.localTimeConverter)
     }
 
 }

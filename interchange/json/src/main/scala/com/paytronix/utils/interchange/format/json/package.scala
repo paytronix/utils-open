@@ -62,10 +62,10 @@ object InterchangeJsonGenerator {
             override val suppressStartAndEnd = true
         }
 
-        // The operator >> as used in this function is basically a flatmap, 
+        // The operator >> as used in this function is basically a flatmap,
         // and the lines return Okay.unit if both things happen successfully
         def combineFilters(a: ObjectFilter, b: ObjectFilter): ObjectFilter = new ObjectFilter {
-            override val suppressStartAndEnd = a.suppressStartAndEnd || b.suppressStartAndEnd 
+            override val suppressStartAndEnd = a.suppressStartAndEnd || b.suppressStartAndEnd
             override def beginning(): CoderResult[Unit] = a.beginning() >> b.beginning()
 
             override def fieldName(name: String): CoderResult[Unit] = a.fieldName(name) >> b.fieldName(name)
@@ -156,7 +156,7 @@ final class InterchangeJacksonJsonGenerator(generator: JsonGenerator) extends In
     def filterNextObject(newFilter: ObjectFilter): Unit = {
         _nextObjectFilter = Option(_nextObjectFilter) match {
             case Some(oldFilter) => ObjectFilter.combineFilters(oldFilter, newFilter)
-            case None            => newFilter 
+            case None            => newFilter
         }
     }
 
@@ -935,8 +935,10 @@ trait JsonCoder[A] extends Coder[JsonEncoder, JsonDecoder, A, JsonFormat.type] {
      *        (s: String) => Okay(s.split(' '))
      *    ))
      */
-    def mapBijection[B](bijection: BijectionT[Result, Result, B, A]) =
-        JsonCoder.make(encode.mapKleisli(bijection.to), decode.mapKleisli(bijection.from))
+    def mapBijection[B](
+        to: A => Result[B],
+        from: B => Result[A]
+    ): JsonCoder[B] = JsonCoder.make(encode.mapKleisli(to), decode.mapKleisli(from))
 
     /** Wrap the decoder with a `defaultJsonDecoder` to provide a default in the case where the value is missing or null */
     def default(value: A): JsonCoder[A] =

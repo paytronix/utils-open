@@ -272,8 +272,10 @@ trait AvroCoder[A] extends Coder[AvroEncoder, AvroDecoder, A, AvroFormat.type] {
      *        (s: String) => Okay(s.split(' '))
      *    ))
      */
-    def mapBijection[B](bijection: BijectionT[Result, Result, B, A]) =
-        AvroCoder.make(encode.mapKleisli(bijection.to), decode.mapKleisli(bijection.from))
+    def mapBijection[B](
+        to: A => Result[B],
+        from: B => Result[A]
+    ): AvroCoder[B] = AvroCoder.make(encode.mapKleisli(to), decode.mapKleisli(from))
 
     /**
      * Yield a new `AvroCoder` for the same type which defaults to some value when decoding from a schema that doesn't include the field

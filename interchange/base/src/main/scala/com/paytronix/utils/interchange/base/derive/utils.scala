@@ -18,9 +18,7 @@ package com.paytronix.utils.interchange.base.derive
 
 import scala.reflect.macros.whitebox.Context
 
-import scalaz.syntax.foldable.ToFoldableOps
-import scalaz.syntax.std.list.ToListOpsFromList /* groupWhen */
-import scalaz.{IList, INil, NonEmptyList}
+import cats.data.NonEmptyList
 
 import com.paytronix.utils.interchange.base.{name, coded, notCoded}
 
@@ -31,7 +29,7 @@ trait DeriveUtils {
         Annotation, Bind, Block, ClassDef, ClassDefTag, Constant, EmptyTree, Flag, Ident, IdentTag, Literal,
         MethodSymbol, MethodType, MethodTypeTag, Modifiers, ModuleDef, ModuleDefTag, NoPrefix, NullaryMethodType, NullaryMethodTypeTag,
         Quasiquote, SingleType, SingleTypeTag, Symbol, Template, TermName, TermNameTag, TermSymbol, Tree, TreeTag, Type,
-        TypeName, termNames, typeOf
+        typeOf
     }
 
     /** Distilled information about a single property of a structure */
@@ -258,22 +256,25 @@ Type: $tpe
         //System.out.println("collectedMembers: " + collectedMembers)
 
         //Put access/mutators for each attribute side by side so grouping can actually work
-        val sortedCollectedMembers = collectedMembers.sortWith{ (a: Accessor, b: Accessor) => a.name.compareTo(b.name) < 0 }
+        val sortedCollectedMembers: List[Accessor] = collectedMembers.sortWith{ (a: Accessor, b: Accessor) => a.name.compareTo(b.name) < 0 }
 
         //System.out.println("sortedCollectedMembers: " + sortedCollectedMembers)
 
-        val groupedCollectedMembers: List[NonEmptyList[Accessor]] = sortedCollectedMembers.groupWhen { (a, b) => a.name == b.name && a.tpe =:= b.tpe }
+        val groupedCollectedMembers: List[NonEmptyList[Accessor]] = sortedCollectedMembers.foldLeft(List.empty[NonEmptyList[Accessor]]) {
+            case ((h@NonEmptyList(first, _)) :: tail, b: Accessor) if first.name == b.name && first.tpe =:= b.tpe => (b :: h) :: tail
+            case (nels, b: Accessor) => NonEmptyList.one(b) :: nels
+        }
 
         //System.out.println("groupedCollectedMembers: " + groupedCollectedMembers)
 
-        val filteredMembers = groupedCollectedMembers.filter(_.any(_.isInstanceOf[Getter]))
+        val filteredMembers = groupedCollectedMembers.filter(_.exists(_.isInstanceOf[Getter]))
 
         //System.out.println("filteredMembers: " + filteredMembers)
 
         val listPsyms = filteredMembers.map {
             // super awesome hax. this one catches when we'd consider isFoo a property named foo in the JavaBean style that doesn't have
             // an associated JavaBean setter and rewrites it back to the scala style named "isFoo"
-            case NonEmptyList((Getter(name, true, method, tpe), INil())) if
+            case NonEmptyList(Getter(name@_, true, method, tpe@_), Nil) if
                 method.name.decodedName.toString.length > 2 &&
                 method.name.decodedName.toString.startsWith("is") &&
                 Character.isUpperCase(method.name.decodedName.toString.charAt(2)) =>
@@ -288,19 +289,18 @@ Type: $tpe
                               s"${method.asMethod.typeSignature.toString} (of class ${method.asMethod.typeSignature.getClass.toString})")
                 }
 
-                NonEmptyList(Getter(newName, false, newMethod, newTpe))
+                NonEmptyList.one(Getter(newName, false, newMethod, newTpe))
 
             case other => other
         }
-
 
         //System.out.println("listPsyms: " + listPsyms)
 
         val toReturn = listPsyms.map { psyms =>
             val name           = psyms.head.name
             val tpe            = psyms.head.tpe
-            val getters        = psyms.list.collect { case g: Getter => g }.toList
-            val setters        = psyms.list.collect { case s: Setter => s }.toList
+            val getters        = psyms.collect { case g: Getter => g }
+            val setters        = psyms.collect { case s: Setter => s }
             // Just as a note, constructor argument terms will never be found for Java classes,
             // as the constructor argument names are not preserved and are given names like
             // x$1, x$2, x$3, etc. -- I don't know why this is.
@@ -496,7 +496,7 @@ Type: $tpe
                     implDef              = moduleDef
                 )
 
-            case (classDef@ClassDef(_, name, _, _)) :: rest =>
+            case (classDef@ClassDef(_, name, _, _)) :: _ =>
                 SimplifiedDeriveAnnotation (
                     targetType           = targetType,
                     annotationParameters = annotParams,
@@ -507,7 +507,7 @@ Type: $tpe
             case Nil =>
                 sys.error("got no annottees??!?")
 
-            case annottees =>
+            case annottees@_ =>
                 sys.error(s"expected $annot to annotate an object or class which should derive from an automatically generated coder")
         }
     }
