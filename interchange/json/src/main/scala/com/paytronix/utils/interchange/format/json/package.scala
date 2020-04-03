@@ -16,6 +16,7 @@
 
 package com.paytronix.utils.interchange.format.json
 
+import com.fasterxml.jackson.core.{JsonEncoding, JsonFactory, JsonGenerator, JsonLocation, JsonParser, JsonParseException, JsonToken}
 import java.io.{
     InputStream, OutputStream, Reader, Writer,
     ByteArrayInputStream, ByteArrayOutputStream, StringReader, StringWriter
@@ -23,11 +24,8 @@ import java.io.{
 import scala.annotation.{StaticAnnotation, implicitNotFound, tailrec}
 import scala.collection.mutable.Queue
 
-import com.fasterxml.jackson.core.{JsonEncoding, JsonFactory, JsonGenerator, JsonLocation, JsonParser, JsonParseException, JsonToken}
-import scalaz.BijectionT
-
 import com.paytronix.utils.interchange.base.{
-    Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, atTerminal, formatFailedPath, terminal
+    Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, TypeConverter, atTerminal, formatFailedPath, terminal
 }
 import com.paytronix.utils.scala.resource.{Closeable, withResource}
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchValue, tryCatchResult, tryCatchResultG}
@@ -935,10 +933,7 @@ trait JsonCoder[A] extends Coder[JsonEncoder, JsonDecoder, A, JsonFormat.type] {
      *        (s: String) => Okay(s.split(' '))
      *    ))
      */
-    def mapBijection[B](
-        to: A => Result[B],
-        from: B => Result[A]
-    ): JsonCoder[B] = JsonCoder.make(encode.mapKleisli(to), decode.mapKleisli(from))
+    def mapWithConverter[B](converter: TypeConverter[B, A]): JsonCoder[B] = JsonCoder.make(encode.mapKleisli(converter.to), decode.mapKleisli(converter.from))
 
     /** Wrap the decoder with a `defaultJsonDecoder` to provide a default in the case where the value is missing or null */
     def default(value: A): JsonCoder[A] =

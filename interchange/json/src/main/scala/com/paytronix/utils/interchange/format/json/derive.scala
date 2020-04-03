@@ -16,10 +16,8 @@
 
 package com.paytronix.utils.interchange.format.json
 
-import scala.annotation.{Annotation, StaticAnnotation}
+import scala.annotation.StaticAnnotation
 import scala.language.experimental.macros
-
-import com.paytronix.utils.interchange.base
 
 /**
  * Annotations and macros to derive coders automatically at compile time.

@@ -16,14 +16,11 @@
 
 package com.paytronix.utils.interchange.format.json
 
-import java.util.Arrays
-import scala.collection.JavaConverters.asScalaBufferConverter
-
 import org.scalacheck.Arbitrary
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
-import scalaz.BijectionT.bijection
+import scala.collection.JavaConverters.asScalaBufferConverter
 
-import com.paytronix.utils.interchange.base.{default, name}
+import com.paytronix.utils.interchange.base.{TypeConverter, default, name}
 import com.paytronix.utils.interchange.test.fixtures.{BasicClass, CaseClass, POJOClass}
 import com.paytronix.utils.scala.result.{Failed, Okay, Result}
 
@@ -163,7 +160,7 @@ object jsonStructureCustomizedCoderTestFixture {
     object CustomizedCoderStructure {
         @derive.structure.customizedCoder[CustomizedCoderStructure]
         implicit object jsonCoder {
-            val bCoder = scalar.stringJsonCoder.mapBijection(bijection (
+            val bCoder = scalar.stringJsonCoder.mapWithConverter(TypeConverter(
                 (c: Char) => Okay("foo" + c): Result[String],
                 (s: String) => (if (s.startsWith("foo")) Okay(s.charAt(3)) else Failed("omg!")): Result[Char]
             ))
