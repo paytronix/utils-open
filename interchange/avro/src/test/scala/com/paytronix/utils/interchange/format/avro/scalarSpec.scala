@@ -576,15 +576,12 @@ class scalaEnumAvroCoderTest extends SpecificationWithJUnit with ScalaCheck with
     def e2 = coder.schema.getEnumSymbols ==== Arrays.asList("apple", "banana", "carrot")
     def e3 = coder2.schema.getEnumSymbols ==== Arrays.asList("thingone", "three", "twoish")
     def e4 = prop { e: ScalaEnum.Value =>
-        System.out.println(s"Enum is: $e")
         coder.encode.toBytes(e) must beLike { case Okay(a) => a must beAvroInt(sortedEnumValues.indexOf(e)) }
     }
     def e5 = prop { e: ScalaEnum.Value =>
-        System.out.println(s"Enum is: $e")
         coder.decode.fromBytes(coder.schema)(zigZagEncode(sortedEnumValues.indexOf(e))) ==== Okay(e)
     }
     def e6 = prop { e: ScalaEnum.Value =>
-        System.out.println(s"Enum is: $e")
         decodeDefault(coder.default(e)) ==== Okay(e)
     }
     def e7 = { import coders._; AvroCoder[ScalaEnum.Value].schema.getName ==== "ScalaEnum" }

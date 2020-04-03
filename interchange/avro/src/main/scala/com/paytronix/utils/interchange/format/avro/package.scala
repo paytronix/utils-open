@@ -21,10 +21,9 @@ import scala.annotation.{StaticAnnotation, implicitNotFound}
 
 import org.apache.avro
 import org.codehaus.jackson.JsonNode
-import scalaz.BijectionT
 
 import com.paytronix.utils.interchange.base.{
-    Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, atTerminal, formatFailedPath, terminal
+    Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, TypeConverter, atTerminal, formatFailedPath, terminal
 }
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchValue, tryCatchResult}
 
@@ -272,10 +271,7 @@ trait AvroCoder[A] extends Coder[AvroEncoder, AvroDecoder, A, AvroFormat.type] {
      *        (s: String) => Okay(s.split(' '))
      *    ))
      */
-    def mapBijection[B](
-        to: A => Result[B],
-        from: B => Result[A]
-    ): AvroCoder[B] = AvroCoder.make(encode.mapKleisli(to), decode.mapKleisli(from))
+    def mapWithConverter[B](converter: TypeConverter[B, A]): AvroCoder[B] = AvroCoder.make(encode.mapKleisli(converter.to), decode.mapKleisli(converter.from))
 
     /**
      * Yield a new `AvroCoder` for the same type which defaults to some value when decoding from a schema that doesn't include the field

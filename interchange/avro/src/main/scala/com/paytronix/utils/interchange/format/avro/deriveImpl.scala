@@ -16,18 +16,16 @@
 
 package com.paytronix.utils.interchange.format.avro
 
+import cats.data.NonEmptyList
 import scala.reflect.macros.whitebox.Context
-
-import scalaz.{IList, NonEmptyList}
 
 import com.paytronix.utils.interchange.base
 
 import base.derive.DeriveCoderMacros
 import utils.sanitizeSchemaName
-import NonEmptyList.{nel, nels}
 
 private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
-    import c.universe.{Annotation, Block, BlockTag, Ident, Quasiquote, TermName, Tree, TreeTag, Type, weakTypeTag}
+    import c.universe.{Annotation, Ident, Quasiquote, TermName, Tree, TreeTag, Type, weakTypeTag}
 
     type Coder[A] = AvroCoder[A]
 
@@ -299,9 +297,9 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         encoderOrDecoderFor: Type => Tree
     ): Tree = {
 
-        val schemas = targetSubtypes.map(encoderOrDecoderFor).map { coder =>
+        val schemas = targetSubtypes.toList.map(encoderOrDecoderFor).map { coder =>
             q"$coder.schema"
-        }.list.toList
+        }
 
         q"org.apache.avro.Schema.createUnion(java.util.Arrays.asList(..$schemas))"
     }
@@ -314,7 +312,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val avroEncoder = TermName(c.freshName())
         val instance = TermName(c.freshName())
 
-        val encodeAlts = targetSubtypes.list.toList.zipWithIndex.map { case (subtype, index) =>
+        val encodeAlts = targetSubtypes.toList.zipWithIndex.map { case (subtype, index) =>
             val encoder = encoderFor(subtype)
             val value = TermName(c.freshName())
             cq"""
@@ -367,7 +365,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val receiver = TermName(c.freshName())
         val invalidIndex = TermName(c.freshName())
 
-        val decodeAlts = targetSubtypes.list.toList.zipWithIndex.map { case (subtype, index) =>
+        val decodeAlts = targetSubtypes.toList.zipWithIndex.map { case (subtype, index) =>
             val decoder = decoderFor(subtype)
             val subReceiver = TermName(c.freshName())
             val failed = TermName(c.freshName())
@@ -438,7 +436,7 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
 
         targets match {
             case Nil => sys.error("union cannot be made with no alternates!")
-            case hd :: tl => nel(hd, IList.fromList(tl))
+            case hd :: tl => NonEmptyList(hd, tl)
         }
     }
 
@@ -446,18 +444,19 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Coder")
         val targetSubtypes = parseUnionAlternates(alternates)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeEncoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
+        val subtypeDecoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareCoders = (targetSubtypes zip (subtypeEncoderNames zip subtypeDecoderNames)).flatMap { case (tpe, (encoderName, decoderName)) =>
-            nels (
+        val declareCoders = (targetSubtypesList.zip(subtypeEncoderNames.zip(subtypeDecoderNames))).flatMap { case (tpe, (encoderName, decoderName)) =>
+            List(
                 q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}",
                 q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
             )
-        }.list.toList
+        }
 
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
+        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeEncoderNames)).toStream
+        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeDecoderNames)).toStream
 
         c.Expr[Coder[A]](q"""
             {
@@ -483,13 +482,14 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
         val targetSubtypes = parseUnionAlternates(alternates)
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeDecoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareDecoders = (targetSubtypes zip subtypeDecoderNames).map { case (tpe, decoderName) =>
+        val declareDecoders = (targetSubtypesList.zip(subtypeDecoderNames)).map { case (tpe, decoderName) =>
             q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}"
-        }.list.toList
+        }
 
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
+        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeDecoderNames)).toStream
 
         c.Expr[Decoder[A]](q"""
             {
@@ -510,13 +510,14 @@ private[avro] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Encoder")
         val targetSubtypes = parseUnionAlternates(alternates)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeEncoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareEncoders = (targetSubtypes zip subtypeEncoderNames).map { case (tpe, encoderName) =>
+        val declareEncoders = (targetSubtypesList.zip(subtypeEncoderNames)).map { case (tpe, encoderName) =>
             q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
-        }.list.toList
+        }
 
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
+        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeEncoderNames)).toStream
 
         c.Expr[Encoder[A]](q"""
             {

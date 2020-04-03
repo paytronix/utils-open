@@ -25,7 +25,6 @@ import scala.collection.mutable
 import org.apache.avro.{Schema, io}
 import org.codehaus.jackson.JsonNode
 import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
-import scalaz.syntax.apply.^
 
 import com.paytronix.utils.interchange.base.{CoderFailure, CoderResult, InterchangeClassLoader, InsecureContext, Receiver, atIndex, atProperty, atTerminal, terminal}
 import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSortedMap}

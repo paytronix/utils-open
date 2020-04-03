@@ -30,23 +30,23 @@ object joda extends joda
 
 trait joda {
     object jodaAsLong {
-        implicit lazy val dateTimeAvroCoder      : AvroCoder[JodaDateTime]      = scalar.longAvroCoder.mapBijection(datetime.joda.long.dateTimeBijection)
-        implicit lazy val localDateAvroCoder     : AvroCoder[JodaLocalDate]     = scalar.longAvroCoder.mapBijection(datetime.joda.long.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder : AvroCoder[JodaLocalDateTime] = scalar.longAvroCoder.mapBijection(datetime.joda.long.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder     : AvroCoder[JodaLocalTime]     = scalar.longAvroCoder.mapBijection(datetime.joda.long.localTimeBijection)
+        implicit lazy val dateTimeAvroCoder      : AvroCoder[JodaDateTime]      = scalar.longAvroCoder.mapWithConverter(datetime.joda.long.dateTimeConverter)
+        implicit lazy val localDateAvroCoder     : AvroCoder[JodaLocalDate]     = scalar.longAvroCoder.mapWithConverter(datetime.joda.long.localDateConverter)
+        implicit lazy val localDateTimeAvroCoder : AvroCoder[JodaLocalDateTime] = scalar.longAvroCoder.mapWithConverter(datetime.joda.long.localDateTimeConverter)
+        implicit lazy val localTimeAvroCoder     : AvroCoder[JodaLocalTime]     = scalar.longAvroCoder.mapWithConverter(datetime.joda.long.localTimeConverter)
     }
 
     object jodaAsIso8601 {
-        implicit lazy val dateTimeAvroCoder      : AvroCoder[JodaDateTime]      = scalar.stringAvroCoder.mapBijection(datetime.joda.iso8601.dateTimeBijection)
-        implicit lazy val localDateAvroCoder     : AvroCoder[JodaLocalDate]     = scalar.stringAvroCoder.mapBijection(datetime.joda.iso8601.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder : AvroCoder[JodaLocalDateTime] = scalar.stringAvroCoder.mapBijection(datetime.joda.iso8601.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder     : AvroCoder[JodaLocalTime]     = scalar.stringAvroCoder.mapBijection(datetime.joda.iso8601.localTimeBijection)
+        implicit lazy val dateTimeAvroCoder      : AvroCoder[JodaDateTime]      = scalar.stringAvroCoder.mapWithConverter(datetime.joda.iso8601.dateTimeConverter)
+        implicit lazy val localDateAvroCoder     : AvroCoder[JodaLocalDate]     = scalar.stringAvroCoder.mapWithConverter(datetime.joda.iso8601.localDateConverter)
+        implicit lazy val localDateTimeAvroCoder : AvroCoder[JodaLocalDateTime] = scalar.stringAvroCoder.mapWithConverter(datetime.joda.iso8601.localDateTimeConverter)
+        implicit lazy val localTimeAvroCoder     : AvroCoder[JodaLocalTime]     = scalar.stringAvroCoder.mapWithConverter(datetime.joda.iso8601.localTimeConverter)
     }
 
     object jodaAsClassic {
-        implicit lazy val dateTimeAvroCoder      : AvroCoder[JodaDateTime]      = scalar.stringAvroCoder.mapBijection(datetime.joda.classic.dateTimeBijection)
-        implicit lazy val localDateAvroCoder     : AvroCoder[JodaLocalDate]     = scalar.stringAvroCoder.mapBijection(datetime.joda.classic.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder : AvroCoder[JodaLocalDateTime] = scalar.stringAvroCoder.mapBijection(datetime.joda.classic.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder     : AvroCoder[JodaLocalTime]     = scalar.stringAvroCoder.mapBijection(datetime.joda.classic.localTimeBijection)
+        implicit lazy val dateTimeAvroCoder      : AvroCoder[JodaDateTime]      = scalar.stringAvroCoder.mapWithConverter(datetime.joda.classic.dateTimeConverter)
+        implicit lazy val localDateAvroCoder     : AvroCoder[JodaLocalDate]     = scalar.stringAvroCoder.mapWithConverter(datetime.joda.classic.localDateConverter)
+        implicit lazy val localDateTimeAvroCoder : AvroCoder[JodaLocalDateTime] = scalar.stringAvroCoder.mapWithConverter(datetime.joda.classic.localDateTimeConverter)
+        implicit lazy val localTimeAvroCoder     : AvroCoder[JodaLocalTime]     = scalar.stringAvroCoder.mapWithConverter(datetime.joda.classic.localTimeConverter)
     }
 }
