@@ -322,29 +322,12 @@ object result {
             }
         }
 
-        /** Applicative implementation for ResultG */
-        implicit def applicativeForResultG[E] = new Applicative[ResultG[E, *]] {
-            override def pure[A](a: A): ResultG[E, A] = Okay(a)
-
-            override def map[A, B](fa: ResultG[E, A])(f: A => B): ResultG[E, B] = fa match {
-                case FailedG(t, p) => FailedG(t, p)
-                case Okay(a)       => Okay(f(a))
-            }
-
-            override def ap[A, B](ff: ResultG[E, A => B])(f: ResultG[E, A]): ResultG[E, B] = for {
-                func   <- ff
-                value  <- f
-            } yield func(value)
-        }
-
         /** Monad implementation for ResultG */
         implicit def resultGMonad[E](implicit app: Applicative[ResultG[E, *]]) = {
             new Monad[ResultG[E, *]] {
-                // Define flatMap using Option's flatten method
                 override def flatMap[A, B](fa: ResultG[E, A])(f: A => ResultG[E, B]): ResultG[E, B] = fa.flatMap(x => f(x))
-                  //app.map(fa)(f).flattenapp.map(fa)(f).flatten
 
-                override def pure[A](a: A): ResultG[E, A] = app.pure(a)
+                override def pure[A](a: A): ResultG[E, A] = Okay(a)
 
                 @tailrec
                 override def tailRecM[A, B](init: A)(fn: A => ResultG[E, Either[A, B]]): ResultG[E, B] = {
