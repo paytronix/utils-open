@@ -33,17 +33,17 @@ import com.paytronix.utils.interchange.base.datetime.arbitraries._
 
 class jodaDatesTest extends SpecificationWithJUnit with ScalaCheck {
     def is = s2"""
-        Joda Time bijections should round trip
+        Joda Time converters should round trip
             DateTime           $e1
             LocalDate          $e2
             LocalDateTime      $e3
             LocalTime          $e4
     """
 
-    val roundTripDateTime      = joda.dateTimeBijection      <=< joda.dateTimeBijection.flip
-    val roundTripLocalDate     = joda.localDateBijection     <=< joda.localDateBijection.flip
-    val roundTripLocalDateTime = joda.localDateTimeBijection <=< joda.localDateTimeBijection.flip
-    val roundTripLocalTime     = joda.localTimeBijection     <=< joda.localTimeBijection.flip
+    val roundTripDateTime      = joda.dateTimeConverter.flip.compose(joda.dateTimeConverter)
+    val roundTripLocalDate     = joda.localDateConverter.flip.compose(joda.localDateConverter)
+    val roundTripLocalDateTime = joda.localDateTimeConverter.flip.compose(joda.localDateTimeConverter)
+    val roundTripLocalTime     = joda.localTimeConverter.flip.compose(joda.localTimeConverter)
 
     def e1 = prop { (zdt: ZonedDateTime) => roundTripDateTime.from(zdt) ==== Okay(zdt) }
     def e2 = prop { (ld: LocalDate)      => roundTripLocalDate.from(ld) ==== Okay(ld) }

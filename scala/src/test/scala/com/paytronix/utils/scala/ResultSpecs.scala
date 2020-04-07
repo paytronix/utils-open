@@ -18,7 +18,8 @@ package com.paytronix.utils.scala
 
 import org.specs2.SpecificationWithJUnit
 import org.specs2.matcher.{AnyMatchers, Matcher, StandardMatchResults}
-import scalaz.{\/, -\/, \/-}
+import cats.data.Validated
+import cats.data.Validated.{Invalid, Valid}
 
 import result._
 
@@ -143,7 +144,7 @@ class OkayTest extends SpecificationWithJUnit {
     def filterNot1 = okay.withFailedType[Unit].filterNot(_ == "foo") must beFailedWith("value did not pass filter")
     def filterNot2 = okay.withFailedType[Unit].filterNot(_ == "bar") ==== okay
     def flatMap1 = okay.flatMap(s => Okay(s + "bar")) ==== Okay("foobar")
-    def flatMap2 = okay.flatMap(s => Failed("foo")) must beFailedWith("foo")
+    def flatMap2 = okay.flatMap(_ => Failed("foo")) must beFailedWith("foo")
     def foreach1 = { var isGood = false; okay.foreach(s => isGood = s == "foo"); isGood must beTrue }
     def getOrElse1 = okay.getOrElse(sys.error("not lazy enough!")) ==== "foo"
     def isOkay1 = okay.isOkay must beTrue
@@ -222,7 +223,7 @@ class FailedGTest extends SpecificationWithJUnit {
     def orElse2 = (failedInt | parameter("bar"))         must (beFailedWith("failed message", "bar") and beFailedWithoutCause)
     def orElse3 = (failedInt | MyFailedParameter("bar")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause)
     def orElse4 = (failedInt | ("bar" -> Nil))           must (beFailedWith("bar", Nil) and beFailedWithCause("failed message"))
-    def orElse5 = (failedInt | Failed("bar"))            must (beFailedWith("bar") and beFailedWithoutCause)
+    def orElse5 = (failedInt | Failed("bar"))            must (beFailedWith("bar") and beFailedWithCause("failed message"))
     def orElse6 = (failedInt | Okay("bar"))              ==== Okay("bar")
     def orElse7 = (failedInt | { case FailedG(throwable, _) => FailedG(throwable, "foo" + throwable.getMessage) }) must beFailedWith("failed message", "foofailed message") and beFailedWithoutCause
     def then1 = failedInt >> Okay("bar") ==== failedInt
@@ -297,10 +298,10 @@ class ResultConversionTest extends SpecificationWithJUnit {
             Okay           to Right           $toRight
             Failed         to Left w/ unit    $toLeftThrowable
             FailedG        to Left w/ param   $toLeftThrowableG
-            \/-            to Okay            $fromDisjunctionRight
-            -\/            to FailedG         $fromDisjunctionLeft
-            Okay           to \/-             $toDisjunctionRight
-            FailedG        to -\/             $toDisjunctionLeft
+            Valid          to Okay            $fromValid
+            Invalid        to FailedG         $fromInvalid
+            Okay           to Valid           $toValid
+            FailedG        to Invalid         $toInvalid
             Success (Try)  to Okay            $fromSuccess
             Failure (Try)  to Failed          $fromFailure
             Okay           to Success (Try)   $toSuccess
@@ -325,10 +326,10 @@ class ResultConversionTest extends SpecificationWithJUnit {
     def toRight = Okay("foo").toEither ==== Right("foo")
     def toLeftThrowable = Failed(throwable).toEither ==== Left((throwable, ()))
     def toLeftThrowableG = FailedG(throwable, 1).toEither ==== Left((throwable, 1))
-    def fromDisjunctionRight = (\/-("foo"): (Throwable, Int) \/ String).toResult ==== Okay("foo")
-    def fromDisjunctionLeft = (-\/((throwable, 1)): (Throwable, Int) \/ String).toResult ==== FailedG(throwable, 1)
-    def toDisjunctionRight = Okay("foo").toDisjunction ==== \/-("foo")
-    def toDisjunctionLeft = FailedG(throwable, 1).toDisjunction ==== -\/((throwable, 1))
+    def fromValid = (Valid("foo"): Validated[(Throwable, Int), String]).toResult ==== Okay("foo")
+    def fromInvalid = (Invalid((throwable, 1)): Validated[(Throwable, Int), String]).toResult ==== FailedG(throwable, 1)
+    def toValid = Okay("foo").toValidated ==== Valid("foo")
+    def toInvalid = FailedG(throwable, 1).toValidated ==== Invalid((throwable, 1))
     def fromSuccess = scala.util.Success("foo").toResult ==== Okay("foo")
     def fromFailure = scala.util.Failure(throwable).toResult ==== Failed(throwable)
     def toSuccess = Okay("foo").toTry ==== scala.util.Success("foo")
@@ -404,7 +405,7 @@ class CatchingSpecTest extends SpecificationWithJUnit {
         tryCatchingValue, tryCatchingValueG, tryCatchingResult, tryCatchingResultG
     }
 
-    val ff: FailedG[Unit] => ResultG[Int, Int] = f => FailedG(f.message, 222)
+    val baseFailed: FailedG[Unit] => ResultG[Int, Int] = f => FailedG(f.message, 222)
     final class ExA(message: String) extends Exception(message)
     final class ExB(message: String) extends Exception(message)
     final class ExC(message: String) extends Exception(message)
@@ -421,11 +422,11 @@ class CatchingSpecTest extends SpecificationWithJUnit {
         tryCatchValue { sys.error("test") } must beFailedWith("test")
 
     def tryCatchValueGNoExceptionCase =
-        tryCatchValueG(ff) { 111 } ==== okayG111
+        tryCatchValueG(baseFailed) { 111 } ==== okayG111
     def tryCatchValueGThrowableCase =
-        tryCatchValueG(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+        tryCatchValueG(baseFailed) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
     def tryCatchValueGExceptionCase =
-        tryCatchValueG(ff) { sys.error("test") } must beFailedWith("test", 222)
+        tryCatchValueG(baseFailed) { sys.error("test") } must beFailedWith("test", 222)
 
     def tryCatchResultOkayCase =
         tryCatchResult { Okay(111) } ==== okay111
@@ -437,13 +438,13 @@ class CatchingSpecTest extends SpecificationWithJUnit {
         tryCatchResult { sys.error("test") } must beFailedWith("test")
 
     def tryCatchResultGOkayCase =
-        tryCatchResultG(ff) { Okay(111) } ==== okayG111
+        tryCatchResultG(baseFailed) { Okay(111) } ==== okayG111
     def tryCatchResultGFailedCase =
-        tryCatchResultG(ff) { FailedG("foo", 333) } must beFailedWith("foo", 333)
+        tryCatchResultG(baseFailed) { FailedG("foo", 333) } must beFailedWith("foo", 333)
     def tryCatchResultGThrowableCase =
-        tryCatchResultG(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+        tryCatchResultG(baseFailed) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
     def tryCatchResultGExceptionCase =
-        tryCatchResultG(ff) { sys.error("test") } must beFailedWith("test", 222)
+        tryCatchResultG(baseFailed) { sys.error("test") } must beFailedWith("test", 222)
 
     def tryCatchingValueNoExceptionCase =
         tryCatchingValue(classOf[ExA], ExBClass) { 111 } ==== okay111
@@ -457,15 +458,15 @@ class CatchingSpecTest extends SpecificationWithJUnit {
         tryCatchingValue(classOf[ExA], ExBClass) { throw new ExC("baz") } must throwAn[ExC]
 
     def tryCatchingValueGNoExceptionCase =
-        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { 111 } ==== okayG111
+        tryCatchingValueG(classOf[ExA], ExBClass)(baseFailed) { 111 } ==== okayG111
     def tryCatchingValueGThrowableCase =
-        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+        tryCatchingValueG(classOf[ExA], ExBClass)(baseFailed) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
     def tryCatchingValueGFirstExceptionCase =
-        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new ExA("foo") } must beFailedWith("foo", 222)
+        tryCatchingValueG(classOf[ExA], ExBClass)(baseFailed) { throw new ExA("foo") } must beFailedWith("foo", 222)
     def tryCatchingValueGSecondExceptionCase =
-        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new ExB("bar") } must beFailedWith("bar", 222)
+        tryCatchingValueG(classOf[ExA], ExBClass)(baseFailed) { throw new ExB("bar") } must beFailedWith("bar", 222)
     def tryCatchingValueGThirdExceptionCase =
-        tryCatchingValueG(classOf[ExA], ExBClass)(ff) { throw new ExC("baz") } must throwAn[ExC]
+        tryCatchingValueG(classOf[ExA], ExBClass)(baseFailed) { throw new ExC("baz") } must throwAn[ExC]
 
     def tryCatchingResultOkayCase =
         tryCatchingResult(classOf[ExA], ExBClass) { Okay(111) } ==== okay111
@@ -481,17 +482,17 @@ class CatchingSpecTest extends SpecificationWithJUnit {
         tryCatchingResult(classOf[ExA], ExBClass) { throw new ExC("baz") } must throwAn[ExC]
 
     def tryCatchingResultGOkayCase =
-        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { Okay(111) } ==== okayG111
+        tryCatchingResultG(classOf[ExA], ExBClass)(baseFailed) { Okay(111) } ==== okayG111
     def tryCatchingResultGFailedCase =
-        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { FailedG("foo", 333) } must beFailedWith("foo", 333)
+        tryCatchingResultG(classOf[ExA], ExBClass)(baseFailed) { FailedG("foo", 333) } must beFailedWith("foo", 333)
     def tryCatchingResultGThrowableCase =
-        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
+        tryCatchingResultG(classOf[ExA], ExBClass)(baseFailed) { throw new NoSuchMethodError() } must throwA[NoSuchMethodError]
     def tryCatchingResultGFirstExceptionCase =
-        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExA("foo") } must beFailedWith("foo", 222)
+        tryCatchingResultG(classOf[ExA], ExBClass)(baseFailed) { throw new ExA("foo") } must beFailedWith("foo", 222)
     def tryCatchingResultGSecondExceptionCase =
-        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExB("bar") } must beFailedWith("bar", 222)
+        tryCatchingResultG(classOf[ExA], ExBClass)(baseFailed) { throw new ExB("bar") } must beFailedWith("bar", 222)
     def tryCatchingResultGThirdExceptionCase =
-        tryCatchingResultG(classOf[ExA], ExBClass)(ff) { throw new ExC("baz") } must throwAn[ExC]
+        tryCatchingResultG(classOf[ExA], ExBClass)(baseFailed) { throw new ExC("baz") } must throwAn[ExC]
 
     // this test case exercises where splicing the try/catch in would change the meaning, e.g.
     //   tryCatchValue(a).orElse(b)

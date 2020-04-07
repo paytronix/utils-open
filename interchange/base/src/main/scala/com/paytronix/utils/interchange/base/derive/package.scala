@@ -17,9 +17,7 @@
 package com.paytronix.utils.interchange.base.derive
 
 import scala.language.higherKinds
-import scala.reflect.macros.Universe
 import scala.reflect.macros.whitebox.Context
-import scalaz.NonEmptyList
 
 import com.paytronix.utils.interchange.base
 

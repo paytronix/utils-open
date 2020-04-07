@@ -17,7 +17,6 @@
 package com.paytronix.utils.validation
 
 import java.net.{URI, URISyntaxException}
-import scala.util.control.Exception.catching
 
 import base.{Validated, ValidationError, failure, missingValueError, success}
 

@@ -16,18 +16,15 @@
 
 package com.paytronix.utils.interchange.format.json
 
+import cats.data.NonEmptyList
 import scala.reflect.macros.whitebox.Context
-
-import scalaz.NonEmptyList
-import scalaz.syntax.foldable.ToFoldableOps
 
 import com.paytronix.utils.interchange.base
 
 import base.derive.DeriveCoderMacros
-import NonEmptyList.{nel, nels}
 
 private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
-    import c.universe.{Annotation, Block, BlockTag, Ident, Quasiquote, TermName, Tree, TreeTag, Type, typeOf, weakTypeTag}
+    import c.universe.{Annotation, Ident, Quasiquote, TermName, Tree, TreeTag, Type, typeOf, weakTypeTag}
 
     type Coder[A] = JsonCoder[A]
 
@@ -282,7 +279,7 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
 
         targets match {
             case Nil => sys.error("union cannot be made with no alternates!")
-            case hd :: tl => nel(hd, tl)
+            case hd :: tl => NonEmptyList(hd, tl)
         }
     }
 
@@ -290,18 +287,19 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Coder")
         val targetSubtypes = parseAdHocUnionAlternates(alternates)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeEncoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
+        val subtypeDecoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareCoders = (targetSubtypes zip (subtypeEncoderNames zip subtypeDecoderNames)).flatMap { case (tpe, (encoderName, decoderName)) =>
-            nels (
+        val declareCoders = targetSubtypesList.zip(subtypeEncoderNames.zip(subtypeDecoderNames)).flatMap { case (tpe, (encoderName, decoderName)) =>
+            List(
                 q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}",
                 q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
             )
-        }.list
+        }
 
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
+        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeEncoderNames)).toStream
+        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeDecoderNames)).toStream
 
         c.Expr[JsonCoder[A]](q"""
             {
@@ -324,18 +322,19 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
     }
 
     def adHocUnionDecoderDef[A: c.WeakTypeTag](noApplicableAlternates: c.Tree, alternates: c.Tree*): c.Expr[JsonDecoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
+        import c.universe.{Ident, Quasiquote, TermName, weakTypeTag}
 
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
         val targetSubtypes = parseAdHocUnionAlternates(alternates)
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeDecoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareDecoders = (targetSubtypes zip subtypeDecoderNames).map { case (tpe, decoderName) =>
+        val declareDecoders = (targetSubtypesList.zip(subtypeDecoderNames)).map { case (tpe, decoderName) =>
             q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}"
-        }.list
+        }
 
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
+        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeDecoderNames)).toStream
 
         c.Expr[JsonDecoder[A]](q"""
             {
@@ -353,17 +352,18 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
     }
 
     def adHocUnionEncoderDef[A: c.WeakTypeTag](noApplicableAlternates: c.Tree, alternates: c.Tree*): c.Expr[JsonEncoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
+        import c.universe.{Ident, Quasiquote, TermName, weakTypeTag}
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Encoder")
         val targetSubtypes = parseAdHocUnionAlternates(alternates)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeEncoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareEncoders = (targetSubtypes zip subtypeEncoderNames).map { case (tpe, encoderName) =>
+        val declareEncoders = (targetSubtypesList.zip(subtypeEncoderNames)).map { case (tpe, encoderName) =>
             q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
-        }.list
+        }
 
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
+        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeEncoderNames)).toStream
 
         c.Expr[JsonEncoder[A]](q"""
             {
@@ -386,13 +386,14 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         targetSubtypes: NonEmptyList[Type],
         encoderFor: Type => Tree
     ): List[Tree] = {
-        import c.universe.{Ident, TermName, Quasiquote}
+        import c.universe.{TermName, Quasiquote}
 
         val allEncoders = TermName(c.freshName())
         val jsonGenerator = TermName(c.freshName())
         val instance = TermName(c.freshName())
+        val targetSubtypesList = targetSubtypes.toList
 
-        val encodeAlts = targetSubtypes.list.zipWithIndex.map { case (subtype, index) =>
+        val encodeAlts = targetSubtypesList.zipWithIndex.map { case (subtype, index) =>
             val encoder = encoderFor(subtype)
             val value = TermName(c.freshName())
             cq"""
@@ -408,7 +409,7 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val value = TermName(c.freshName())
 
         List (
-            q"private val $allEncoders = List(..${targetSubtypes.map(t => encoderFor(t)).list})",
+            q"private val $allEncoders = List(..${targetSubtypesList.map(t => encoderFor(t))})",
             q"val mightBeNull = $allEncoders.exists(_.mightBeNull)",
             q"val codesAsObject = $allEncoders.forall(_.codesAsObject)",
             q"""
@@ -436,8 +437,9 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val allDecoders = TermName(c.freshName())
         val jsonParser = TermName(c.freshName())
         val receiver = TermName(c.freshName())
+        val targetSubtypesList = targetSubtypes.toList
 
-        val decode = targetSubtypes.foldRight[Tree] (
+        val decode = targetSubtypesList.foldRight[Tree] (
             q"com.paytronix.utils.scala.result.FailedG($noApplicableAlternates, $jsonParser.terminal)"
         ) { (tpe, rhs) =>
             val subReceiver = TermName(c.freshName())
@@ -452,7 +454,7 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         }
 
         List (
-            q"private val $allDecoders = List(..${targetSubtypes.map(decoderFor).list})",
+            q"private val $allDecoders = List(..${targetSubtypesList.map(decoderFor)})",
             q"val mightBeNull = $allDecoders.exists(_.mightBeNull)",
             q"val codesAsObject = $allDecoders.forall(_.codesAsObject)",
             q"""
@@ -500,29 +502,29 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
 
         targets match {
             case Nil => sys.error("union cannot be made with no alternates!")
-            case hd :: tl => nel(hd, tl)
+            case hd :: tl => NonEmptyList(hd, tl)
         }
     }
 
-
     def taggedUnionCoderDef[A: c.WeakTypeTag](determinant: c.Tree, alternates: c.Tree*): c.Expr[JsonCoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName}
+        import c.universe.{Ident, Quasiquote, TermName}
 
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Coder")
         val targetSubtypes = parseTaggedUnionAlternates(alternates)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeEncoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
+        val subtypeDecoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareCoders = (targetSubtypes zip (subtypeEncoderNames zip subtypeDecoderNames)).flatMap { case ((tpe, _), (encoderName, decoderName)) =>
-            nels (
+        val declareCoders = (targetSubtypesList.zip(subtypeEncoderNames.zip(subtypeDecoderNames))).flatMap { case ((tpe, _), (encoderName, decoderName)) =>
+            List(
                 q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}",
                 q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
             )
-        }.list
+        }
 
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
+        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeEncoderNames)).toStream
+        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeDecoderNames)).toStream
 
         val decoderFor = subtypeDecoderNamesByType.map { case ((tpe, _), name) => (tpe, Ident(name)) }
         val encoderFor = subtypeEncoderNamesByType.map { case ((tpe, _), name) => (tpe, Ident(name)) }
@@ -548,18 +550,19 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
     }
 
     def taggedUnionDecoderDef[A: c.WeakTypeTag](determinant: c.Tree, alternates: c.Tree*): c.Expr[JsonDecoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
+        import c.universe.{Ident, Quasiquote, TermName, weakTypeTag}
 
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Decoder")
         val targetSubtypes = parseTaggedUnionAlternates(alternates)
-        val subtypeDecoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeDecoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareDecoders = (targetSubtypes zip subtypeDecoderNames).map { case ((tpe, _), decoderName) =>
+        val declareDecoders = (targetSubtypesList.zip(subtypeDecoderNames)).map { case ((tpe, _), decoderName) =>
             q"lazy val $decoderName = ${materializeDecoder(tpe, Nil)}"
-        }.list
+        }
 
-        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeDecoderNames).stream
+        val subtypeDecoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeDecoderNames)).toStream
 
         val decoderFor = subtypeDecoderNamesByType.map { case ((tpe, _), name) => (tpe, Ident(name)) }
 
@@ -579,17 +582,18 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
     }
 
     def taggedUnionEncoderDef[A: c.WeakTypeTag](determinant: c.Tree, alternates: c.Tree*): c.Expr[JsonEncoder[A]] = try {
-        import c.universe.{Block, BlockTag, Ident, Quasiquote, TermName, weakTypeTag}
+        import c.universe.{Ident, Quasiquote, TermName, weakTypeTag}
         val targetType = weakTypeTag[A].tpe
         val name = TermName(targetType.typeSymbol.name.decodedName.toString + "Encoder")
         val targetSubtypes = parseTaggedUnionAlternates(alternates)
-        val subtypeEncoderNames = targetSubtypes.map { _ => TermName(c.freshName()) }
+        val targetSubtypesList = targetSubtypes.toList
+        val subtypeEncoderNames = targetSubtypesList.map { _ => TermName(c.freshName()) }
 
-        val declareEncoders = (targetSubtypes zip subtypeEncoderNames).map { case ((tpe, _), encoderName) =>
+        val declareEncoders = (targetSubtypesList.zip(subtypeEncoderNames)).map { case ((tpe, _), encoderName) =>
             q"lazy val $encoderName = ${materializeEncoder(tpe, Nil)}"
-        }.list
+        }
 
-        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypes zip subtypeEncoderNames).stream
+        val subtypeEncoderNamesByType = Map.empty ++ (targetSubtypesList.zip(subtypeEncoderNames)).toStream
 
         val encoderFor = subtypeEncoderNamesByType.map { case ((tpe, _), name) => (tpe, Ident(name)) }
 
@@ -619,14 +623,14 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val jsonGenerator = TermName(c.freshName())
         val instance = TermName(c.freshName())
 
-        val encodeAlts = targetSubtypes.list.map { case (tpe, tag) =>
+        val encodeAlts = targetSubtypes.toList.map { case (tpe, tag) =>
             val encoder = encoderFor(tpe)
             val value = TermName(c.freshName())
             cq"""
                 $value: $tpe =>
                     com.paytronix.utils.scala.result.tryCatchResultG(com.paytronix.utils.interchange.base.terminal) {
-                        $jsonGenerator.filterNextObject( new com.paytronix.utils.interchange.format.json.InterchangeJsonGenerator.ObjectFilter { 
-                            override def beginning() = $jsonGenerator.writeFieldName($determinant) >> $jsonGenerator.writeString($tag) 
+                        $jsonGenerator.filterNextObject( new com.paytronix.utils.interchange.format.json.InterchangeJsonGenerator.ObjectFilter {
+                            override def beginning() = $jsonGenerator.writeFieldName($determinant) >> $jsonGenerator.writeString($tag)
                         })
                         $encoder.run($value, $jsonGenerator)
                     }
@@ -664,16 +668,17 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
         val receiver = TermName(c.freshName())
         val discrimValue = TermName(c.freshName())
 
-        val validTags = targetSubtypes.map(_._2)
+        val targetSubtypesList = targetSubtypes.toList
+        val validTags = targetSubtypesList.map(_._2)
 
-        val decodeAlts = targetSubtypes.map { case (tpe, tag) =>
+        val decodeAlts = targetSubtypesList.map { case (tpe, tag) =>
             val subReceiver = TermName(c.freshName())
             cq"""
                 $tag =>
                     val $subReceiver = new com.paytronix.utils.interchange.base.Receiver[$tpe]
                     ${decoderFor(tpe)}.run($jsonParser, $subReceiver) >> $receiver($subReceiver.value)
             """
-        }.list
+        }
 
         List (
             q"val mightBeNull = false",
@@ -689,7 +694,7 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
                                 case _ =>
                                     com.paytronix.utils.interchange.base.atProperty($determinant) {
                                         com.paytronix.utils.scala.result.FailedG (
-                                            "unexpected value \"" + $discrimValue + "\" (expected one of " + ${validTags.list.mkString(", ")} + ")",
+                                            "unexpected value \"" + $discrimValue + "\" (expected one of " + ${validTags.mkString(", ")} + ")",
                                             $jsonParser.terminal
                                         )
                                     }

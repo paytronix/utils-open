@@ -36,21 +36,34 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.paytronix.utils</groupId>
             <artifactId>interchange-base</artifactId>
         </dependency>
-
-        <!--SCALAUPGRADE REMOVE ME -->
-         <dependency>
-            <groupId>net.liftweb</groupId>
-            <artifactId>lift-common_2.11</artifactId>
+        <dependency>
+            <groupId>com.paytronix.utils</groupId>
+            <artifactId>interchange-base</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.scalacheck</groupId>
+            <artifactId>scalacheck_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.specs2</groupId>
-            <artifactId>specs2_2.11</artifactId>
+            <artifactId>specs2-core_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-junit_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-scalacheck_${scala.compatibility.version}</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -16,6 +16,7 @@
 
 package com.paytronix.utils.interchange.format.json
 
+import com.fasterxml.jackson.core.{JsonEncoding, JsonFactory, JsonGenerator, JsonLocation, JsonParser, JsonParseException, JsonToken}
 import java.io.{
     InputStream, OutputStream, Reader, Writer,
     ByteArrayInputStream, ByteArrayOutputStream, StringReader, StringWriter
@@ -23,11 +24,8 @@ import java.io.{
 import scala.annotation.{StaticAnnotation, implicitNotFound, tailrec}
 import scala.collection.mutable.Queue
 
-import com.fasterxml.jackson.core.{JsonEncoding, JsonFactory, JsonGenerator, JsonLocation, JsonParser, JsonParseException, JsonToken}
-import scalaz.BijectionT
-
 import com.paytronix.utils.interchange.base.{
-    Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, atTerminal, formatFailedPath, terminal
+    Coder, CoderFailure, CoderResult, Decoder, Encoder, Format, Receiver, TypeConverter, atTerminal, formatFailedPath, terminal
 }
 import com.paytronix.utils.scala.resource.{Closeable, withResource}
 import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchValue, tryCatchResult, tryCatchResultG}
@@ -62,10 +60,10 @@ object InterchangeJsonGenerator {
             override val suppressStartAndEnd = true
         }
 
-        // The operator >> as used in this function is basically a flatmap, 
+        // The operator >> as used in this function is basically a flatmap,
         // and the lines return Okay.unit if both things happen successfully
         def combineFilters(a: ObjectFilter, b: ObjectFilter): ObjectFilter = new ObjectFilter {
-            override val suppressStartAndEnd = a.suppressStartAndEnd || b.suppressStartAndEnd 
+            override val suppressStartAndEnd = a.suppressStartAndEnd || b.suppressStartAndEnd
             override def beginning(): CoderResult[Unit] = a.beginning() >> b.beginning()
 
             override def fieldName(name: String): CoderResult[Unit] = a.fieldName(name) >> b.fieldName(name)
@@ -156,7 +154,7 @@ final class InterchangeJacksonJsonGenerator(generator: JsonGenerator) extends In
     def filterNextObject(newFilter: ObjectFilter): Unit = {
         _nextObjectFilter = Option(_nextObjectFilter) match {
             case Some(oldFilter) => ObjectFilter.combineFilters(oldFilter, newFilter)
-            case None            => newFilter 
+            case None            => newFilter
         }
     }
 
@@ -935,8 +933,7 @@ trait JsonCoder[A] extends Coder[JsonEncoder, JsonDecoder, A, JsonFormat.type] {
      *        (s: String) => Okay(s.split(' '))
      *    ))
      */
-    def mapBijection[B](bijection: BijectionT[Result, Result, B, A]) =
-        JsonCoder.make(encode.mapKleisli(bijection.to), decode.mapKleisli(bijection.from))
+    def mapWithConverter[B](converter: TypeConverter[B, A]): JsonCoder[B] = JsonCoder.make(encode.mapKleisli(converter.to), decode.mapKleisli(converter.from))
 
     /** Wrap the decoder with a `defaultJsonDecoder` to provide a default in the case where the value is missing or null */
     def default(value: A): JsonCoder[A] =

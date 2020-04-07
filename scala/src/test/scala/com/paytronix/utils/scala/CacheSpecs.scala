@@ -21,7 +21,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
-import org.specs2.{SpecificationFeatures, SpecificationWithJUnit}
+import org.specs2.{Specification, SpecificationWithJUnit}
 import org.specs2.matcher.MatchResult
 
 import cache._
@@ -42,7 +42,7 @@ object LFUCacheTestFixtures {
     val tvalue = TestValue("bar", "baz")
 }
 
-trait LFUCacheHelpers { self: SpecificationFeatures =>
+trait LFUCacheHelpers { self: Specification =>
     def writerTests(s: String)(f: (LFUCache[_, _] => Unit, LFUCache[_, _] => Unit) => MatchResult[Any]) =
         (s + " (neutral)") ! f(_ => (), _ => ()).toResult ^
         (s + " (pre-flush)") ! f(_.killWriter(), _ => ()).toResult ^

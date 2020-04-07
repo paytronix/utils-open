@@ -30,16 +30,16 @@ object joda extends joda
 
 trait joda {
     object jodaAsIso8601 {
-        implicit val dateTimeJsonCoder      : JsonCoder[JodaDateTime]      = scalar.stringJsonCoder.mapBijection(datetime.joda.iso8601.dateTimeBijection)
-        implicit val localDateJsonCoder     : JsonCoder[JodaLocalDate]     = scalar.stringJsonCoder.mapBijection(datetime.joda.iso8601.localDateBijection)
-        implicit val localDateTimeJsonCoder : JsonCoder[JodaLocalDateTime] = scalar.stringJsonCoder.mapBijection(datetime.joda.iso8601.localDateTimeBijection)
-        implicit val localTimeJsonCoder     : JsonCoder[JodaLocalTime]     = scalar.stringJsonCoder.mapBijection(datetime.joda.iso8601.localTimeBijection)
+        implicit val dateTimeJsonCoder      : JsonCoder[JodaDateTime]      = scalar.stringJsonCoder.mapWithConverter(datetime.joda.iso8601.dateTimeConverter)
+        implicit val localDateJsonCoder     : JsonCoder[JodaLocalDate]     = scalar.stringJsonCoder.mapWithConverter(datetime.joda.iso8601.localDateConverter)
+        implicit val localDateTimeJsonCoder : JsonCoder[JodaLocalDateTime] = scalar.stringJsonCoder.mapWithConverter(datetime.joda.iso8601.localDateTimeConverter)
+        implicit val localTimeJsonCoder     : JsonCoder[JodaLocalTime]     = scalar.stringJsonCoder.mapWithConverter(datetime.joda.iso8601.localTimeConverter)
     }
 
     object jodaAsClassic {
-        implicit val dateTimeJsonCoder      : JsonCoder[JodaDateTime]      = scalar.stringJsonCoder.mapBijection(datetime.joda.classic.dateTimeBijection)
-        implicit val localDateJsonCoder     : JsonCoder[JodaLocalDate]     = scalar.stringJsonCoder.mapBijection(datetime.joda.classic.localDateBijection)
-        implicit val localDateTimeJsonCoder : JsonCoder[JodaLocalDateTime] = scalar.stringJsonCoder.mapBijection(datetime.joda.classic.localDateTimeBijection)
-        implicit val localTimeJsonCoder     : JsonCoder[JodaLocalTime]     = scalar.stringJsonCoder.mapBijection(datetime.joda.classic.localTimeBijection)
+        implicit val dateTimeJsonCoder      : JsonCoder[JodaDateTime]      = scalar.stringJsonCoder.mapWithConverter(datetime.joda.classic.dateTimeConverter)
+        implicit val localDateJsonCoder     : JsonCoder[JodaLocalDate]     = scalar.stringJsonCoder.mapWithConverter(datetime.joda.classic.localDateConverter)
+        implicit val localDateTimeJsonCoder : JsonCoder[JodaLocalDateTime] = scalar.stringJsonCoder.mapWithConverter(datetime.joda.classic.localDateTimeConverter)
+        implicit val localTimeJsonCoder     : JsonCoder[JodaLocalTime]     = scalar.stringJsonCoder.mapWithConverter(datetime.joda.classic.localTimeConverter)
     }
 }

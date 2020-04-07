@@ -16,13 +16,10 @@
 
 package com.paytronix.utils.interchange.format.string
 
-import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import scala.annotation.implicitNotFound
 
-import scalaz.BijectionT
-
-import com.paytronix.utils.interchange.base.{Coder, CoderResult, Decoder, Encoder, Receiver, ReceiverFormat, atTerminal, terminal}
-import com.paytronix.utils.scala.result.{FailedG, Okay, Result, parameter}
+import com.paytronix.utils.interchange.base.{Coder, CoderResult, Decoder, Encoder, Receiver, ReceiverFormat, TypeConverter, atTerminal}
+import com.paytronix.utils.scala.result.{FailedG, Okay, Result}
 
 /**
  * Format for encoding or decoding from strings, usually only for scalar values. Used for some formats like JSON to
@@ -102,6 +99,6 @@ trait StringCoder[A] extends Coder[StringEncoder, StringDecoder, A, StringFormat
     val encode: StringEncoder[A]
     val decode: StringDecoder[A]
 
-    def mapBijection[B](bijection: BijectionT[Result, Result, B, A]) =
-        StringCoder.make(encode.mapKleisli(bijection.to), decode.mapKleisli(bijection.from))
+    def mapWithConverter[B](converter: TypeConverter[B, A]) =
+        StringCoder.make(encode.mapKleisli(converter.to), decode.mapKleisli(converter.from))
 }

@@ -23,13 +23,11 @@ import java.time.{LocalDate, LocalDateTime, LocalTime, ZonedDateTime}
 import java.util.{Date => JavaDate}
 import javax.xml.bind.DatatypeConverter
 import scala.reflect.{ClassTag, classTag}
-import scala.reflect.runtime.universe.{TypeTag, typeTag}
+import scala.reflect.runtime.universe.TypeTag
 
-import scalaz.BijectionT.bijection
-
-import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
+import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, TypeConverter, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
-import com.paytronix.utils.scala.result.{FailedG, Okay, Result, parameter, tryCatchResultG, tryCatchingResultG}
+import com.paytronix.utils.scala.result.{FailedG, Okay, Result, tryCatchResultG, tryCatchingResultG}
 
 object scalar extends scalar
 
@@ -128,7 +126,7 @@ trait scalar {
         }
     }
 
-    implicit val scalaBigIntStringCoder = javaBigIntegerStringCoder.mapBijection(bijection (
+    implicit val scalaBigIntStringCoder = javaBigIntegerStringCoder.mapWithConverter(TypeConverter(
         (bi: BigInt) => Okay(bi.bigInteger): Result[JavaBigInteger],
         (bi: JavaBigInteger) => Okay(BigInt(bi)): Result[BigInt]
     ))
@@ -142,7 +140,7 @@ trait scalar {
         }
     }
 
-    implicit val scalaBigDecimalStringCoder = javaBigDecimalStringCoder.mapBijection(bijection (
+    implicit val scalaBigDecimalStringCoder = javaBigDecimalStringCoder.mapWithConverter(TypeConverter(
         (bd: BigDecimal) => Okay(bd.bigDecimal): Result[JavaBigDecimal],
         (bd: JavaBigDecimal) => Okay(BigDecimal(bd)): Result[BigDecimal]
     ))
@@ -172,7 +170,7 @@ trait scalar {
         object encode extends StringEncoder[ByteBuffer] {
             def run(in: ByteBuffer, out: Receiver[String]) =
                 tryCatchResultG(terminal) {
-                    if (in.hasArray && in.capacity == in.limit && in.position == 0)
+                    if (in.hasArray && in.capacity == in.limit() && in.position() == 0)
                         out(DatatypeConverter.printBase64Binary(in.array))
                     else {
                         // FIXME not the most efficient, better to chop it up into blocks divisible by 3 (base64 uses 3-grams)
@@ -190,11 +188,10 @@ trait scalar {
         }
     }
 
-    implicit val byteArrayStringCoder: StringCoder[Array[Byte]] =
-        byteBufferStringCoder.mapBijection(bijection (
-            (ba: Array[Byte]) => Okay(ByteBuffer.wrap(ba)),
-            (bb: ByteBuffer) => Okay(bb.array)
-        ))
+    implicit val byteArrayStringCoder: StringCoder[Array[Byte]] = byteBufferStringCoder.mapWithConverter(TypeConverter(
+        (ba: Array[Byte]) => Okay(ByteBuffer.wrap(ba)),
+        (bb: ByteBuffer) => Okay(bb.array)
+    ))
 
     implicit def javaEnumStringCoder[A <: Enum[A]: ClassTag]: StringCoder[A] = {
         object encode extends StringEncoder[A] {
@@ -234,35 +231,35 @@ trait scalar {
     implicit val javaSqlTimestampStringCoderIso8601 = dateAsIso8601.javaSqlTimestampStringCoder
 
     object dateAsIso8601 {
-        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapBijection(datetime.iso8601.zonedDateTimeBijection)
-        implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapBijection(datetime.iso8601.localDateBijection)
-        implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapBijection(datetime.iso8601.localDateTimeBijection)
-        implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapBijection(datetime.iso8601.localTimeBijection)
-        implicit val javaDateStringCoder         : StringCoder[JavaDate]         = stringCoder.mapBijection(datetime.iso8601.javaDateBijection)
-        implicit val javaSqlDateStringCoder      : StringCoder[JavaSqlDate]      = stringCoder.mapBijection(datetime.iso8601.javaSqlDateBijection)
-        implicit val javaSqlTimeStringCoder      : StringCoder[JavaSqlTime]      = stringCoder.mapBijection(datetime.iso8601.javaSqlTimeBijection)
-        implicit val javaSqlTimestampStringCoder : StringCoder[JavaSqlTimestamp] = stringCoder.mapBijection(datetime.iso8601.javaSqlTimestampBijection)
+        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapWithConverter(datetime.iso8601.zonedDateTimeConverter)
+        implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapWithConverter(datetime.iso8601.localDateConverter)
+        implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapWithConverter(datetime.iso8601.localDateTimeConverter)
+        implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapWithConverter(datetime.iso8601.localTimeConverter)
+        implicit val javaDateStringCoder         : StringCoder[JavaDate]         = stringCoder.mapWithConverter(datetime.iso8601.javaDateConverter)
+        implicit val javaSqlDateStringCoder      : StringCoder[JavaSqlDate]      = stringCoder.mapWithConverter(datetime.iso8601.javaSqlDateConverter)
+        implicit val javaSqlTimeStringCoder      : StringCoder[JavaSqlTime]      = stringCoder.mapWithConverter(datetime.iso8601.javaSqlTimeConverter)
+        implicit val javaSqlTimestampStringCoder : StringCoder[JavaSqlTimestamp] = stringCoder.mapWithConverter(datetime.iso8601.javaSqlTimestampConverter)
     }
 
     object dateAsClassic {
-        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapBijection(datetime.classic.zonedDateTimeBijection)
-        implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapBijection(datetime.classic.localDateBijection)
-        implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapBijection(datetime.classic.localDateTimeBijection)
-        implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapBijection(datetime.classic.localTimeBijection)
-        implicit val javaDateStringCoder         : StringCoder[JavaDate]         = stringCoder.mapBijection(datetime.classic.javaDateBijection)
-        implicit val javaSqlDateStringCoder      : StringCoder[JavaSqlDate]      = stringCoder.mapBijection(datetime.classic.javaSqlDateBijection)
-        implicit val javaSqlTimeStringCoder      : StringCoder[JavaSqlTime]      = stringCoder.mapBijection(datetime.classic.javaSqlTimeBijection)
-        implicit val javaSqlTimestampStringCoder : StringCoder[JavaSqlTimestamp] = stringCoder.mapBijection(datetime.classic.javaSqlTimestampBijection)
+        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapWithConverter(datetime.classic.zonedDateTimeConverter)
+        implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapWithConverter(datetime.classic.localDateConverter)
+        implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapWithConverter(datetime.classic.localDateTimeConverter)
+        implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapWithConverter(datetime.classic.localTimeConverter)
+        implicit val javaDateStringCoder         : StringCoder[JavaDate]         = stringCoder.mapWithConverter(datetime.classic.javaDateConverter)
+        implicit val javaSqlDateStringCoder      : StringCoder[JavaSqlDate]      = stringCoder.mapWithConverter(datetime.classic.javaSqlDateConverter)
+        implicit val javaSqlTimeStringCoder      : StringCoder[JavaSqlTime]      = stringCoder.mapWithConverter(datetime.classic.javaSqlTimeConverter)
+        implicit val javaSqlTimestampStringCoder : StringCoder[JavaSqlTimestamp] = stringCoder.mapWithConverter(datetime.classic.javaSqlTimestampConverter)
     }
 
     object dateAsSqlServer {
-        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapBijection(datetime.sqlServer.zonedDateTimeBijection)
-        implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapBijection(datetime.sqlServer.localDateBijection)
-        implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapBijection(datetime.sqlServer.localDateTimeBijection)
-        implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapBijection(datetime.sqlServer.localTimeBijection)
-        implicit val javaDateStringCoder         : StringCoder[JavaDate]         = stringCoder.mapBijection(datetime.sqlServer.javaDateBijection)
-        implicit val javaSqlDateStringCoder      : StringCoder[JavaSqlDate]      = stringCoder.mapBijection(datetime.sqlServer.javaSqlDateBijection)
-        implicit val javaSqlTimeStringCoder      : StringCoder[JavaSqlTime]      = stringCoder.mapBijection(datetime.sqlServer.javaSqlTimeBijection)
-        implicit val javaSqlTimestampStringCoder : StringCoder[JavaSqlTimestamp] = stringCoder.mapBijection(datetime.sqlServer.javaSqlTimestampBijection)
+        implicit val zonedDateTimeStringCoder    : StringCoder[ZonedDateTime]    = stringCoder.mapWithConverter(datetime.sqlServer.zonedDateTimeConverter)
+        implicit val localDateStringCoder        : StringCoder[LocalDate]        = stringCoder.mapWithConverter(datetime.sqlServer.localDateConverter)
+        implicit val localDateTimeStringCoder    : StringCoder[LocalDateTime]    = stringCoder.mapWithConverter(datetime.sqlServer.localDateTimeConverter)
+        implicit val localTimeStringCoder        : StringCoder[LocalTime]        = stringCoder.mapWithConverter(datetime.sqlServer.localTimeConverter)
+        implicit val javaDateStringCoder         : StringCoder[JavaDate]         = stringCoder.mapWithConverter(datetime.sqlServer.javaDateConverter)
+        implicit val javaSqlDateStringCoder      : StringCoder[JavaSqlDate]      = stringCoder.mapWithConverter(datetime.sqlServer.javaSqlDateConverter)
+        implicit val javaSqlTimeStringCoder      : StringCoder[JavaSqlTime]      = stringCoder.mapWithConverter(datetime.sqlServer.javaSqlTimeConverter)
+        implicit val javaSqlTimestampStringCoder : StringCoder[JavaSqlTimestamp] = stringCoder.mapWithConverter(datetime.sqlServer.javaSqlTimestampConverter)
     }
 }

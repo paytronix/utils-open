@@ -46,7 +46,7 @@ trait AvroTestUtils {
 
     def makeAvroBytes(bb: ByteBuffer): Array[Byte] = {
         val lengthBytes = zigZagEncode(bb.remaining)
-        val out = ByteBuffer.allocate(lengthBytes.length + bb.remaining)
+        val out: ByteBuffer = ByteBuffer.allocate(lengthBytes.length + bb.remaining)
         out.put(lengthBytes)
         bb.mark()
         out.put(bb)

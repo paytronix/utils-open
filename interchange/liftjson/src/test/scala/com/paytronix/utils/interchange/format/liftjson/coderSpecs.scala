@@ -17,7 +17,7 @@
 package com.paytronix.utils.interchange.format.liftjson
 
 import com.fasterxml.jackson.core.JsonToken
-import net.liftweb.common.{Box, Full, Empty,Failure, ParamFailure,EmptyBox}
+import net.liftweb.common.{Box, Full, Empty,Failure, ParamFailure, EmptyBox}
 import net.liftweb.json.JsonAST._
 import org.scalacheck.{Arbitrary, Gen, Prop}
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
@@ -112,7 +112,7 @@ class LiftJsonCoderTest extends SpecificationWithJUnit with ScalaCheck {
     }
 
     def properJNothingEncoding = {
-        jValueCoder.encode.toString(JField("field", JNothing)) === Okay("")
+        jValueCoder.encode.toString(JObject(List(JField("field", JNothing)))) === Okay("{}")
     }
 
     def properJNullDecoding = {

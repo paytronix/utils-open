@@ -16,10 +16,9 @@
 
 package com.paytronix.utils.validation
 
+import cats.data.NonEmptyList
+import cats.data.Validated.{Invalid, Valid}
 import scala.reflect.{ClassTag, classTag}
-
-import scalaz.{Failure, Success}
-import scalaz.NonEmptyList.nels
 
 import base.{Validated, ValidationError}
 
@@ -37,10 +36,10 @@ object reflection {
     /** Assert that a String is nonblank and refers to a loadable class */
     def classNameE[A: ClassTag](unknownClassError: ValidationError, lookupError: Exception => ValidationError)(classLoader: ClassLoader): String => Validated[Class[_ <: A]] =
         nonBlank and { s =>
-            try Success(Class.forName(s, true, classLoader).asSubclass(classTag[A].runtimeClass.asInstanceOf[Class[A]]))
+            try Valid(Class.forName(s, true, classLoader).asSubclass(classTag[A].runtimeClass.asInstanceOf[Class[A]]))
             catch {
-                case e: ClassNotFoundException => Failure(nels(unknownClassError))
-                case e: Exception              => Failure(nels(lookupError(e)))
+                case _: ClassNotFoundException => Invalid(NonEmptyList.one(unknownClassError))
+                case e: Exception              => Invalid(NonEmptyList.one(lookupError(e)))
             }
         }
 }

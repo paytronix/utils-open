@@ -16,7 +16,6 @@
 
 package com.paytronix.utils.interchange.base.datetime
 
-//import org.joda.time.{DateTime, DateTimeZone, Instant, LocalDate, LocalDateTime, LocalTime}
 import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZonedDateTime, ZoneId, ZoneOffset}
 import org.scalacheck.{Arbitrary, Gen}
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
@@ -38,17 +37,17 @@ import arbitraries._
 
 class javaDatesTest extends SpecificationWithJUnit with ScalaCheck {
     def is = s2"""
-        javaDates bijections should round trip
+        javaDates converters should round trip
             java.util.Date     $e1
             java.sql.Date      $e2
             java.sql.Time      $e3
             java.sql.Timestamp $e4
     """
 
-    val roundTripJavaDate         = javaDates.javaDateBijection         <=< javaDates.javaDateBijection.flip
-    val roundTripJavaSqlDate      = javaDates.javaSqlDateBijection      <=< javaDates.javaSqlDateBijection.flip
-    val roundTripJavaSqlTime      = javaDates.javaSqlTimeBijection      <=< javaDates.javaSqlTimeBijection.flip
-    val roundTripJavaSqlTimestamp = javaDates.javaSqlTimestampBijection <=< javaDates.javaSqlTimestampBijection.flip
+    val roundTripJavaDate         = javaDates.javaDateConverter.flip.compose(javaDates.javaDateConverter)
+    val roundTripJavaSqlDate      = javaDates.javaSqlDateConverter.flip.compose(javaDates.javaSqlDateConverter)
+    val roundTripJavaSqlTime      = javaDates.javaSqlTimeConverter.flip.compose(javaDates.javaSqlTimeConverter)
+    val roundTripJavaSqlTimestamp = javaDates.javaSqlTimestampConverter.flip.compose(javaDates.javaSqlTimestampConverter)
 
     def e1 = prop { (zdt: ZonedDateTime) => roundTripJavaDate.from(zdt) ==== Okay(zdt) }
     def e2 = prop { (ld: LocalDate)      => roundTripJavaSqlDate.from(ld) ==== Okay(ld) }
@@ -58,7 +57,7 @@ class javaDatesTest extends SpecificationWithJUnit with ScalaCheck {
 
 class iso8601Test extends SpecificationWithJUnit with ScalaCheck {
     def is = s2"""
-        iso8601 bijections should round trip
+        iso8601 converters should round trip
             java.time.ZonedDateTime         $rtZonedDateTime
             java.time.LocalDate             $rtLocalDate
             java.time.LocalDateTime         $rtLocalDateTime
@@ -133,10 +132,10 @@ class iso8601Test extends SpecificationWithJUnit with ScalaCheck {
             hh:mm:ss.sss                    $formatLocalTime
     """
 
-    val roundTripDateTime      = iso8601.zonedDateTimeBijection >=> iso8601.zonedDateTimeBijection.flip
-    val roundTripLocalDate     = iso8601.localDateBijection     >=> iso8601.localDateBijection.flip
-    val roundTripLocalDateTime = iso8601.localDateTimeBijection >=> iso8601.localDateTimeBijection.flip
-    val roundTripLocalTime     = iso8601.localTimeBijection     >=> iso8601.localTimeBijection.flip
+    val roundTripDateTime      = iso8601.zonedDateTimeConverter.compose(iso8601.zonedDateTimeConverter.flip)
+    val roundTripLocalDate     = iso8601.localDateConverter.compose(iso8601.localDateConverter.flip)
+    val roundTripLocalDateTime = iso8601.localDateTimeConverter.compose(iso8601.localDateTimeConverter.flip)
+    val roundTripLocalTime     = iso8601.localTimeConverter.compose(iso8601.localTimeConverter.flip)
 
     // Round-trip tests
     def rtZonedDateTime = prop { (zdt: ZonedDateTime) => roundTripDateTime.to(zdt).map(_.toInstant.toEpochMilli) ==== Okay(zdt.toInstant.toEpochMilli) }
@@ -147,77 +146,77 @@ class iso8601Test extends SpecificationWithJUnit with ScalaCheck {
     val nano: Int = 1000000
 
     // Parsing tests
-    def zdtColonsZed                  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161Z")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtColonsFractionalSixZed     = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.123456Z")    ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456000, ZoneOffset.UTC))
-    def zdtColonsFractionalNineZed    = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.123456789Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456789, ZoneOffset.UTC))
-    def zdtColonsPlusZero             = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161+0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtColonsMinusZero            = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161-0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtColonsPosColon             = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161+04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNegColon             = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161-04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsSpaceColonPos        = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 +04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsSpaceColonNeg        = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 -04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsPos                  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161+0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNeg                  = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161-0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsSpacePos             = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 +0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsSpaceNeg             = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 -0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoMilliZed           = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def zdtColonsNoMilliPos           = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoMilliNeg           = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoMilliSpacePos      = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoMilliSpaceNeg      = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoMilliColonPos      = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoMilliColonNeg      = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoMilliSpaceColonPos = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15 +04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoMilliSpaceColonNeg = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14:15 -04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoSecPos             = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14+0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoSecNeg             = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14-0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoSecSpacePos        = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14 +0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoSecSpaceNeg        = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14 -0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoSecColonPos        = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14+04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoSecColonNeg        = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14-04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtColonsNoSecSpaceColonPos   = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14 +04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtColonsNoSecSpaceColonNeg   = iso8601.zonedDateTimeBijection.from("2014-07-01T13:14 -04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtNoColonsZed                = iso8601.zonedDateTimeBijection.from("20140701T131415.161Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtNoColonsPlusZero           = iso8601.zonedDateTimeBijection.from("20140701T131415.161+0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtNoColonsMinusZero          = iso8601.zonedDateTimeBijection.from("20140701T131415.161-0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtNoColonsPosColon           = iso8601.zonedDateTimeBijection.from("20140701T131415.161+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtNoColonsNegColon           = iso8601.zonedDateTimeBijection.from("20140701T131415.161-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtNoColonsNoMillisZed        = iso8601.zonedDateTimeBijection.from("20140701T131415Z")               ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def zdtNoColonsNoMillisColonPos   = iso8601.zonedDateTimeBijection.from("20140701T131415+04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtNoColonsNoMillisColonNeg   = iso8601.zonedDateTimeBijection.from("20140701T131415-04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsZed                  = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161Z")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtColonsFractionalSixZed     = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.123456Z")    ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456000, ZoneOffset.UTC))
+    def zdtColonsFractionalNineZed    = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.123456789Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456789, ZoneOffset.UTC))
+    def zdtColonsPlusZero             = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161+0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtColonsMinusZero            = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161-0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtColonsPosColon             = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161+04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNegColon             = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161-04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsSpaceColonPos        = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 +04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsSpaceColonNeg        = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 -04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsPos                  = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161+0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNeg                  = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161-0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsSpacePos             = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 +0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsSpaceNeg             = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 -0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoMilliZed           = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def zdtColonsNoMilliPos           = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoMilliNeg           = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoMilliSpacePos      = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoMilliSpaceNeg      = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoMilliColonPos      = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoMilliColonNeg      = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoMilliSpaceColonPos = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15 +04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoMilliSpaceColonNeg = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14:15 -04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoSecPos             = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14+0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoSecNeg             = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14-0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoSecSpacePos        = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14 +0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoSecSpaceNeg        = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14 -0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoSecColonPos        = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14+04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoSecColonNeg        = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14-04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtColonsNoSecSpaceColonPos   = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14 +04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtColonsNoSecSpaceColonNeg   = iso8601.zonedDateTimeConverter.from("2014-07-01T13:14 -04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtNoColonsZed                = iso8601.zonedDateTimeConverter.from("20140701T131415.161Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtNoColonsPlusZero           = iso8601.zonedDateTimeConverter.from("20140701T131415.161+0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtNoColonsMinusZero          = iso8601.zonedDateTimeConverter.from("20140701T131415.161-0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtNoColonsPosColon           = iso8601.zonedDateTimeConverter.from("20140701T131415.161+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtNoColonsNegColon           = iso8601.zonedDateTimeConverter.from("20140701T131415.161-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtNoColonsNoMillisZed        = iso8601.zonedDateTimeConverter.from("20140701T131415Z")               ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def zdtNoColonsNoMillisColonPos   = iso8601.zonedDateTimeConverter.from("20140701T131415+04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtNoColonsNoMillisColonNeg   = iso8601.zonedDateTimeConverter.from("20140701T131415-04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
 
-    def localDate      = iso8601.localDateBijection.from("2014-07-01") ==== Okay(LocalDate.of(2014, 7, 1))
-    def basicLocalDate = iso8601.localDateBijection.from("20140701")   ==== Okay(LocalDate.of(2014, 7, 1))
+    def localDate      = iso8601.localDateConverter.from("2014-07-01") ==== Okay(LocalDate.of(2014, 7, 1))
+    def basicLocalDate = iso8601.localDateConverter.from("20140701")   ==== Okay(LocalDate.of(2014, 7, 1))
 
-    def localDateTime               = iso8601.localDateTimeBijection.from("2014-07-01T13:14:15.161") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
-    def localDateTimeNoMillis       = iso8601.localDateTimeBijection.from("2014-07-01T13:14:15")     ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
-    def localDateTimeNoSeconds      = iso8601.localDateTimeBijection.from("2014-07-01T13:14")        ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
-    def basicLocalDateTime          = iso8601.localDateTimeBijection.from("20140701T131415.161")     ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
-    def basicLocalDateTimeNoMillis  = iso8601.localDateTimeBijection.from("20140701T131415")         ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
-    def basicLocalDateTimeNoSeconds = iso8601.localDateTimeBijection.from("20140701T1314")           ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
+    def localDateTime               = iso8601.localDateTimeConverter.from("2014-07-01T13:14:15.161") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
+    def localDateTimeNoMillis       = iso8601.localDateTimeConverter.from("2014-07-01T13:14:15")     ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
+    def localDateTimeNoSeconds      = iso8601.localDateTimeConverter.from("2014-07-01T13:14")        ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
+    def basicLocalDateTime          = iso8601.localDateTimeConverter.from("20140701T131415.161")     ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
+    def basicLocalDateTimeNoMillis  = iso8601.localDateTimeConverter.from("20140701T131415")         ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
+    def basicLocalDateTimeNoSeconds = iso8601.localDateTimeConverter.from("20140701T1314")           ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
 
-    def localTime               = iso8601.localTimeBijection.from("12:13:14.161") ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
-    def localTimeNoMillis       = iso8601.localTimeBijection.from("12:13:14")     ==== Okay(LocalTime.of(12, 13, 14, 0))
-    def localTimeNoSeconds      = iso8601.localTimeBijection.from("12:13")        ==== Okay(LocalTime.of(12, 13, 0, 0))
-    def basicLocalTime          = iso8601.localTimeBijection.from("121314.161")   ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
-    def basicLocalTimeNoMillis  = iso8601.localTimeBijection.from("121314")       ==== Okay(LocalTime.of(12, 13, 14, 0))
-    def basicLocalTimeNoSeconds = iso8601.localTimeBijection.from("1213")         ==== Okay(LocalTime.of(12, 13, 0, 0))
+    def localTime               = iso8601.localTimeConverter.from("12:13:14.161") ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
+    def localTimeNoMillis       = iso8601.localTimeConverter.from("12:13:14")     ==== Okay(LocalTime.of(12, 13, 14, 0))
+    def localTimeNoSeconds      = iso8601.localTimeConverter.from("12:13")        ==== Okay(LocalTime.of(12, 13, 0, 0))
+    def basicLocalTime          = iso8601.localTimeConverter.from("121314.161")   ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
+    def basicLocalTimeNoMillis  = iso8601.localTimeConverter.from("121314")       ==== Okay(LocalTime.of(12, 13, 14, 0))
+    def basicLocalTimeNoSeconds = iso8601.localTimeConverter.from("1213")         ==== Okay(LocalTime.of(12, 13, 0, 0))
 
     // Formatting tests
-    def formatZonedDateTimeUTC     = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC)) ==== Okay("2014-07-01T13:14:15.000Z")
-    def formatZonedDateTimePos     = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56))) ==== Okay("2014-07-01T13:14:15.000+04:56")
-    def formatZonedDateTimeNeg     = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56))) ==== Okay("2014-07-01T13:14:15.000-04:56")
+    def formatZonedDateTimeUTC     = iso8601.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC)) ==== Okay("2014-07-01T13:14:15.000Z")
+    def formatZonedDateTimePos     = iso8601.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56))) ==== Okay("2014-07-01T13:14:15.000+04:56")
+    def formatZonedDateTimeNeg     = iso8601.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56))) ==== Okay("2014-07-01T13:14:15.000-04:56")
     // Gotta make sure it only puts the UTC offset and doesn't append "[America/New_York]" to the end
-    def formatZonedDateTimeNewYork = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("America/New_York"))) ==== Okay("2014-07-01T13:14:15.000-04:00")
-    def formatZonedDateTimeMoscow  = iso8601.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("Europe/Moscow"))) ==== Okay("2014-07-01T13:14:15.000+04:00")
-    def formatLocalDate            = iso8601.localDateBijection.to(LocalDate.of(2014, 7, 1)) ==== Okay("2014-07-01")
-    def formatLocalDateTime        = iso8601.localDateTimeBijection.to(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0)) ==== Okay("2014-07-01T13:14:15.000")
-    def formatLocalTime            = iso8601.localTimeBijection.to(LocalTime.of(12, 13, 14, 0)) ==== Okay("12:13:14.000")
+    def formatZonedDateTimeNewYork = iso8601.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("America/New_York"))) ==== Okay("2014-07-01T13:14:15.000-04:00")
+    def formatZonedDateTimeMoscow  = iso8601.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("Europe/Moscow"))) ==== Okay("2014-07-01T13:14:15.000+04:00")
+    def formatLocalDate            = iso8601.localDateConverter.to(LocalDate.of(2014, 7, 1)) ==== Okay("2014-07-01")
+    def formatLocalDateTime        = iso8601.localDateTimeConverter.to(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0)) ==== Okay("2014-07-01T13:14:15.000")
+    def formatLocalTime            = iso8601.localTimeConverter.to(LocalTime.of(12, 13, 14, 0)) ==== Okay("12:13:14.000")
 }
 
 class classicTest extends SpecificationWithJUnit with ScalaCheck {
     def is = s2"""
-        classic bijections should round trip
+        classic converters should round trip
             java.time.ZonedDateTime         $rtZonedDateTime
             java.time.LocalDate             $rtLocalDate
             java.time.LocalDateTime         $rtLocalDateTime
@@ -328,10 +327,10 @@ class classicTest extends SpecificationWithJUnit with ScalaCheck {
             hh:mm:ss.sss                    $formatLocalTime
     """
 
-    val roundTripDateTime      = classic.zonedDateTimeBijection >=> classic.zonedDateTimeBijection.flip
-    val roundTripLocalDate     = classic.localDateBijection     >=> classic.localDateBijection.flip
-    val roundTripLocalDateTime = classic.localDateTimeBijection >=> classic.localDateTimeBijection.flip
-    val roundTripLocalTime     = classic.localTimeBijection     >=> classic.localTimeBijection.flip
+    val roundTripDateTime      = classic.zonedDateTimeConverter.compose(classic.zonedDateTimeConverter.flip)
+    val roundTripLocalDate     = classic.localDateConverter.compose(classic.localDateConverter.flip)
+    val roundTripLocalDateTime = classic.localDateTimeConverter.compose(classic.localDateTimeConverter.flip)
+    val roundTripLocalTime     = classic.localTimeConverter.compose(classic.localTimeConverter.flip)
 
     // Round-trip tests
     def rtZonedDateTime = prop { (zdt: ZonedDateTime) => roundTripDateTime.to(zdt).map(_.toInstant.toEpochMilli) ==== Okay(zdt.toInstant.plusNanos(-zdt.getNano).toEpochMilli) }
@@ -342,123 +341,123 @@ class classicTest extends SpecificationWithJUnit with ScalaCheck {
     val nano: Int = 1000000
 
     // Parsing tests
-    def zdtSpcColonsZed                  = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161Z")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtSpcColonsFractionalSixZed     = iso8601.zonedDateTimeBijection.from("2014-07-01 13:14:15.123456Z")    ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456000, ZoneOffset.UTC))
-    def zdtSpcColonsFractionalNineZed    = iso8601.zonedDateTimeBijection.from("2014-07-01 13:14:15.123456789Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456789, ZoneOffset.UTC))
-    def zdtSpcColonsPlusZero             = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161+0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtSpcColonsMinusZero            = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161-0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtSpcColonsPosColon             = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161+04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNegColon             = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161-04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsSpaceColonPos        = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161 +04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsSpaceColonNeg        = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161 -04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsPos                  = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161+0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNeg                  = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161-0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsSpacePos             = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161 +0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsSpaceNeg             = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15.161 -0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoMilliZed           = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def zdtSpcColonsNoMilliPos           = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoMilliNeg           = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoMilliSpacePos      = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoMilliSpaceNeg      = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoMilliColonPos      = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoMilliColonNeg      = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoMilliSpaceColonPos = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15 +04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoMilliSpaceColonNeg = classic.zonedDateTimeBijection.from("2014-07-01 13:14:15 -04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoSecPos             = classic.zonedDateTimeBijection.from("2014-07-01 13:14+0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoSecNeg             = classic.zonedDateTimeBijection.from("2014-07-01 13:14-0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoSecSpacePos        = classic.zonedDateTimeBijection.from("2014-07-01 13:14 +0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoSecSpaceNeg        = classic.zonedDateTimeBijection.from("2014-07-01 13:14 -0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoSecColonPos        = classic.zonedDateTimeBijection.from("2014-07-01 13:14+04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoSecColonNeg        = classic.zonedDateTimeBijection.from("2014-07-01 13:14-04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcColonsNoSecSpaceColonPos   = classic.zonedDateTimeBijection.from("2014-07-01 13:14 +04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcColonsNoSecSpaceColonNeg   = classic.zonedDateTimeBijection.from("2014-07-01 13:14 -04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsZed                  = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161Z")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtTColonsPlusZero             = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161+0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtTColonsMinusZero            = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161-0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtTColonsPosColon             = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161+04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNegColon             = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161-04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsSpaceColonPos        = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 +04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsSpaceColonNeg        = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 -04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsPos                  = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161+0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNeg                  = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161-0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsSpacePos             = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 +0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsSpaceNeg             = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15.161 -0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoMilliZed           = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def zdtTColonsNoMilliPos           = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoMilliNeg           = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoMilliSpacePos      = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoMilliSpaceNeg      = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoMilliColonPos      = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoMilliColonNeg      = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoMilliSpaceColonPos = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15 +04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoMilliSpaceColonNeg = classic.zonedDateTimeBijection.from("2014-07-01T13:14:15 -04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoSecPos             = classic.zonedDateTimeBijection.from("2014-07-01T13:14+0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoSecNeg             = classic.zonedDateTimeBijection.from("2014-07-01T13:14-0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoSecSpacePos        = classic.zonedDateTimeBijection.from("2014-07-01T13:14 +0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoSecSpaceNeg        = classic.zonedDateTimeBijection.from("2014-07-01T13:14 -0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoSecColonPos        = classic.zonedDateTimeBijection.from("2014-07-01T13:14+04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoSecColonNeg        = classic.zonedDateTimeBijection.from("2014-07-01T13:14-04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTColonsNoSecSpaceColonPos   = classic.zonedDateTimeBijection.from("2014-07-01T13:14 +04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTColonsNoSecSpaceColonNeg   = classic.zonedDateTimeBijection.from("2014-07-01T13:14 -04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcNoColonsZed                = classic.zonedDateTimeBijection.from("20140701 131415.161Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtSpcNoColonsPlusZero           = classic.zonedDateTimeBijection.from("20140701 131415.161+0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtSpcNoColonsMinusZero          = classic.zonedDateTimeBijection.from("20140701 131415.161-0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtSpcNoColonsPosColon           = classic.zonedDateTimeBijection.from("20140701 131415.161+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcNoColonsNegColon           = classic.zonedDateTimeBijection.from("20140701 131415.161-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtSpcNoColonsNoMillisZed        = classic.zonedDateTimeBijection.from("20140701 131415Z")               ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def zdtSpcNoColonsNoMillisColonPos   = classic.zonedDateTimeBijection.from("20140701 131415+04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtSpcNoColonsNoMillisColonNeg   = classic.zonedDateTimeBijection.from("20140701 131415-04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTNoColonsZed                = classic.zonedDateTimeBijection.from("20140701T131415.161Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtTNoColonsPlusZero           = classic.zonedDateTimeBijection.from("20140701T131415.161+0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtTNoColonsMinusZero          = classic.zonedDateTimeBijection.from("20140701T131415.161-0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
-    def zdtTNoColonsPosColon           = classic.zonedDateTimeBijection.from("20140701T131415.161+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTNoColonsNegColon           = classic.zonedDateTimeBijection.from("20140701T131415.161-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
-    def zdtTNoColonsNoMillisZed        = classic.zonedDateTimeBijection.from("20140701T131415Z")               ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
-    def zdtTNoColonsNoMillisColonPos   = classic.zonedDateTimeBijection.from("20140701T131415+04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
-    def zdtTNoColonsNoMillisColonNeg   = classic.zonedDateTimeBijection.from("20140701T131415-04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsZed                  = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161Z")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtSpcColonsFractionalSixZed     = iso8601.zonedDateTimeConverter.from("2014-07-01 13:14:15.123456Z")    ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456000, ZoneOffset.UTC))
+    def zdtSpcColonsFractionalNineZed    = iso8601.zonedDateTimeConverter.from("2014-07-01 13:14:15.123456789Z") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 123456789, ZoneOffset.UTC))
+    def zdtSpcColonsPlusZero             = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161+0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtSpcColonsMinusZero            = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161-0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtSpcColonsPosColon             = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161+04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNegColon             = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161-04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsSpaceColonPos        = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161 +04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsSpaceColonNeg        = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161 -04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsPos                  = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161+0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNeg                  = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161-0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsSpacePos             = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161 +0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsSpaceNeg             = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15.161 -0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoMilliZed           = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def zdtSpcColonsNoMilliPos           = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoMilliNeg           = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoMilliSpacePos      = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoMilliSpaceNeg      = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoMilliColonPos      = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoMilliColonNeg      = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoMilliSpaceColonPos = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15 +04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoMilliSpaceColonNeg = classic.zonedDateTimeConverter.from("2014-07-01 13:14:15 -04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoSecPos             = classic.zonedDateTimeConverter.from("2014-07-01 13:14+0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoSecNeg             = classic.zonedDateTimeConverter.from("2014-07-01 13:14-0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoSecSpacePos        = classic.zonedDateTimeConverter.from("2014-07-01 13:14 +0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoSecSpaceNeg        = classic.zonedDateTimeConverter.from("2014-07-01 13:14 -0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoSecColonPos        = classic.zonedDateTimeConverter.from("2014-07-01 13:14+04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoSecColonNeg        = classic.zonedDateTimeConverter.from("2014-07-01 13:14-04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcColonsNoSecSpaceColonPos   = classic.zonedDateTimeConverter.from("2014-07-01 13:14 +04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcColonsNoSecSpaceColonNeg   = classic.zonedDateTimeConverter.from("2014-07-01 13:14 -04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsZed                  = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161Z")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtTColonsPlusZero             = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161+0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtTColonsMinusZero            = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161-0000")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtTColonsPosColon             = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161+04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNegColon             = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161-04:56")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsSpaceColonPos        = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 +04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsSpaceColonNeg        = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 -04:56") ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsPos                  = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161+0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNeg                  = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161-0456")   ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsSpacePos             = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 +0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsSpaceNeg             = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15.161 -0456")  ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoMilliZed           = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def zdtTColonsNoMilliPos           = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoMilliNeg           = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoMilliSpacePos      = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15+0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoMilliSpaceNeg      = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15-0456")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoMilliColonPos      = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoMilliColonNeg      = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoMilliSpaceColonPos = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15 +04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoMilliSpaceColonNeg = classic.zonedDateTimeConverter.from("2014-07-01T13:14:15 -04:56")     ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoSecPos             = classic.zonedDateTimeConverter.from("2014-07-01T13:14+0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoSecNeg             = classic.zonedDateTimeConverter.from("2014-07-01T13:14-0456")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoSecSpacePos        = classic.zonedDateTimeConverter.from("2014-07-01T13:14 +0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoSecSpaceNeg        = classic.zonedDateTimeConverter.from("2014-07-01T13:14 -0456")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoSecColonPos        = classic.zonedDateTimeConverter.from("2014-07-01T13:14+04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoSecColonNeg        = classic.zonedDateTimeConverter.from("2014-07-01T13:14-04:56")         ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTColonsNoSecSpaceColonPos   = classic.zonedDateTimeConverter.from("2014-07-01T13:14 +04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTColonsNoSecSpaceColonNeg   = classic.zonedDateTimeConverter.from("2014-07-01T13:14 -04:56")        ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 0, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcNoColonsZed                = classic.zonedDateTimeConverter.from("20140701 131415.161Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtSpcNoColonsPlusZero           = classic.zonedDateTimeConverter.from("20140701 131415.161+0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtSpcNoColonsMinusZero          = classic.zonedDateTimeConverter.from("20140701 131415.161-0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtSpcNoColonsPosColon           = classic.zonedDateTimeConverter.from("20140701 131415.161+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcNoColonsNegColon           = classic.zonedDateTimeConverter.from("20140701 131415.161-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtSpcNoColonsNoMillisZed        = classic.zonedDateTimeConverter.from("20140701 131415Z")               ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def zdtSpcNoColonsNoMillisColonPos   = classic.zonedDateTimeConverter.from("20140701 131415+04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtSpcNoColonsNoMillisColonNeg   = classic.zonedDateTimeConverter.from("20140701 131415-04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTNoColonsZed                = classic.zonedDateTimeConverter.from("20140701T131415.161Z")           ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtTNoColonsPlusZero           = classic.zonedDateTimeConverter.from("20140701T131415.161+0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtTNoColonsMinusZero          = classic.zonedDateTimeConverter.from("20140701T131415.161-0000")       ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.UTC))
+    def zdtTNoColonsPosColon           = classic.zonedDateTimeConverter.from("20140701T131415.161+04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTNoColonsNegColon           = classic.zonedDateTimeConverter.from("20140701T131415.161-04:56")      ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano, ZoneOffset.ofHoursMinutes(-4, -56)))
+    def zdtTNoColonsNoMillisZed        = classic.zonedDateTimeConverter.from("20140701T131415Z")               ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC))
+    def zdtTNoColonsNoMillisColonPos   = classic.zonedDateTimeConverter.from("20140701T131415+04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56)))
+    def zdtTNoColonsNoMillisColonNeg   = classic.zonedDateTimeConverter.from("20140701T131415-04:56")          ==== Okay(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56)))
 
-    def localDate = classic.localDateBijection.from("2014-07-01") ==== Okay(LocalDate.of(2014, 7, 1))
-    def basicLocalDate = classic.localDateBijection.from("20140701") ==== Okay(LocalDate.of(2014, 7, 1))
+    def localDate = classic.localDateConverter.from("2014-07-01") ==== Okay(LocalDate.of(2014, 7, 1))
+    def basicLocalDate = classic.localDateConverter.from("20140701") ==== Okay(LocalDate.of(2014, 7, 1))
 
-    def localDateTime = classic.localDateTimeBijection.from("2014-07-01T13:14:15.161") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
-    def localDateTimeNoMillis = classic.localDateTimeBijection.from("2014-07-01T13:14:15") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
-    def localDateTimeNoSeconds = classic.localDateTimeBijection.from("2014-07-01T13:14") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
-    def basicLocalDateTime = classic.localDateTimeBijection.from("20140701T131415.161") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
-    def basicLocalDateTimeNoMillis = classic.localDateTimeBijection.from("20140701T131415") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
-    def basicLocalDateTimeNoSeconds = classic.localDateTimeBijection.from("20140701T1314") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
+    def localDateTime = classic.localDateTimeConverter.from("2014-07-01T13:14:15.161") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
+    def localDateTimeNoMillis = classic.localDateTimeConverter.from("2014-07-01T13:14:15") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
+    def localDateTimeNoSeconds = classic.localDateTimeConverter.from("2014-07-01T13:14") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
+    def basicLocalDateTime = classic.localDateTimeConverter.from("20140701T131415.161") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 161 * nano))
+    def basicLocalDateTimeNoMillis = classic.localDateTimeConverter.from("20140701T131415") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0))
+    def basicLocalDateTimeNoSeconds = classic.localDateTimeConverter.from("20140701T1314") ==== Okay(LocalDateTime.of(2014, 7, 1, 13, 14, 0, 0))
 
-    def localTime = classic.localTimeBijection.from("12:13:14.161") ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
-    def localTimeNoMillis = classic.localTimeBijection.from("12:13:14") ==== Okay(LocalTime.of(12, 13, 14, 0))
-    def localTimeNoSeconds = classic.localTimeBijection.from("12:13") ==== Okay(LocalTime.of(12, 13, 0, 0))
-    def basicLocalTime = classic.localTimeBijection.from("121314.161") ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
-    def basicLocalTimeNoMillis = classic.localTimeBijection.from("121314") ==== Okay(LocalTime.of(12, 13, 14, 0))
-    def basicLocalTimeNoSeconds = classic.localTimeBijection.from("1213") ==== Okay(LocalTime.of(12, 13, 0, 0))
+    def localTime = classic.localTimeConverter.from("12:13:14.161") ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
+    def localTimeNoMillis = classic.localTimeConverter.from("12:13:14") ==== Okay(LocalTime.of(12, 13, 14, 0))
+    def localTimeNoSeconds = classic.localTimeConverter.from("12:13") ==== Okay(LocalTime.of(12, 13, 0, 0))
+    def basicLocalTime = classic.localTimeConverter.from("121314.161") ==== Okay(LocalTime.of(12, 13, 14, 161 * nano))
+    def basicLocalTimeNoMillis = classic.localTimeConverter.from("121314") ==== Okay(LocalTime.of(12, 13, 14, 0))
+    def basicLocalTimeNoSeconds = classic.localTimeConverter.from("1213") ==== Okay(LocalTime.of(12, 13, 0, 0))
 
     // Formatting tests
-    def formatZonedDateTimeUTC = classic.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC)) ==== Okay("2014-07-01 13:14:15 +0000")
-    def formatZonedDateTimePos = classic.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56))) ==== Okay("2014-07-01 13:14:15 +0456")
-    def formatZonedDateTimeNeg = classic.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56))) ==== Okay("2014-07-01 13:14:15 -0456")
+    def formatZonedDateTimeUTC = classic.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.UTC)) ==== Okay("2014-07-01 13:14:15 +0000")
+    def formatZonedDateTimePos = classic.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(4, 56))) ==== Okay("2014-07-01 13:14:15 +0456")
+    def formatZonedDateTimeNeg = classic.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneOffset.ofHoursMinutes(-4, -56))) ==== Okay("2014-07-01 13:14:15 -0456")
     // Gotta make sure it only puts the UTC offset and doesn't append "[America/New_York]" to the end
-    def formatZonedDateTimeNewYork = classic.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("America/New_York"))) ==== Okay("2014-07-01 13:14:15 -0400")
-    def formatZonedDateTimeMoscow = classic.zonedDateTimeBijection.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("Europe/Moscow"))) ==== Okay("2014-07-01 13:14:15 +0400")
-    def formatLocalDate = classic.localDateBijection.to(LocalDate.of(2014, 7, 1)) ==== Okay("2014-07-01")
-    def formatLocalDateTime = classic.localDateTimeBijection.to(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0)) ==== Okay("2014-07-01 13:14:15")
-    def formatLocalTime = classic.localTimeBijection.to(LocalTime.of(12, 13, 14, 0)) ==== Okay("12:13:14")
+    def formatZonedDateTimeNewYork = classic.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("America/New_York"))) ==== Okay("2014-07-01 13:14:15 -0400")
+    def formatZonedDateTimeMoscow = classic.zonedDateTimeConverter.to(ZonedDateTime.of(2014, 7, 1, 13, 14, 15, 0, ZoneId.of("Europe/Moscow"))) ==== Okay("2014-07-01 13:14:15 +0400")
+    def formatLocalDate = classic.localDateConverter.to(LocalDate.of(2014, 7, 1)) ==== Okay("2014-07-01")
+    def formatLocalDateTime = classic.localDateTimeConverter.to(LocalDateTime.of(2014, 7, 1, 13, 14, 15, 0)) ==== Okay("2014-07-01 13:14:15")
+    def formatLocalTime = classic.localTimeConverter.to(LocalTime.of(12, 13, 14, 0)) ==== Okay("12:13:14")
 }
 
 class longTest extends SpecificationWithJUnit with ScalaCheck {
     def is = s2"""
-        long bijections should round trip
+        long converters should round trip
             org.joda.time.DateTime          $e1
             org.joda.time.LocalDate         $e2
             org.joda.time.LocalDateTime     $e3
             org.joda.time.LocalTime         $e4
     """
 
-    val roundTripDateTime      = long.zonedDateTimeBijection      >=> long.zonedDateTimeBijection.flip
-    val roundTripLocalDate     = long.localDateBijection     >=> long.localDateBijection.flip
-    val roundTripLocalDateTime = long.localDateTimeBijection >=> long.localDateTimeBijection.flip
-    val roundTripLocalTime     = long.localTimeBijection     >=> long.localTimeBijection.flip
+    val roundTripDateTime      = long.zonedDateTimeConverter.compose(long.zonedDateTimeConverter.flip)
+    val roundTripLocalDate     = long.localDateConverter.compose(long.localDateConverter.flip)
+    val roundTripLocalDateTime = long.localDateTimeConverter.compose(long.localDateTimeConverter.flip)
+    val roundTripLocalTime     = long.localTimeConverter.compose(long.localTimeConverter.flip)
 
     def e1 = prop { (zdt: ZonedDateTime)  => roundTripDateTime.to(zdt).map(_.toInstant.toEpochMilli) ==== Okay(zdt.toInstant.toEpochMilli) }
     def e2 = prop { (ld: LocalDate)       => roundTripLocalDate.to(ld) ==== Okay(ld) }

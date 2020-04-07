@@ -574,7 +574,7 @@ class insecureJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with 
     def secureCase = prop { (i: Int) => (coder.encode.toString(i) >>= decode(coder.decode)) ==== Okay(i) }
     def encodeInsecureCase = InsecureContext.doWith(true) { coder.encode.toString(123) ==== Okay("null") }
     def decodeInsecureCase =
-        prop { (i: Int) => InsecureContext.doWith(true) { coder.decode.fromString(i.toString) } ==== Okay(1) } and
+        prop { (i: Int) => InsecureContext.doWith(true) { coder.decode.fromString(i.toString) } ==== Okay(1) } before
         { InsecureContext.doWith(true) { coder.decode.fromString(""" {"a": "b"} """) } ==== Okay(1) }
 }
 

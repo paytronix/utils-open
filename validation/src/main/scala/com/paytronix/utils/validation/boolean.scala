@@ -16,8 +16,6 @@
 
 package com.paytronix.utils.validation
 
-import scala.util.control.Exception.catching
-
 import base.{Validated, ValidationError, failure, success}
 
 object boolean {

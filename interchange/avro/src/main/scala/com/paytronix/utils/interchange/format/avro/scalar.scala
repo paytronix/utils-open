@@ -29,9 +29,8 @@ import scala.reflect.runtime.universe.{TypeTag, typeTag}
 
 import org.apache.avro.{Schema, io}
 import org.codehaus.jackson.node.JsonNodeFactory.{instance => jsonNodeFactory}
-import scalaz.BijectionT.bijection
 
-import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, atTerminal, datetime, terminal}
+import com.paytronix.utils.interchange.base.{CoderFailure, Receiver, TypeConverter, atTerminal, datetime, terminal}
 import com.paytronix.utils.interchange.base.enum.{enumerationInstance, enumerationValueFromString}
 import com.paytronix.utils.interchange.format.string.{StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, tryCatchValue, tryCatchValueG, tryCatchResultG}
@@ -244,7 +243,7 @@ trait scalar extends scalarLPI {
     }
 
     /** `AvroCoder` for `scala.math.BigInt`. Encodes as an Avro byte array using `.toByteArray` of `BigInteger` */
-    implicit lazy val scalaBigIntAvroCoderBytes = javaBigIntegerAvroCoderBytes.mapBijection(bijection (
+    implicit lazy val scalaBigIntAvroCoderBytes = javaBigIntegerAvroCoderBytes.mapWithConverter(TypeConverter(
         (bi: BigInt) => Okay(bi.bigInteger): Result[JavaBigInteger],
         (bi: JavaBigInteger) => Okay(BigInt(bi)): Result[BigInt]
     ))
@@ -288,7 +287,7 @@ trait scalar extends scalarLPI {
     }
 
     /** `AvroCoder` for `scala.math.BigDecimal`. Encodes as an Avro byte array with the scale as a 4-byte integer followed by the unscaled digits using `.toByteArray` */
-    implicit lazy val scalaBigDecimalAvroCoderBytes = javaBigDecimalAvroCoderBytes.mapBijection(bijection (
+    implicit lazy val scalaBigDecimalAvroCoderBytes = javaBigDecimalAvroCoderBytes.mapWithConverter(TypeConverter(
         (bd: BigDecimal) => Okay(bd.bigDecimal): Result[JavaBigDecimal],
         (bd: JavaBigDecimal) => Okay(BigDecimal(bd)): Result[BigDecimal]
     ))
@@ -374,7 +373,7 @@ trait scalar extends scalarLPI {
 
     /** `AvroCoder` for `Array[Byte]`. Encodes as an Avro byte array */
     implicit lazy val byteArrayAvroCoder: AvroCoder[Array[Byte]] =
-        byteBufferAvroCoder.mapBijection(bijection (
+        byteBufferAvroCoder.mapWithConverter(TypeConverter(
             (ba: Array[Byte]) => Okay(ByteBuffer.wrap(ba)),
             (bb: ByteBuffer) => Okay(bb.array)
         ))
@@ -465,54 +464,54 @@ trait scalar extends scalarLPI {
     implicit lazy val javaSqlTimestampAvroCoderLong = dateAsLong.javaSqlTimestampAvroCoder
 
     object dateAsLong {
-        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = longAvroCoder.mapBijection(datetime.long.zonedDateTimeBijection)
-        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = longAvroCoder.mapBijection(datetime.long.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = longAvroCoder.mapBijection(datetime.long.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = longAvroCoder.mapBijection(datetime.long.localTimeBijection)
-        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = longAvroCoder.mapBijection(datetime.long.javaDateBijection)
-        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = longAvroCoder.mapBijection(datetime.long.javaSqlDateBijection)
-        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = longAvroCoder.mapBijection(datetime.long.javaSqlTimeBijection)
-        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = longAvroCoder.mapBijection(datetime.long.javaSqlTimestampBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = longAvroCoder.mapWithConverter(datetime.long.zonedDateTimeConverter)
+        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = longAvroCoder.mapWithConverter(datetime.long.localDateConverter)
+        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = longAvroCoder.mapWithConverter(datetime.long.localDateTimeConverter)
+        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = longAvroCoder.mapWithConverter(datetime.long.localTimeConverter)
+        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = longAvroCoder.mapWithConverter(datetime.long.javaDateConverter)
+        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = longAvroCoder.mapWithConverter(datetime.long.javaSqlDateConverter)
+        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = longAvroCoder.mapWithConverter(datetime.long.javaSqlTimeConverter)
+        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = longAvroCoder.mapWithConverter(datetime.long.javaSqlTimestampConverter)
     }
 
     object dateAsIso8601String {
-        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.iso8601.zonedDateTimeBijection)
-        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapBijection(datetime.iso8601.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapBijection(datetime.iso8601.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapBijection(datetime.iso8601.localTimeBijection)
-        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = stringAvroCoder.mapBijection(datetime.iso8601.javaDateBijection)
-        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = stringAvroCoder.mapBijection(datetime.iso8601.javaSqlDateBijection)
-        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = stringAvroCoder.mapBijection(datetime.iso8601.javaSqlTimeBijection)
-        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = stringAvroCoder.mapBijection(datetime.iso8601.javaSqlTimestampBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapWithConverter(datetime.iso8601.zonedDateTimeConverter)
+        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapWithConverter(datetime.iso8601.localDateConverter)
+        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapWithConverter(datetime.iso8601.localDateTimeConverter)
+        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapWithConverter(datetime.iso8601.localTimeConverter)
+        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = stringAvroCoder.mapWithConverter(datetime.iso8601.javaDateConverter)
+        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = stringAvroCoder.mapWithConverter(datetime.iso8601.javaSqlDateConverter)
+        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = stringAvroCoder.mapWithConverter(datetime.iso8601.javaSqlTimeConverter)
+        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = stringAvroCoder.mapWithConverter(datetime.iso8601.javaSqlTimestampConverter)
     }
 
     object dateAsClassicString {
-        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.classic.zonedDateTimeBijection)
-        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapBijection(datetime.classic.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapBijection(datetime.classic.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapBijection(datetime.classic.localTimeBijection)
-        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = stringAvroCoder.mapBijection(datetime.classic.javaDateBijection)
-        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = stringAvroCoder.mapBijection(datetime.classic.javaSqlDateBijection)
-        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = stringAvroCoder.mapBijection(datetime.classic.javaSqlTimeBijection)
-        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = stringAvroCoder.mapBijection(datetime.classic.javaSqlTimestampBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapWithConverter(datetime.classic.zonedDateTimeConverter)
+        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapWithConverter(datetime.classic.localDateConverter)
+        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapWithConverter(datetime.classic.localDateTimeConverter)
+        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapWithConverter(datetime.classic.localTimeConverter)
+        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = stringAvroCoder.mapWithConverter(datetime.classic.javaDateConverter)
+        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = stringAvroCoder.mapWithConverter(datetime.classic.javaSqlDateConverter)
+        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = stringAvroCoder.mapWithConverter(datetime.classic.javaSqlTimeConverter)
+        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = stringAvroCoder.mapWithConverter(datetime.classic.javaSqlTimestampConverter)
     }
 
     object dateAsSqlServerString {
-        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapBijection(datetime.sqlServer.zonedDateTimeBijection)
-        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapBijection(datetime.sqlServer.localDateBijection)
-        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapBijection(datetime.sqlServer.localDateTimeBijection)
-        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapBijection(datetime.sqlServer.localTimeBijection)
-        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = stringAvroCoder.mapBijection(datetime.sqlServer.javaDateBijection)
-        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = stringAvroCoder.mapBijection(datetime.sqlServer.javaSqlDateBijection)
-        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = stringAvroCoder.mapBijection(datetime.sqlServer.javaSqlTimeBijection)
-        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = stringAvroCoder.mapBijection(datetime.sqlServer.javaSqlTimestampBijection)
+        implicit lazy val zonedDateTimeAvroCoder    : AvroCoder[ZonedDateTime]    = stringAvroCoder.mapWithConverter(datetime.sqlServer.zonedDateTimeConverter)
+        implicit lazy val localDateAvroCoder        : AvroCoder[LocalDate]        = stringAvroCoder.mapWithConverter(datetime.sqlServer.localDateConverter)
+        implicit lazy val localDateTimeAvroCoder    : AvroCoder[LocalDateTime]    = stringAvroCoder.mapWithConverter(datetime.sqlServer.localDateTimeConverter)
+        implicit lazy val localTimeAvroCoder        : AvroCoder[LocalTime]        = stringAvroCoder.mapWithConverter(datetime.sqlServer.localTimeConverter)
+        implicit lazy val javaDateAvroCoder         : AvroCoder[JavaDate]         = stringAvroCoder.mapWithConverter(datetime.sqlServer.javaDateConverter)
+        implicit lazy val javaSqlDateAvroCoder      : AvroCoder[JavaSqlDate]      = stringAvroCoder.mapWithConverter(datetime.sqlServer.javaSqlDateConverter)
+        implicit lazy val javaSqlTimeAvroCoder      : AvroCoder[JavaSqlTime]      = stringAvroCoder.mapWithConverter(datetime.sqlServer.javaSqlTimeConverter)
+        implicit lazy val javaSqlTimestampAvroCoder : AvroCoder[JavaSqlTimestamp] = stringAvroCoder.mapWithConverter(datetime.sqlServer.javaSqlTimestampConverter)
     }
 }
 
 /** Lower priority implicit `AvroCoder`s that would conflict with the primary ones in `scalar` */
 trait scalarLPI extends scalarLPI2 { self: scalar =>
     /** `AvroCoder` for `Byte` which encodes as an Avro integer instead of fixed. Can increase the space required but is more compatible with other tools */
-    implicit lazy val byteAvroCoderInt = intAvroCoder.mapBijection(bijection (
+    implicit lazy val byteAvroCoderInt = intAvroCoder.mapWithConverter(TypeConverter(
         (b: Byte) => Okay(b: Int): Result[Int],
         (i: Int) => {
             if (i >= (Byte.MinValue: Int) || i <= (Byte.MaxValue: Int)) Okay(i.asInstanceOf[Byte])
@@ -521,7 +520,7 @@ trait scalarLPI extends scalarLPI2 { self: scalar =>
     ))
 
     /** `AvroCoder` for `Short` which encodes as an Avro integer instead of fixed. More compatible with other tools, but variable storage space.  */
-    implicit lazy val shortAvroCoderInt = intAvroCoder.mapBijection(bijection (
+    implicit lazy val shortAvroCoderInt = intAvroCoder.mapWithConverter(TypeConverter(
         (s: Short) => Okay(s): Result[Int],
         (i: Int) => {
             if (i >= (Short.MinValue: Int) || i <= (Short.MaxValue: Int)) Okay(i.asInstanceOf[Short])
@@ -530,7 +529,7 @@ trait scalarLPI extends scalarLPI2 { self: scalar =>
     ))
 
     /** `AvroCoder` for `Char` which encodes as an Avro string instead of fixed. More compatible with other tools, but increased storage space.  */
-    implicit lazy val charAvroCoderString = stringAvroCoder.mapBijection(bijection (
+    implicit lazy val charAvroCoderString = stringAvroCoder.mapWithConverter(TypeConverter(
         (c: Char) => Okay(new String(Array(c))): Result[String],
         (s: String) => (s.size match {
             case 1 => Okay(s.charAt(0))
@@ -539,25 +538,25 @@ trait scalarLPI extends scalarLPI2 { self: scalar =>
     ))
 
     /** `AvroCoder` for `java.math.BigInteger` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
-    implicit lazy val javaBigIntegerAvroCoderString = stringAvroCoder.mapBijection(bijection (
+    implicit lazy val javaBigIntegerAvroCoderString = stringAvroCoder.mapWithConverter(TypeConverter(
         (bi: JavaBigInteger) => Okay(bi.toString): Result[String],
         (s: String) => tryCatchValue(new JavaBigInteger(s)): Result[JavaBigInteger]
     ))
 
     /** `AvroCoder` for `scala.math.BigInt` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
-    implicit lazy val scalaBigIntAvroCoderString = javaBigIntegerAvroCoderString.mapBijection(bijection (
+    implicit lazy val scalaBigIntAvroCoderString = javaBigIntegerAvroCoderString.mapWithConverter(TypeConverter(
         (bi: BigInt) => Okay(bi.bigInteger): Result[JavaBigInteger],
         (bi: JavaBigInteger) => Okay(BigInt(bi)): Result[BigInt]
     ))
 
     /** `AvroCoder` for `java.math.BigDecimal` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
-    implicit lazy val javaBigDecimalAvroCoderString = stringAvroCoder.mapBijection(bijection (
+    implicit lazy val javaBigDecimalAvroCoderString = stringAvroCoder.mapWithConverter(TypeConverter(
         (bd: JavaBigDecimal) => Okay(bd.toString): Result[String],
         (s: String) => tryCatchValue(new JavaBigDecimal(s)): Result[JavaBigDecimal]
     ))
 
     /** `AvroCoder` for `scala.math.BigDecimal` which encodes as an Avro string instead of bytes. More compatible with other tools, but increased storage space.  */
-    implicit lazy val scalaBigDecimalAvroCoderString = javaBigDecimalAvroCoderString.mapBijection(bijection (
+    implicit lazy val scalaBigDecimalAvroCoderString = javaBigDecimalAvroCoderString.mapWithConverter(TypeConverter(
         (bd: BigDecimal) => Okay(bd.bigDecimal): Result[JavaBigDecimal],
         (bd: JavaBigDecimal) => Okay(BigDecimal(bd)): Result[BigDecimal]
     ))
@@ -565,7 +564,7 @@ trait scalarLPI extends scalarLPI2 { self: scalar =>
 
 trait scalarLPI2 { self: scalar =>
     implicit def stringCoderAsAvroCoder[A](implicit stringEncoder: StringEncoder[A], stringDecoder: StringDecoder[A]): AvroCoder[A] =
-        stringAvroCoder.mapBijection(bijection (
+        stringAvroCoder.mapWithConverter(TypeConverter(
             (a: A)      => stringEncoder(a).mapFailure { _ => () }: Result[String],
             (s: String) => stringDecoder(s).mapFailure { _ => () }: Result[A]
         ))

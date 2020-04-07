@@ -16,11 +16,10 @@
 
 package com.paytronix.utils.validation
 
+import cats.data.NonEmptyList
+import cats.data.Validated.{Invalid, Valid}
 import scala.collection.generic.CanBuildFrom
 import scala.language.implicitConversions
-
-import scalaz.{NonEmptyList, Failure, Success}
-import shapeless.HList
 
 import base.{Validated, ValidationError, failure, field, predicateE, success}
 
@@ -90,8 +89,8 @@ object sequence {
             val iter = in.iterator
             while (iter.hasNext) {
                 f(iter.next) match {
-                    case Failure(errors) => errors.foreach { error => allErrors += error; () }
-                    case Success(result) => results += result
+                    case Invalid(errors) => errors.map { error => allErrors += error; () }
+                    case Valid(result)   => results += result
                 }
             }
             allErrors.result() match {
@@ -127,11 +126,11 @@ object sequence {
         case Nil => failure(exhaustedInput)
         case scala.::(a, rest) =>
             f(a) match {
-                case Failure(errors) if a.isInstanceOf[String] =>
-                    Failure(errors.map(_.withInvalidInput(a.asInstanceOf[String])))
-                case Failure(errors) =>
-                    Failure(errors)
-                case Success(b) =>
+                case Invalid(errors) if a.isInstanceOf[String] =>
+                    Invalid(errors.map(_.withInvalidInput(a.asInstanceOf[String])))
+                case Invalid(errors) =>
+                    Invalid(errors)
+                case Valid(b) =>
                     success(ListParsingResult(rest, b))
             }
     }
@@ -154,15 +153,15 @@ object sequence {
             var errors: Option[NonEmptyList[ValidationError]] = None
             while (!errors.isDefined && !terminate(index, rest)) {
                 field(index.toString, f(rest)) match {
-                    case Failure(errs) => errors = Some(errs)
-                    case Success(ListParsingResult(newRest, result)) =>
+                    case Invalid(errs) => errors = Some(errs)
+                    case Valid(ListParsingResult(newRest, result)) =>
                         results += result
                         rest = newRest
                 }
                 index += 1
             }
 
-            errors map Failure.apply getOrElse success(ListParsingResult(rest, results.result()))
+            errors map Invalid.apply getOrElse success(ListParsingResult(rest, results.result()))
         }
 
     // these bits following are a bit clunky, but work. come scala 2.10, we'll have macros and then this mess can be cleaned up.
@@ -180,7 +179,7 @@ object sequence {
     def listOf[A]: ListParser[A] = new ListParser[A]
     final class ListParser[A] {
         def composedOf[L <: HList](fs: L)(implicit folder: LeftFolder[L, ListParsingFunction[A, HNil], compositionFold.type]): folder.Out =
-            folder(fs, (in => Success(ListParsingResult(in, HNil))): ListParsingFunction[A, HNil])
+            folder(fs, (in => Valid(ListParsingResult(in, HNil))): ListParsingFunction[A, HNil])
     }
 
     implicit class resultReverser[A, B <: HList](val lpf: ListParsingFunction[A, B]) extends AnyVal {

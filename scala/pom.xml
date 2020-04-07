@@ -45,13 +45,17 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.scalaz</groupId>
-            <artifactId>scalaz-core_2.11</artifactId>
+            <groupId>org.typelevel</groupId>
+            <artifactId>cats-core_${scala.compatibility.version}</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.specs2</groupId>
-            <artifactId>specs2_2.11</artifactId>
+            <artifactId>specs2-core_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-junit_${scala.compatibility.version}</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

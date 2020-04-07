@@ -16,13 +16,13 @@
 
 package com.paytronix.utils.interchange
 
-import scala.annotation.{Annotation, StaticAnnotation}
+import scala.annotation.StaticAnnotation
 import scala.language.higherKinds
 
-import scalaz.{BijectionT, Show}
+import cats.Show
 
 import com.paytronix.utils.scala.concurrent.ThreadLocal
-import com.paytronix.utils.scala.result.{Failed, FailedG, FailedParameter, FailedParameterDefault, Okay, Result, ResultG, parameter}
+import com.paytronix.utils.scala.result.{Failed, FailedG, FailedParameter, FailedParameterDefault, Okay, Result, ResultG}
 
 package base {
     /**
@@ -75,10 +75,27 @@ package base {
         val decode: Dec[A]
 
         /**
-         * Wrap the Coder (pair) in a bijection, producing a derived `Coder` for type `B`.
-         * The bijection is "to" the underlying type (`A`), that is `bijection(B => Result[A], A => Result[B])`
+         * Run the Coder (pair) through a maybe-failing conversion between types, producing a derived `Coder` for type `B`.
+         * The conversion is "to" the underlying type (`A`), that is `TypeConverter(B => Result[A], A => Result[B])`
          */
-        def mapBijection[B](bijection: BijectionT[Result, Result, B, A]): Coder[Enc, Dec, B, F]
+        def mapWithConverter[B](converter: TypeConverter[B, A]): Coder[Enc, Dec, B, F]
+    }
+
+    /**
+      * Contains a pair of functions that convert from some input type to an output type and back again with no guarantee
+      * that said conversions will be successful for any given input, nor that conversions will be lossless/reversible.
+      */
+    final case class TypeConverter[From, To](
+        to:   From => Result[To],
+        from: To   => Result[From]
+    ) {
+        def compose[NewTo](other: TypeConverter[To, NewTo]): TypeConverter[From, NewTo] = {
+            def newTo(in: From): Result[NewTo] = this.to(in).flatMap(x => other.to(x))
+            def newFrom(in: NewTo): Result[From] = other.from(in).flatMap(x => this.from(x))
+            TypeConverter(newTo, newFrom)
+        }
+
+        def flip: TypeConverter[To, From] = TypeConverter(from, to)
     }
 
     /** Trait for a format that can be decoded from */
@@ -130,10 +147,10 @@ package base {
 
 
     /** Annotation indicating that a property should have a separate name when encoded from the Scala/Java identifier */
-    class name(name: String) extends StaticAnnotation
+    class name(val name: String) extends StaticAnnotation
 
     /** Annotation indicating the default value a property should have when not present in the input */
-    class default(value: Any) extends StaticAnnotation
+    class default(val value: Any) extends StaticAnnotation
 
     /** Single component of a path through the data model for error reporting */
     sealed abstract class Segment

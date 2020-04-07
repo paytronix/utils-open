@@ -34,9 +34,12 @@
     <dependencies>
         <dependency>
             <groupId>net.liftweb</groupId>
-            <artifactId>lift-json_2.11</artifactId>
+            <artifactId>lift-common_${scala.compatibility.version}</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>net.liftweb</groupId>
+            <artifactId>lift-json_${scala.compatibility.version}</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.paytronix.utils</groupId>
             <artifactId>interchange-base</artifactId>
@@ -46,10 +49,19 @@
             <artifactId>interchange-json</artifactId>
             <version>${project.version}</version>
         </dependency>
-
         <dependency>
             <groupId>org.specs2</groupId>
-            <artifactId>specs2_2.11</artifactId>
+            <artifactId>specs2-core_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-junit_${scala.compatibility.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.specs2</groupId>
+            <artifactId>specs2-scalacheck_${scala.compatibility.version}</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

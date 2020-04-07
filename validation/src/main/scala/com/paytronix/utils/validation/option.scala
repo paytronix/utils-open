@@ -45,7 +45,7 @@ object option {
 
     /** Require that an optional value not be present. */
     def noneE(error: ValidationError): Option[Any] => Validated[Unit] = {
-        case Some(v) => failure(error)
+        case Some(_) => failure(error)
         case None    => success(())
     }
 

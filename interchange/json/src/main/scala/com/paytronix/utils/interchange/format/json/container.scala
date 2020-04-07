@@ -17,13 +17,13 @@
 package com.paytronix.utils.interchange.format.json
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters.{asJavaCollectionConverter, asScalaBufferConverter, asScalaSetConverter, collectionAsScalaIterableConverter, mapAsScalaMapConverter}
+import scala.collection.JavaConverters.{asScalaBufferConverter, asScalaSetConverter, collectionAsScalaIterableConverter, mapAsScalaMapConverter}
 import scala.collection.generic.CanBuildFrom
 
 import com.fasterxml.jackson.core.JsonToken
 
-import com.paytronix.utils.interchange.base.{atIndex, CoderFailure, CoderResult, InsecureContext, InterchangeClassLoader, Receiver, terminal}
-import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSet, canBuildJavaSortedMap}
+import com.paytronix.utils.interchange.base.{atIndex, CoderFailure, CoderResult, InsecureContext, InterchangeClassLoader, Receiver}
+import com.paytronix.utils.interchange.base.container.javaCollections.{canBuildJavaList, canBuildJavaMap, canBuildJavaSet}
 import com.paytronix.utils.interchange.base.container.result.instantiateThrowable
 import com.paytronix.utils.interchange.format.string.{StringCoder, StringDecoder, StringEncoder}
 import com.paytronix.utils.scala.concurrent.ThreadLocal
@@ -192,7 +192,7 @@ trait container extends containerLPI {
                                         in.currentToken match {
                                             case JsonToken.END_ARRAY =>
                                                 out(Some(rec.value))
-                                            case other =>
+                                            case other@_ =>
                                                 in.unexpectedToken("end of a single element array")
                                         }
                                     }
@@ -304,7 +304,7 @@ trait container extends containerLPI {
                                 if (seenField) Okay.unit
                                 else FailedG(s"expected an object with either $leftField or $rightField", in.terminal)
                             }
-                        case other =>
+                        case other@_ =>
                             in.unexpectedToken(s"start of object containing either $leftField or $rightField")
                     }
                 }

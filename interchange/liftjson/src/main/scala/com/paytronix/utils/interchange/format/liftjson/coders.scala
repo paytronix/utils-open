@@ -84,7 +84,6 @@ object coders {
                     case jObject: JObject    => tryEncode(jObject, jObjectCoder.encode)
                     case JNothing            => generator.writeNothingOrNull()
                     case JNull               => generator.writeNull()
-                    case JField(name, value) => generator.writeFieldName(name) >> run(value, generator)
                 }
             }
         }

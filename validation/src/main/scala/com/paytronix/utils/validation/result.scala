@@ -16,19 +16,18 @@
 
 package com.paytronix.utils.validation
 
-import scalaz.{Failure, Success}
-import scalaz.NonEmptyList.nels
-import scalaz.Validation.success
+import cats.data.NonEmptyList
+import cats.data.Validated.{Invalid, Valid}
 
 import com.paytronix.utils.scala.result.{FailedG, Okay, ResultG}
 
-import base.{Validated, ValidationError, missingValueError}
+import base.{Validated, ValidationError, missingValueError, success}
 
 object result {
     /** Apply some validation to the value inside a `Result`/`ResultG` */
     def result[E, A, B](f: A => Validated[B]): ResultG[E, A] => Validated[ResultG[E, B]] = {
         case Okay(v)         => f(v).map(Okay.apply)
-        case f@FailedG(_, _) => Success(f)
+        case f@FailedG(_, _) => Valid(f)
     }
 
     /** Require that a result be Okay */
@@ -42,6 +41,6 @@ object result {
     /** Require that a result be Okay applying a validation function when it is and specifying a particular error message when it is not. */
     def okayE[E, A, B](error: FailedG[E] => ValidationError)(f: A => Validated[B]): ResultG[E, A] => Validated[B] = {
         case Okay(v)         => f(v)
-        case f@FailedG(_, _) => Failure(nels(error(f)))
+        case f@FailedG(_, _) => Invalid(NonEmptyList.of(error(f)))
     }
 }
