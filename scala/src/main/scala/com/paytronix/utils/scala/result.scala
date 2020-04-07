@@ -323,7 +323,7 @@ object result {
         }
 
         /** Monad implementation for ResultG */
-        implicit def resultGMonad[E](implicit app: Applicative[ResultG[E, *]]) = {
+        implicit def resultGMonad[E] = {
             new Monad[ResultG[E, *]] {
                 override def flatMap[A, B](fa: ResultG[E, A])(f: A => ResultG[E, B]): ResultG[E, B] = fa.flatMap(x => f(x))
 
