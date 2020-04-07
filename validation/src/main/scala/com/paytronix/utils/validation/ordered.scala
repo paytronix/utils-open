@@ -16,7 +16,7 @@
 
 package com.paytronix.utils.validation
 
-import scalaz.Order
+import cats.kernel.Order
 
 import base.{Validated, ValidationError, predicateE}
 
@@ -32,7 +32,7 @@ object ordered {
 
     /** Assert that some value is ordered greater than some value (> x) */
     def greaterThanE[A: Order](error: A => ValidationError)(minimum: A): A => Validated[A] =
-        predicateE(error(minimum))(Order[A].greaterThan(_, minimum))
+        predicateE(error(minimum))(Order[A].gt(_, minimum))
 
     /** Assert that some value is not ordered less than some value (>= x) */
     def noLessThan[A: Order](minimum: A): A => Validated[A] =
@@ -40,7 +40,7 @@ object ordered {
 
     /** Assert that some value is not ordered less than some value (>= x) */
     def noLessThanE[A: Order](error: A => ValidationError)(minimum: A): A => Validated[A] =
-        predicateE(error(minimum))(Order[A].greaterThanOrEqual(_, minimum))
+        predicateE(error(minimum))(Order[A].gteqv(_, minimum))
 
     /** Assert that some value is ordered lesser than some value (< x) */
     def lessThan[A: Order](maximum: A): A => Validated[A] =
@@ -48,7 +48,7 @@ object ordered {
 
     /** Assert that some value is ordered lesser than some value (< x) */
     def lessThanE[A: Order](error: A => ValidationError)(maximum: A): A => Validated[A] =
-        predicateE(error(maximum))(Order[A].lessThan(_, maximum))
+        predicateE(error(maximum))(Order[A].lt(_, maximum))
 
     /** Assert that some value is not ordered lesser than some value (<= x) */
     def noGreaterThan[A: Order](maximum: A): A => Validated[A] =
@@ -56,5 +56,5 @@ object ordered {
 
     /** Assert that some value is not ordered lesser than some value (<= x) */
     def noGreaterThanE[A: Order](error: A => ValidationError)(maximum: A): A => Validated[A] =
-        predicateE(error(maximum))(Order[A].lessThanOrEqual(_, maximum))
+        predicateE(error(maximum))(Order[A].lteqv(_, maximum))
 }

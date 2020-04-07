@@ -134,10 +134,10 @@ object string {
 
     /** Assert that the string conforms to the valid email address format */
     def validEmailAddressE(message: ValidationError): String => Validated[String] =
-        matchesE(invalidEmailError)(ValidEmail)
+        matchesE(message)(ValidEmail)
 
     /** Return a boolean indicating whether the string conforms to the valid email address format */
     def isValidEmailAddress(email: String): Boolean =
-        validEmailAddress(email).isSuccess
+        validEmailAddress(email).isValid
 }
 

@@ -16,9 +16,8 @@
 
 package com.paytronix.utils.validation
 
-import scalaz.Failure
-import scalaz.IList
-import scalaz.NonEmptyList.nel
+import cats.data.NonEmptyList
+import cats.data.Validated.Invalid
 
 import base.{Validated, ValidationError, failure, success, validationFunctionOps}
 
@@ -94,16 +93,31 @@ object column {
     def polyColumns[A, B](seed: A)(f: ColumnValidationFunction[A, B]): Seq[String] => Validated[B] =
         polyColumnsE[A, B](unknownColumnError)(seed)(f)
 
+//    type ColumnValidationFunction[A, B] = ((A, Columns)) => Validated[(B, Columns)]
+//    type Columns = List[(String, Int)]
+
     /** More general type of column validation where the validation function is A => B not A => A. */
+    def polyColumnsE[A, B](unknownColumn: String => ValidationError)(seed: A)(f: ((A, Columns)) => Validated[(B, Columns)]): Seq[String] => Validated[B] =
+        cols => {
+            f((seed, cols.toList.zipWithIndex)) and {
+                case (output, Nil) =>
+                    success(output)
+                case (_, unknownCol :: unknownCols) =>
+                    Invalid(NonEmptyList(unknownCol, unknownCols).map { case (name, _) => unknownColumn(name) })
+            }
+        }
+
+/*
     def polyColumnsE[A, B](unknownColumn: String => ValidationError)(seed: A)(f: ColumnValidationFunction[A, B]): Seq[String] => Validated[B] =
         cols => {
             f((seed, cols.toList.zipWithIndex)) and {
                 case (output, Nil) =>
                     success(output)
                 case (_, unknownCol :: unknownCols) =>
-                    Failure(nel(unknownCol, IList.fromList(unknownCols)).map { case (name, _) => unknownColumn(name) })
+                    Invalid(NonEmptyList(unknownCol, List(unknownCols)).map { case (name, _) => unknownColumn(name) })
             }
         }
+*/
 
     /** Require that a column is present in the given input. Applies the given update with the column index to the input value to produce an output. */
     def required[A, B](c: String, update: (A, Int) => B): ColumnValidationFunction[A, B] =

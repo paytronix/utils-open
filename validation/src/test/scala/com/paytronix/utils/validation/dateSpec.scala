@@ -16,17 +16,12 @@
 
 package com.paytronix.utils.validation
 
+import cats.data.NonEmptyList
 import java.util.Calendar
-import scala.util.Random
-
 import org.joda.time.{DateTime, DateTimeZone, LocalDate, LocalDateTime, LocalTime, Period}
 import org.joda.time.format.{ISODateTimeFormat, ISOPeriodFormat, PeriodFormat}
 import org.scalacheck.{Arbitrary, Gen}
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
-import org.specs2.matcher.MatchResult
-import scalaz.NonEmptyList.nels
-
-import Arbitrary.arbitrary
 
 import base.valueOps
 import date._
@@ -83,25 +78,25 @@ class dateTest extends SpecificationWithJUnit with ScalaCheck {
     """
 
     def dateTimeWithFormat1       = prop { (dt:  DateTime     ) => (dt.toString(ISODateTimeFormat.dateTime)      is dateTimeWithFormat(ISODateTimeFormat.dateTime)) ==== base.success(dt) }
-    def dateTimeWithFormats1      = prop { (dt:  DateTime     ) => (dt.toString(ISODateTimeFormat.dateTime)      is dateTimeWithFormats(nels(ISODateTimeFormat.dateTime, ISODateTimeFormat.basicDateTime))) ==== base.success(dt) }
-    def dateTimeWithFormats2      = prop { (dt:  DateTime     ) => (dt.toString(ISODateTimeFormat.dateTime)      is dateTimeWithFormats(nels(ISODateTimeFormat.basicDateTime, ISODateTimeFormat.dateTime))) ==== base.success(dt) }
-    def dateTimeWithFormats3      = prop { (dt:  DateTime     ) => (dt.toString(ISODateTimeFormat.basicDateTime) is dateTimeWithFormats(nels(ISODateTimeFormat.basicDateTime, ISODateTimeFormat.dateTime))) ==== base.success(dt) }
+    def dateTimeWithFormats1      = prop { (dt:  DateTime     ) => (dt.toString(ISODateTimeFormat.dateTime)      is dateTimeWithFormats(NonEmptyList.of(ISODateTimeFormat.dateTime, ISODateTimeFormat.basicDateTime))) ==== base.success(dt) }
+    def dateTimeWithFormats2      = prop { (dt:  DateTime     ) => (dt.toString(ISODateTimeFormat.dateTime)      is dateTimeWithFormats(NonEmptyList.of(ISODateTimeFormat.basicDateTime, ISODateTimeFormat.dateTime))) ==== base.success(dt) }
+    def dateTimeWithFormats3      = prop { (dt:  DateTime     ) => (dt.toString(ISODateTimeFormat.basicDateTime) is dateTimeWithFormats(NonEmptyList.of(ISODateTimeFormat.basicDateTime, ISODateTimeFormat.dateTime))) ==== base.success(dt) }
     def localDateWithFormat1      = prop { (ld:  LocalDate    ) => (ld.toString("yyyy-MM-dd")                    is localDateWithFormat("yyyy-MM-dd")) ==== base.success(ld) }
-    def localDateWithFormats1     = prop { (ld:  LocalDate    ) => (ld.toString("yyyy-MM-dd")                    is localDateWithFormats(nels("yyyy-MM-dd", "yyyyMMdd"))) ==== base.success(ld) }
-    def localDateWithFormats2     = prop { (ld:  LocalDate    ) => (ld.toString("yyyy-MM-dd")                    is localDateWithFormats(nels("yyyyMMdd", "yyyy-MM-dd"))) ==== base.success(ld) }
-    def localDateWithFormats3     = prop { (ld:  LocalDate    ) => (ld.toString("yyyyMMdd")                      is localDateWithFormats(nels("yyyyMMdd", "yyyy-MM-dd"))) ==== base.success(ld) }
+    def localDateWithFormats1     = prop { (ld:  LocalDate    ) => (ld.toString("yyyy-MM-dd")                    is localDateWithFormats(NonEmptyList.of("yyyy-MM-dd", "yyyyMMdd"))) ==== base.success(ld) }
+    def localDateWithFormats2     = prop { (ld:  LocalDate    ) => (ld.toString("yyyy-MM-dd")                    is localDateWithFormats(NonEmptyList.of("yyyyMMdd", "yyyy-MM-dd"))) ==== base.success(ld) }
+    def localDateWithFormats3     = prop { (ld:  LocalDate    ) => (ld.toString("yyyyMMdd")                      is localDateWithFormats(NonEmptyList.of("yyyyMMdd", "yyyy-MM-dd"))) ==== base.success(ld) }
     def localDateTimeWithFormat1  = prop { (ldt: LocalDateTime) => (ldt.toString("yyyy-MM-dd'T'HH:mm:ss.SSS")    is localDateTimeWithFormat("yyyy-MM-dd'T'HH:mm:ss.SSS")) ==== base.success(ldt) }
-    def localDateTimeWithFormats1 = prop { (ldt: LocalDateTime) => (ldt.toString("yyyy-MM-dd'T'HH:mm:ss.SSS")    is localDateTimeWithFormats(nels("yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyyMMdd'T'HHmmss.SSS"))) ==== base.success(ldt) }
-    def localDateTimeWithFormats2 = prop { (ldt: LocalDateTime) => (ldt.toString("yyyy-MM-dd'T'HH:mm:ss.SSS")    is localDateTimeWithFormats(nels("yyyyMMdd'T'HHmmss.SSS", "yyyy-MM-dd'T'HH:mm:ss.SSS"))) ==== base.success(ldt) }
-    def localDateTimeWithFormats3 = prop { (ldt: LocalDateTime) => (ldt.toString("yyyyMMdd'T'HHmmss.SSS")        is localDateTimeWithFormats(nels("yyyyMMdd'T'HHmmss.SSS", "yyyy-MM-dd'T'HH:mm:ss.SSS"))) ==== base.success(ldt) }
+    def localDateTimeWithFormats1 = prop { (ldt: LocalDateTime) => (ldt.toString("yyyy-MM-dd'T'HH:mm:ss.SSS")    is localDateTimeWithFormats(NonEmptyList.of("yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyyMMdd'T'HHmmss.SSS"))) ==== base.success(ldt) }
+    def localDateTimeWithFormats2 = prop { (ldt: LocalDateTime) => (ldt.toString("yyyy-MM-dd'T'HH:mm:ss.SSS")    is localDateTimeWithFormats(NonEmptyList.of("yyyyMMdd'T'HHmmss.SSS", "yyyy-MM-dd'T'HH:mm:ss.SSS"))) ==== base.success(ldt) }
+    def localDateTimeWithFormats3 = prop { (ldt: LocalDateTime) => (ldt.toString("yyyyMMdd'T'HHmmss.SSS")        is localDateTimeWithFormats(NonEmptyList.of("yyyyMMdd'T'HHmmss.SSS", "yyyy-MM-dd'T'HH:mm:ss.SSS"))) ==== base.success(ldt) }
     def localTimeWithFormat1      = prop { (lt:  LocalTime    ) => (lt.toString("HH:mm:ss.SSS")                  is localTimeWithFormat("HH:mm:ss.SSS")) ==== base.success(lt) }
-    def localTimeWithFormats1     = prop { (lt:  LocalTime    ) => (lt.toString("HH:mm:ss.SSS")                  is localTimeWithFormats(nels("HH:mm:ss.SSS", "HHmmss.SSS"))) ==== base.success(lt) }
-    def localTimeWithFormats2     = prop { (lt:  LocalTime    ) => (lt.toString("HH:mm:ss.SSS")                  is localTimeWithFormats(nels("HHmmss.SSS", "HH:mm:ss.SSS"))) ==== base.success(lt) }
-    def localTimeWithFormats3     = prop { (lt:  LocalTime    ) => (lt.toString("HHmmss.SSS")                    is localTimeWithFormats(nels("HHmmss.SSS", "HH:mm:ss.SSS"))) ==== base.success(lt) }
+    def localTimeWithFormats1     = prop { (lt:  LocalTime    ) => (lt.toString("HH:mm:ss.SSS")                  is localTimeWithFormats(NonEmptyList.of("HH:mm:ss.SSS", "HHmmss.SSS"))) ==== base.success(lt) }
+    def localTimeWithFormats2     = prop { (lt:  LocalTime    ) => (lt.toString("HH:mm:ss.SSS")                  is localTimeWithFormats(NonEmptyList.of("HHmmss.SSS", "HH:mm:ss.SSS"))) ==== base.success(lt) }
+    def localTimeWithFormats3     = prop { (lt:  LocalTime    ) => (lt.toString("HHmmss.SSS")                    is localTimeWithFormats(NonEmptyList.of("HHmmss.SSS", "HH:mm:ss.SSS"))) ==== base.success(lt) }
     def periodWithFormat1         = prop { (p:   Period       ) => (p.toString(ISOPeriodFormat.standard)         is periodWithFormat(ISOPeriodFormat.standard)) ==== base.success(p) }
-    def periodWithFormats1        = prop { (p:   Period       ) => (p.toString(ISOPeriodFormat.standard)         is periodWithFormats(nels(ISOPeriodFormat.standard, PeriodFormat.wordBased))) ==== base.success(p) }
-    def periodWithFormats2        = prop { (p:   Period       ) => (p.toString(ISOPeriodFormat.standard)         is periodWithFormats(nels(PeriodFormat.wordBased, ISOPeriodFormat.standard))) ==== base.success(p) }
-    def periodWithFormats3        = prop { (p:   Period       ) => (p.toString(PeriodFormat.wordBased)           is periodWithFormats(nels(PeriodFormat.wordBased, ISOPeriodFormat.standard))) ==== base.success(p) }
+    def periodWithFormats1        = prop { (p:   Period       ) => (p.toString(ISOPeriodFormat.standard)         is periodWithFormats(NonEmptyList.of(ISOPeriodFormat.standard, PeriodFormat.wordBased))) ==== base.success(p) }
+    def periodWithFormats2        = prop { (p:   Period       ) => (p.toString(ISOPeriodFormat.standard)         is periodWithFormats(NonEmptyList.of(PeriodFormat.wordBased, ISOPeriodFormat.standard))) ==== base.success(p) }
+    def periodWithFormats3        = prop { (p:   Period       ) => (p.toString(PeriodFormat.wordBased)           is periodWithFormats(NonEmptyList.of(PeriodFormat.wordBased, ISOPeriodFormat.standard))) ==== base.success(p) }
 }
 
 class javaDateTest extends SpecificationWithJUnit with ScalaCheck {

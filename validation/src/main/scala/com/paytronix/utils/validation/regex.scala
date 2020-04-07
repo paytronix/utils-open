@@ -19,15 +19,13 @@ package com.paytronix.utils.validation
 import java.util.regex.PatternSyntaxException
 import scala.util.matching.Regex
 
-import scalaz.{Failure, Success}
-import scalaz.NonEmptyList.nels
+import cats.data.NonEmptyList
+import cats.data.Validated.{Invalid, Valid}
 
 import base.{Validated, ValidationError, missingValueError}
 import string.nonBlankE
 
 object regex {
-    import string.nonBlank
-
     /** Assert that a String is nonblank and parse it as a regular expression */
     val pattern: String => Validated[Regex] =
         patternE(missingValueError, t => ValidationError("invalid_regex", Option(t.getMessage) getOrElse t.toString))
@@ -35,7 +33,7 @@ object regex {
     /** Assert that a String is nonblank and parse it as a regular expression */
     def patternE(missingValue: ValidationError, parseError: PatternSyntaxException => ValidationError): String => Validated[Regex] =
         nonBlankE(missingValue) and { s =>
-            try Success(s.r) catch { case e: PatternSyntaxException => Failure(nels(parseError(e))) }
+            try Valid(s.r) catch { case e: PatternSyntaxException => Invalid(NonEmptyList.one(parseError(e))) }
         }
 }
 

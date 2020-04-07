@@ -16,8 +16,9 @@
 
 package com.paytronix.utils.validation
 
+import cats.data.NonEmptyList
+import cats.data.Validated.Invalid
 import org.specs2.SpecificationWithJUnit
-import scalaz.{Failure, IList, NonEmptyList}
 
 import base.{ValidationError, valueOps}
 import enumeration._
@@ -38,9 +39,9 @@ class enumerationDefinedInTest extends SpecificationWithJUnit {
     val customVE = ValidationError("foo")
 
     def e1 = (1 is definedIn(pf)) ==== base.success("one")
-    def e2 = (2 is definedIn(pf)) must beLike { case Failure(_) => ok }
-    def e3 = (3 is definedIn(pf)) must beLike { case Failure(NonEmptyList(ve)) => (ve.code ==== "invalid_enumeration") and (ve.text ==== """value "3" is not an allowed option for this field""") }
-    def e4 = (4 is definedInE[Int, String](_ => customVE)(pf)) must beLike { case Failure(NonEmptyList(ve)) => ve ==== customVE }
+    def e2 = (2 is definedIn(pf)) must beLike { case Invalid(_) => ok }
+    def e3 = (3 is definedIn(pf)) must beLike { case Invalid(NonEmptyList(ve, Nil)) => (ve.code ==== "invalid_enumeration") and (ve.text ==== """value "3" is not an allowed option for this field""") }
+    def e4 = (4 is definedInE[Int, String](_ => customVE)(pf)) must beLike { case Invalid(NonEmptyList(ve, Nil)) => ve ==== customVE }
 }
 
 object TestScalaEnum extends Enumeration {
@@ -59,9 +60,9 @@ class enumerationValueOfTest extends SpecificationWithJUnit {
     val customVE = ValidationError("foo")
 
     def e1 = ("1" is valueOf(TestScalaEnum)) ==== base.success(TestScalaEnum.one)
-    def e2 = ("2" is valueOf(TestScalaEnum)) must beLike { case Failure(_) => ok }
-    def e3 = ("3" is valueOf(TestScalaEnum)) must beLike { case Failure(NonEmptyList(ve)) => (ve.code ==== "invalid_enumeration") and (ve.text ==== """value "3" is not an allowed option for this field""") }
-    def e4 = ("4" is valueOfE(_ => customVE)(TestScalaEnum)) must beLike { case Failure(NonEmptyList(ve)) => ve ==== customVE }
+    def e2 = ("2" is valueOf(TestScalaEnum)) must beLike { case Invalid(_) => ok }
+    def e3 = ("3" is valueOf(TestScalaEnum)) must beLike { case Invalid(NonEmptyList(ve, Nil)) => (ve.code ==== "invalid_enumeration") and (ve.text ==== """value "3" is not an allowed option for this field""") }
+    def e4 = ("4" is valueOfE(_ => customVE)(TestScalaEnum)) must beLike { case Invalid(NonEmptyList(ve, Nil)) => ve ==== customVE }
 }
 
 class enumerationValueOfJavaEnumTest extends SpecificationWithJUnit {
@@ -76,7 +77,7 @@ class enumerationValueOfJavaEnumTest extends SpecificationWithJUnit {
     val customVE = ValidationError("foo")
 
     def e1 = ("ONE"   is valueOfJavaEnum(classOf[TestJavaEnum])) ==== base.success(TestJavaEnum.ONE)
-    def e2 = ("TWO"   is valueOfJavaEnum(classOf[TestJavaEnum])) must beLike { case Failure(_) => ok }
-    def e3 = ("THREE" is valueOfJavaEnum(classOf[TestJavaEnum])) must beLike { case Failure(NonEmptyList(ve)) => (ve.code ==== "invalid_enumeration") and (ve.text ==== """value "THREE" is not an allowed option for this field""") }
-    def e4 = ("FOUR"  is valueOfJavaEnumE(_ => customVE)(classOf[TestJavaEnum])) must beLike { case Failure(NonEmptyList(ve)) => ve ==== customVE }
+    def e2 = ("TWO"   is valueOfJavaEnum(classOf[TestJavaEnum])) must beLike { case Invalid(_) => ok }
+    def e3 = ("THREE" is valueOfJavaEnum(classOf[TestJavaEnum])) must beLike { case Invalid(NonEmptyList(ve, Nil)) => (ve.code ==== "invalid_enumeration") and (ve.text ==== """value "THREE" is not an allowed option for this field""") }
+    def e4 = ("FOUR"  is valueOfJavaEnumE(_ => customVE)(classOf[TestJavaEnum])) must beLike { case Invalid(NonEmptyList(ve, Nil)) => ve ==== customVE }
 }

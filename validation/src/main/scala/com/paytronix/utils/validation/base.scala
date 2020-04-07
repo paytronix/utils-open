@@ -16,19 +16,13 @@
 
 package com.paytronix.utils.validation
 
-import scalaz.{@@, NonEmptyList, Tag, Failure, Success, ValidationNel}
-import scalaz.Id.Id
-import scalaz.Kleisli.kleisli
-import scalaz.Tags.First
-import scalaz.std.option.optionFirst
-import scalaz.std.string.stringInstance
-import scalaz.syntax.foldable.ToFoldableOps /* .foldLeft, .intercalate */
+import cats.data.{NonEmptyList, ValidatedNel}
+import cats.data.Validated.{Valid, Invalid}
+import cats.implicits.{catsKernelStdMonoidForString, toFoldableOps}
 import shapeless.{::, HList, HNil, Poly2}
 import shapeless.ops.hlist.RightFolder
 
 import com.paytronix.utils.scala.result.{Failed, FailedG, Okay, Result, ResultG}
-
-import NonEmptyList.nels
 
 /**
  * Basic primitives for composing validations of values that can transform the value as it's being validated (e.g. instead of just testing a
@@ -56,7 +50,7 @@ import NonEmptyList.nels
  */
 object base {
     /** The type of a validated value. `Left(errors)` indicates the value did not pass validation, and `Right(v)` indicates it did pass. */
-    type Validated[+A] = ValidationNel[ValidationError, A]
+    type Validated[+A] = ValidatedNel[ValidationError, A]
 
     /** Type of field paths, represented by a list of field names. Empty list indicates a scalar value */
     type ErrorPath = List[String]
@@ -99,11 +93,11 @@ object base {
 
     /** Make a `Success` with a value */
     def success[A](value: A): Validated[A] =
-        Success(value)
+        Valid(value)
 
     /** Make a `Failure` with a `NonEmptyList` of the given errors */
     def failure(error: ValidationError, errors: ValidationError*): Validated[Nothing] =
-        Failure(nels(error, errors: _*))
+        Invalid(NonEmptyList.of(error, errors: _*))
 
     /**
      * Combine a series of `Validated` values from a `HList` into a single `Validated` value containing either the validated
@@ -116,27 +110,27 @@ object base {
      *         field("bar", 1 is positive()) ::
      *         HNil
      *     )
-     *     == Success("foo" :: 1 :: HNil): Validated[String :: Int :: HNil]
+     *     == Valid("foo" :: 1 :: HNil): Validated[String :: Int :: HNil]
      *
      *     validate (
      *         field("foo", "foo" is nonBlank()) ::
      *         field("bar", -1 is positive()) ::
      *         HNil
      *     )
-     *     == Failure(NonEmptyList(ValidationError("At bar: invalid_negative_or_zero: positive value required"))
+     *     == Invalid(NonEmptyList(ValidationError("At bar: invalid_negative_or_zero: positive value required"))
      * }}}
      */
     def validate[L <: HList](in: L)(implicit folder: RightFolder[L, Validated[HNil], combineValidated.type]): folder.Out =
-        in.foldRight(Success(HNil): Validated[HNil])(combineValidated)
+        in.foldRight(Valid(HNil): Validated[HNil])(combineValidated)
 
     object combineValidated extends Poly2 {
         implicit def caseValidatedValidated[A, B <: HList] = at[Validated[A], Validated[B]] { (l, r) =>
             identity[Validated[A :: B]] {
                 (l, r) match {
-                    case (Failure(newErrors), Failure(existingErrors)) => Failure(newErrors append existingErrors)
-                    case (Failure(newErrors), _                      ) => Failure(newErrors)
-                    case (_,                  Failure(existingErrors)) => Failure(existingErrors)
-                    case (Success(newValue),  Success(existingValues)) => Success(newValue :: existingValues)
+                    case (Invalid(newErrors), Invalid(existingErrors)) => Invalid(newErrors.concatNel(existingErrors))
+                    case (Invalid(newErrors), _                      ) => Invalid(newErrors)
+                    case (_,                  Invalid(existingErrors)) => Invalid(existingErrors)
+                    case (Valid(newValue),    Valid(existingValues))   => Valid(newValue :: existingValues)
                 }
             }
         }
@@ -160,8 +154,8 @@ object base {
     def validationErrorsToMap(in: NonEmptyList[ValidationError]): ValidationErrorMap =
         in.foldLeft[ValidationErrorMap](Map.empty) { (m, ve) =>
             val errors = m.get(ve.location) match {
-                case Some(errors) => ve <:: errors
-                case None         => nels(ve)
+                case Some(errors) => errors.append(ve)
+                case None         => NonEmptyList.one(ve)
             }
             m + (ve.location -> errors)
         }
@@ -244,43 +238,48 @@ object base {
      * Apply some validation but if it succeeds ignore the result and use the input.
      * That is, just assert the condition, but do not use the conversion of some validation
      */
-    def onlyAssert[A](f: A => Validated[_]): A => Validated[A] =
+    def onlyAssert[A](f: A => Validated[_]): A => Validated[A] = {
         in => f(in).map(_ => in)
+    }
 
     /** Apply a validation only if a boolean is true */
-    def when[A](condition: Boolean)(f: A => Validated[A]): A => Validated[A] =
+    def when[A](condition: Boolean)(f: A => Validated[A]): A => Validated[A] = {
         in => if (condition) f(in)
-              else Success(in)
+              else Valid(in)
+    }
 
     /** Apply some predicate function, failing validation if the predicate fails */
-    def predicateE[A](error: ValidationError)(p: A => Boolean): A => Validated[A] =
-        a => if (p(a)) Success(a) else Failure(nels(error))
+    def predicateE[A](error: ValidationError)(p: A => Boolean): A => Validated[A] = {
+        a => if (p(a)) Valid(a) else Invalid(NonEmptyList.one(error))
+    }
 
     /** Accept the value with the first validation function `A => Validated[B]` which doesn't fail */
-    def any[A, B](fs: NonEmptyList[A => Validated[B]]) =
+    def any[A, B](fs: NonEmptyList[A => Validated[B]]) = {
         anyE(generalError)(fs)
+    }
 
     /** Accept the value with the first validation function `A => Validated[B]` which doesn't fail */
     def anyE[A, B](error: ValidationError)(fs: NonEmptyList[A => Validated[B]]): A => Validated[B] = {
-        def unFirst[A](in: A @@ First): A = Tag.unsubst[A, Id, First](in)
-        a => unFirst(fs.foldMap(f => First(f(a).toOption))) match {
-            case Some(result) => Success(result)
-            case None         => Failure(nels(error))
+        a => fs.collectFirstSome(f => f(a).toOption) match {
+            case Some(result) => Valid(result)
+            case None         => Invalid(NonEmptyList.one(error))
         }
     }
 
     /** Extend a validation kleisli `A => Validated[B]` with the `and` combinator, equivalent to reversed kleisli composition */
     implicit class validationFunctionOps[A, B](f: A => Validated[B]) {
         /** Compose a validation function with another, from left to right */
-        def and[C](g: B => Validated[C]): A => Validated[C] =
+        def and[C](g: B => Validated[C]): A => Validated[C] = {
             a => f(a) match {
-                case Success(b) => g(b)
-                case Failure(errors) => Failure(errors)
+                case Valid(b)           => g(b)
+                case invalid@Invalid(_) => invalid
             }
+        }
 
         /** Map the output value of the validation function */
-        def map[C](g: B => C): A => Validated[C] =
+        def map[C](g: B => C): A => Validated[C] = {
             a => f(a).map(g)
+        }
     }
 
     /** Extend a `Validated[A]` with the `and` combinator */
@@ -288,25 +287,25 @@ object base {
         /** Apply a `ValidationFunction` to a `Validated` value */
         def and[B](rhs: A => Validated[B]): Validated[B] =
             lhs match {
-                case Success(b) => rhs(b)
-                case Failure(errors) => Failure(errors)
+                case Valid(b)        => rhs(b)
+                case Invalid(errors) => Invalid(errors)
             }
 
         /** Convert the `Validated` to a `ResultG` containing the same information */
         def toResultG: ResultG[NonEmptyList[ValidationError], A] =
             lhs match {
-                case Success(a)      => Okay(a)
-                case Failure(errors) => FailedG("validation failed", errors)
+                case Valid(a)        => Okay(a)
+                case Invalid(errors) => FailedG("validation failed", errors)
             }
 
         /** Convert the `Validated` to a simple `Result` with all validation errors packed into the message */
         def toResult: Result[A] =
             lhs match {
-                case Success(a) => Okay(a)
-                case Failure(errors) => Failed(validationErrorsToString(errors))
+                case Valid(a)        => Okay(a)
+                case Invalid(errors) => Failed(validationErrorsToString(errors))
             }
 
-        /** Yield the `Success` value or throw an exception with the validation errors as the message */
+        /** Yield the `Valid` value or throw an exception with the validation errors as the message */
         def orThrow: A =
             toResult.orThrow
     }

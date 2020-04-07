@@ -74,7 +74,7 @@
     <properties>
         <maven.version>3.6.2</maven.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <revision>20.0-hiawatha_pxs-SNAPSHOT</revision>
+        <revision>20.0-scala2_12-SNAPSHOT</revision>
         <scala.version>2.12.10</scala.version>
         <scala.compatibility.version>2.12</scala.compatibility.version>
     </properties>
@@ -321,6 +321,9 @@
                                 <arg>-Ywarn-value-discard</arg>
                                 <arg>-Ywarn-unused</arg>
                                 <arg>-Ywarn-unused-import</arg>
+<!--
+                                <jvmArg>-Xprint:typer</jvmArg>
+-->
                                 <arg>-deprecation</arg>
                                 <!-- prints a bunch of VERY verbose macro debugging information -->
                                 <!--<arg>-Ymacro-debug-lite</arg>-->
@@ -353,8 +356,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.9</source>
-                    <target>1.9</target>
+                    <source>11</source>
+                    <target>11</target>
                     <args>
                         <arg>-Xlint:deprecation</arg>
                     </args>

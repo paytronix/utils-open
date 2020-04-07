@@ -16,11 +16,10 @@
 
 package com.paytronix.utils.validation
 
-import scala.util.control.Exception.catching
-import scala.language.implicitConversions
+import cats.kernel.Order
 
 import base.{Validated, ValidationError, failure, missingValueError, predicateE, success}
-import ordered.{tooSmallErrorExclusive, tooSmallError, tooLargeErrorExclusive, tooLargeError}
+import ordered.{tooSmallError, tooLargeError}
 
 object numeric {
     val nonPositiveError                  = ValidationError("invalid_negative_or_zero", "positive value required")
@@ -28,39 +27,39 @@ object numeric {
     val negativeError                     = ValidationError("invalid_negative", "non-negative value required")
     val positiveError                     = ValidationError("invalid_positive", "non-positive value required")
 
-    private def toScalazOrder[A](implicit o: Numeric[A]): scalaz.Order[A] = scalaz.Order.fromScalaOrdering(o)
+    private def toOrder[A](implicit o: Numeric[A]): Order[A] = Order.fromOrdering(o)
 
     /** Assert that some value is ordered greater than some value (> x) */
     def greaterThan[A: Numeric](minimum: A): A => Validated[A] =
-        ordered.greaterThan[A](minimum)(toScalazOrder)
+        ordered.greaterThan[A](minimum)(toOrder)
 
     /** Assert that some value is ordered greater than some value (> x) */
     def greaterThanE[A: Numeric](error: A => ValidationError)(minimum: A): A => Validated[A] =
-        ordered.greaterThanE[A](error)(minimum)(toScalazOrder)
+        ordered.greaterThanE[A](error)(minimum)(toOrder)
 
     /** Assert that some value is not ordered less than some value (>= x) */
     def noLessThan[A: Numeric](minimum: A): A => Validated[A] =
-        ordered.noLessThan[A](minimum)(toScalazOrder)
+        ordered.noLessThan[A](minimum)(toOrder)
 
     /** Assert that some value is not ordered less than some value (>= x) */
     def noLessThanE[A: Numeric](error: A => ValidationError)(minimum: A): A => Validated[A] =
-        ordered.noLessThanE[A](error)(minimum)(toScalazOrder)
+        ordered.noLessThanE[A](error)(minimum)(toOrder)
 
     /** Assert that some value is ordered lesser than some value (< x) */
     def lessThan[A: Numeric](maximum: A): A => Validated[A] =
-        ordered.lessThan[A](maximum)(toScalazOrder)
+        ordered.lessThan[A](maximum)(toOrder)
 
     /** Assert that some value is ordered lesser than some value (< x) */
     def lessThanE[A: Numeric](error: A => ValidationError)(maximum: A): A => Validated[A] =
-        ordered.lessThanE[A](error)(maximum)(toScalazOrder)
+        ordered.lessThanE[A](error)(maximum)(toOrder)
 
     /** Assert that some value is not ordered lesser than some value (<= x) */
     def noGreaterThan[A: Numeric](maximum: A): A => Validated[A] =
-        ordered.noGreaterThan[A](maximum)(toScalazOrder)
+        ordered.noGreaterThan[A](maximum)(toOrder)
 
     /** Assert that some value is not ordered lesser than some value (<= x) */
     def noGreaterThanE[A: Numeric](error: A => ValidationError)(maximum: A): A => Validated[A] =
-        ordered.noGreaterThanE[A](error)(maximum)(toScalazOrder)
+        ordered.noGreaterThanE[A](error)(maximum)(toOrder)
 
     /** Assert that some number is positive (> 0) */
     def positive[A: Numeric]: A => Validated[A] =

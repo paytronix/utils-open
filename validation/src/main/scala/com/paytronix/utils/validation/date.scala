@@ -16,16 +16,14 @@
 
 package com.paytronix.utils.validation
 
-import scala.language.implicitConversions
-
+import cats.data.NonEmptyList
 import java.util.TimeZone
 import org.joda.time.{DateTime, DateTimeZone, LocalDate, LocalDateTime, LocalTime, Period, ReadableInstant}
 import org.joda.time.base.AbstractPartial
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter, ISODateTimeFormat, PeriodFormatter}
-import scalaz.NonEmptyList
+import scala.language.implicitConversions
 
 import base.{Validated, ValidationError, anyE, failure, predicateE, success}
-import NonEmptyList.nels
 
 object date {
     val invalidDateFormatError = ValidationError("invalid_date", "invalid date") // FIXME? explain what is expected?
@@ -166,7 +164,7 @@ object date {
 
     /** Parse a string as a `DateTime` using ISO8601 formats */
     def isoDateTimeE(error: ValidationError): String => Validated[DateTime] =
-        dateTimeWithFormatsE(error)(nels(ISODateTimeFormat.dateTime, ISODateTimeFormat.dateTimeNoMillis))
+        dateTimeWithFormatsE(error)(NonEmptyList.of(ISODateTimeFormat.dateTime, ISODateTimeFormat.dateTimeNoMillis))
 
     /** Parse a string as a `DateTime` using ISO8601-ish formats (ISO8601 but without TZ suffix) */
     val isoishLocalDateTime: String => Validated[LocalDateTime] =
@@ -174,7 +172,7 @@ object date {
 
     /** Parse a string as a `LocalDateTime` using the ISO8601-ish formats `yyyy-MM-dd'T'HH:mm:ss`, `yyyy-MM-dd'T'HH:mm:ss.SSS` */
     def isoishLocalDateTimeE(error: ValidationError): String => Validated[LocalDateTime] =
-        localDateTimeWithFormatsE(error)(nels("yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss"))
+        localDateTimeWithFormatsE(error)(NonEmptyList.of("yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss"))
 
     /** Parse a string as a `LocalDate` using the ISO8601 format `yyyy-mm-dd` */
     val isoDate: String => Validated[LocalDate] =
@@ -190,7 +188,7 @@ object date {
 
     /** Parse a string as a `LocalTime` using the ISO8601 format `hh:mm:ss.SSS` or `hh:mm:ss` */
     def isoTimeE(error: ValidationError): String => Validated[LocalTime] =
-        localTimeWithFormatsE(error)(nels(ISODateTimeFormat.localTimeParser))
+        localTimeWithFormatsE(error)(NonEmptyList.of(ISODateTimeFormat.localTimeParser))
 
     def mustBeBeforeError   (limit: ReadableInstant) = ValidationError("invalid_date", "date must be before " + limit)
     def mustNotBeBeforeError(limit: ReadableInstant) = ValidationError("invalid_date", "date must not be before " + limit)

@@ -16,14 +16,14 @@
 
 package com.paytronix.utils.validation
 
+import cats.data.NonEmptyList
+import cats.data.Validated.Invalid
 import org.specs2.SpecificationWithJUnit
-import scalaz.{NonEmptyList, Failure, Success}
 import shapeless.HNil
 
-import com.paytronix.utils.scala.result.{Failed, FailedException, FailedG, Okay, Result, ResultG}
+import com.paytronix.utils.scala.result.{FailedException, FailedG, Okay}
 
 import base.{Validated, ValidationError, field, validate}
-import NonEmptyList.nels
 
 object baseSpecFixtures {
     val nope = ValidationError("nope")
@@ -62,13 +62,13 @@ class fieldTest extends SpecificationWithJUnit {
     """
 
     def field1 = field("g", field("f", base.failure(ValidationError("foo")))) must beLike {
-        case Failure(NonEmptyList(failure)) => failure.location ==== List("g", "f")
+        case Invalid(NonEmptyList(failure, Nil)) => failure.location ==== List("g", "f")
     }
     def field2 = field("g", field("f", (x: Int) => base.failure(ValidationError("foo"))))(123) must beLike {
-        case Failure(NonEmptyList(failure)) => failure.location ==== List("g", "f")
+        case Invalid(NonEmptyList(failure, Nil)) => failure.location ==== List("g", "f")
     }
     def field3 = field("f", Map("f" -> 1), base.success[Int] _ and { (x: Int) => base.failure(ValidationError("foo")) }) must beLike {
-        case Failure(NonEmptyList(failure)) => failure.location ==== List("f")
+        case Invalid(NonEmptyList(failure, Nil)) => failure.location ==== List("f")
     }
 
     def validate1 = validate(base.success(1) :: base.success('a') :: base.success("c") :: HNil) ==== base.success(1 :: 'a' :: "c" :: HNil)
@@ -124,10 +124,10 @@ class anyTest extends SpecificationWithJUnit {
         case _ => base.failure(nope)
     }
 
-    def e1 = base.any(nels(f,g))(1) ==== base.success("foo")
-    def e2 = base.any(nels(f,g))(2) ==== base.success("bar")
-    def e3 = base.any(nels(f,g))(3) ==== base.failure(base.generalError)
-    def e4 = base.anyE(reallyNope)(nels(f,g))(3) ==== base.failure(reallyNope)
+    def e1 = base.any(NonEmptyList.of(f,g))(1) ==== base.success("foo")
+    def e2 = base.any(NonEmptyList.of(f,g))(2) ==== base.success("bar")
+    def e3 = base.any(NonEmptyList.of(f,g))(3) ==== base.failure(base.generalError)
+    def e4 = base.anyE(reallyNope)(NonEmptyList.of(f,g))(3) ==== base.failure(reallyNope)
 }
 
 class validatedTest extends SpecificationWithJUnit {
@@ -143,9 +143,9 @@ class validatedTest extends SpecificationWithJUnit {
 
     def and1 = (base.success("foo") and { s => base.success(s + "bar") }) ==== base.success("foobar")
     def toResultG1 = (base.success("foo"): Validated[String]).toResultG ==== Okay("foo")
-    def toResultG2 = (base.failure(nope, reallyNope): Validated[String]).toResultG must beLike { case FailedG(_, p) => p ==== nels(nope, reallyNope) }
+    def toResultG2 = (base.failure(nope, reallyNope): Validated[String]).toResultG must beLike { case FailedG(_, p) => p ==== NonEmptyList.of(nope, reallyNope) }
     def toResult1 = (base.success("foo"): Validated[String]).toResult ==== Okay("foo")
-    def toResult2 = (base.failure(nope, reallyNope): Validated[String]).toResult must beLike { case FailedG(t, ()) => t.getMessage ==== base.validationErrorsToString(nels(nope, reallyNope)) }
+    def toResult2 = (base.failure(nope, reallyNope): Validated[String]).toResult must beLike { case FailedG(t, ()) => t.getMessage ==== base.validationErrorsToString(NonEmptyList.of(nope, reallyNope)) }
     def orThrow1 = (base.success("foo"): Validated[String]).orThrow ==== "foo"
     def orThrow2 = (base.failure(nope): Validated[String]).orThrow must throwA[FailedException]
 }

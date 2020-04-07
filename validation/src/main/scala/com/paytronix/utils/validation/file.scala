@@ -18,9 +18,7 @@ package com.paytronix.utils.validation
 
 import java.io.File
 
-import scalaz.Kleisli.kleisli
-
-import base.{Validated, ValidationError, missingValueError, predicateE, validationFunctionOps}
+import base.{Validated, ValidationError, predicateE, validationFunctionOps}
 
 object file {
     import string.nonBlank
@@ -31,10 +29,6 @@ object file {
 
     /** Assert that a String is nonblank and convert it to a File */
     val path: String => Validated[File] =
-        pathE(missingValueError)
-
-    /** Assert that a String is nonblank and convert it to a File */
-    def pathE(missingValue: ValidationError): String => Validated[File] =
         nonBlank.map(new File(_: String))
 
     /** Assert that a File refers to an existent path (file, directory, or other special file system entity) */
