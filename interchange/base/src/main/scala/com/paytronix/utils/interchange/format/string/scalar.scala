@@ -21,6 +21,7 @@ import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
 import java.time.{LocalDate, LocalDateTime, LocalTime, ZonedDateTime}
 import java.util.{Date => JavaDate}
+import java.util.UUID
 import javax.xml.bind.DatatypeConverter
 import scala.reflect.{ClassTag, classTag}
 import scala.reflect.runtime.universe.{TypeTag, typeTag}
@@ -223,6 +224,17 @@ trait scalar {
         }
         StringCoder.make(encode, decode)
     }
+
+    implicit object uuidStringCoder extends StringCoder[UUID] {
+        object encode extends StringEncoder[UUID] {
+            def run(in: UUID, out: Receiver[String]) = tryCatchResultG(terminal)(out(in.toString))
+        }
+
+        object decode extends StringDecoder[UUID] {
+            def run(in: String, out: Receiver[UUID]) = tryCatchResultG(terminal)(out(UUID.fromString(in)))
+        }
+    }
+
 
     implicit val dateTimeStringCoderIso8601         = dateAsIso8601.zonedDateTimeStringCoder
     implicit val localDateStringCoderIso8601        = dateAsIso8601.localDateStringCoder
