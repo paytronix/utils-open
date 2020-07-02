@@ -883,15 +883,13 @@ object result {
             ResultGT(F.map(run)(_ map f))
 
         def mapF[B](f: A => F[B])(implicit M: Monad[F]): ResultGT[E, F, B] =
-            flatMapF {
-                f andThen (mb => M.map(mb)(Okay(_)))
-            }
+            flatMapF { f andThen (mb => M.map(mb)(Okay(_))) }
 
         def flatMap[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
-            ResultGT(F.bind(run)(_.cpsRes(e => F.point(e), a => f(a).run)))
+            ResultGT(F.bind(run)(_.cpsRes(F.point(_), f(_).run)))
 
         def flatMapF[B](f: A => F[ResultG[E, B]])(implicit F: Monad[F]): ResultGT[E, F, B] =
-            ResultGT(F.bind(run)(_.cpsRes(e => F.point(e), f)))
+            ResultGT(F.bind(run)(_.cpsRes(F.point(_), f)))
 
         def | [D, B >: A](f: FailedG[E] => ResultG[D, B])(implicit F: Functor[F]): ResultGT[D, F, B] =
             ResultGT(F.map(run)(_ | f))
