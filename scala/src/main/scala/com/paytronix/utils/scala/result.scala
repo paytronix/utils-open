@@ -24,9 +24,7 @@ import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 import _root_.scala.reflect.{ClassTag, classTag}
 
-//import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse, Functor}
-import scalaz._
-import Scalaz._
+import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse, Functor, Scalaz}
 
 // FIXME? gotta be a better way
 import scala.annotation.unchecked.uncheckedVariance
@@ -878,6 +876,8 @@ object result {
             builder.result()
         }
     }
+
+    import Scalaz._
 
     /** monad transformer for ResultG */
     final case class ResultGT[E, F[_], A](run: F[ResultG[E, A]]) {

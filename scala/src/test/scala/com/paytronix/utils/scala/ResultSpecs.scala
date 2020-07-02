@@ -18,8 +18,7 @@ package com.paytronix.utils.scala
 
 import org.specs2.SpecificationWithJUnit
 import org.specs2.matcher.{AnyMatchers, Matcher, StandardMatchResults}
-//import scalaz.{\/, -\/, \/-}
-import scalaz._
+import scalaz.{\/, -\/, \/-, Scalaz}
 
 import result._
 
