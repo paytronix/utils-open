@@ -180,9 +180,8 @@ object result {
             if (this.isFailed) this.asInstanceOf[FailedG[E]]
             else sys.error("expected " + this + " to be Failed")
 
-        final def fold[D >: E, B](l: E => D, r: A => B): ResultG[D, B] = 
-            if (this.isOkay) this.asOkay.appR(r)
-            else this.asFailed.appL(l)
+        /** fascilitates continuation passing style over result */
+        def cpsRes[X](failedCont: FailedG[E] => X, okCont: A => X): X
 
         /** Yields an Iterator of the value if Okay, an empty Iterator otherwise */
         def iterator: Iterator[A]
@@ -460,8 +459,7 @@ object result {
         def flatten[E, B](implicit ev: A => ResultG[E, B]): ResultG[E, B] =
             ev(result)
 
-        def appR[B](r: A => B): Okay[B] = 
-            Okay(r(result))
+        def cpsRes[X](failedCont: FailedG[Nothing] => X, okCont: A => X): X = okCont(result)
 
         override def toString =
             "Okay(" + (try { String.valueOf(result) } catch { case _: Exception => "<failed .toString>" }) + ")"
@@ -535,8 +533,7 @@ object result {
         def when(b: Boolean): ResultG[E, Unit] =
             if (b) this else Okay.unit
 
-        def appL[F >: E, B](l: E => F): FailedG[F] = 
-            FailedG[F](throwable, l(parameter))
+        def cpsRes[X](failedCont: FailedG[E] => X, okCont: Nothing => X): X = failedCont(this)
 
         // need to override case class equality because throwables don't compare well
         override def equals(other: Any): Boolean = {
@@ -891,16 +888,10 @@ object result {
             }
 
         def flatMap[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
-            ResultGT(F.bind(run){
-                case Okay(a) => f(a).run
-                case failed@FailedG(_, _) => F.point(failed)
-            })
+            ResultGT(F.bind(run)(_.cpsRes(e => F.point(e), a => f(a).run)))
 
         def flatMapF[B](f: A => F[ResultG[E, B]])(implicit F: Monad[F]): ResultGT[E, F, B] =
-            ResultGT(F.bind(run){
-                case Okay(a) => f(a)
-                case failed@FailedG(_, _) => F.point(failed)
-            })
+            ResultGT(F.bind(run)(_.cpsRes(e => F.point(e), f)))
 
         def | [D, B >: A](f: FailedG[E] => ResultG[D, B])(implicit F: Functor[F]): ResultGT[D, F, B] =
             ResultGT(F.map(run)(_ | f))
@@ -912,10 +903,7 @@ object result {
         def foreach(f: A => Unit)(implicit F: Functor[F]): Unit = { F.map(run)(_ foreach f); () }
 
         def filter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D], F: Functor[F]): ResultGT[D, F, A] =
-            ResultGT(F.map(run) {
-                case filtered@Okay(a) if p(a) => filtered
-                case failed@_ => FailedG(filterFailure, fpd.default)
-            })
+            ResultGT(F.map(run)(_.cpsRes(e => e, a => if (p(a)) Okay(a) else FailedG(filterFailure, fpd.default))))
 
         def withFilter[D >: E](p: A => Boolean)(implicit fdp: FailedParameterDefault[D]): WithFilter[D] = new WithFilter(p)
 
@@ -926,7 +914,8 @@ object result {
             def flatMap[B](f: A => ResultGT[D, F, B])(implicit F: Monad[F]): ResultGT[D, F, B] =
                 ResultGT.this.filter[D](p)(fpd, F).flatMap(f)
 
-            def foreach[U](f: A => Unit)(implicit F: Functor[F]): Unit = ResultGT.this.filter[D](p)(fpd, F).foreach(f)
+            def foreach[U](f: A => Unit)(implicit F: Functor[F]): Unit = 
+                ResultGT.this.filter[D](p)(fpd, F).foreach(f)
 
             def withFilter(q: A => Boolean): WithFilter[D] = new WithFilter(x => p(x) && q(x))
         }
