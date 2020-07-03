@@ -947,7 +947,19 @@ object result {
             def withFilter(q: A => Boolean): WithFilter[D] = new WithFilter(x => p(x) && q(x))
         }
 
+        //FIXME: need unit tests for these three methods
+        def traverse[G[_], D](f: A => G[D])(implicit traverseF: Traverse[F], applicativeG: Applicative[G]): G[ResultGT[E, F, D]] = 
+            applicativeG.map(traverseF.traverse(value)(axb => Traverse[ResultG[E, *]].traverse(axb)(f)))(ResultGT.apply)
+
+        def foldLeft[B](b: B)(f: (B, A) => B)(implicit F: Foldable[F]): B = 
+            F.foldLeft(value, b)((b, res) => res.cpsRes(_ => b, a => f(b, a)))
+
+        def foldRight[B](lb: Eval[B])(f: (A, Eval[B]) => Eval[B])(implicit F: Foldable[F]): Eval[B] = 
+            F.foldRight(value, lb)((res, lb) => res.cpsRes(_ => lb, a => f(a, lb)))
+
     }
+
+    import cats.implicits._
 
     trait ResultGTInstances {
 
@@ -968,9 +980,22 @@ object result {
                 }
             }
         }
-    }
 
-    import cats.implicits._
+        implicit def resultGTTraverse[E, F[_]](implicit app: Applicative[ResultGT[E, F, *]], F: Traverse[F]) = {
+
+            new Traverse[ResultGT[E, F, *]] {
+                override def traverse[G[_], A, B](fa: ResultGT[E, F, A])(f: A => G[B])(implicit G: Applicative[G]): G[ResultGT[E, F, B]] = {
+                    fa traverse f
+                }
+
+                override def foldLeft[A, B](fa: ResultGT[E, F, A], b: B)(f: (B, A) => B): B =
+                    fa.foldLeft(b)(f)
+
+                override def foldRight[A, B](fa: ResultGT[E, F, A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = 
+                    fa.foldRight(lb)(f)
+            }
+        }
+    }
 
     private[result] trait resultGTConstructors extends ResultGTInstances {
 
