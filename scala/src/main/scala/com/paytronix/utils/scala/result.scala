@@ -25,7 +25,7 @@ import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 import _root_.scala.reflect.{ClassTag, classTag}
 
-import cats.{Applicative, Eval, Foldable, Monad, Traverse, Functor}
+import cats.{Applicative, Eval, Foldable, Monad, Traverse, Functor, Bifunctor}
 import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 
@@ -912,10 +912,14 @@ object result {
             ResultGT(F.map(value)(_ map f))
 
         def mapF[B](f: A => F[B])(implicit M: Monad[F]): ResultGT[E, F, B] =
-            flatMapF { f andThen (mb => M.map(mb)(Okay(_))) }
+            flatMapF(f andThen (mb => M.map(mb)(Okay(_))))
 
         def flatMap[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
             ResultGT(F.flatMap(value)(_.cpsRes(F.pure(_), f(_).value)))
+
+        /** alias for >>= */
+        def >>=[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
+            this flatMap f
 
         def flatMapF[B](f: A => F[ResultG[E, B]])(implicit F: Monad[F]): ResultGT[E, F, B] =
             ResultGT(F.flatMap(value)(_.cpsRes(F.pure(_), f)))
@@ -932,7 +936,7 @@ object result {
         def filter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D], F: Functor[F]): ResultGT[D, F, A] =
             ResultGT(F.map(value)(_.cpsRes(e => e, a => if (p(a)) Okay(a) else FailedG(filterFailure, fpd.default))))
 
-        def withFilter[D >: E](p: A => Boolean)(implicit fdp: FailedParameterDefault[D]): WithFilter[D] = new WithFilter(p)
+        def withFilter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D]): WithFilter[D] = new WithFilter(p)
 
         final class WithFilter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D]) {
             def map[B](f: A => B)(implicit F: Functor[F]): ResultGT[D, F, B] =
@@ -947,21 +951,23 @@ object result {
             def withFilter(q: A => Boolean): WithFilter[D] = new WithFilter(x => p(x) && q(x))
         }
 
-        //FIXME: need unit tests for these three methods
+        //FIXME: need unit tests for all methods below
         def traverse[G[_], D](f: A => G[D])(implicit traverseF: Traverse[F], applicativeG: Applicative[G]): G[ResultGT[E, F, D]] = 
             applicativeG.map(traverseF.traverse(value)(axb => Traverse[ResultG[E, *]].traverse(axb)(f)))(ResultGT.apply)
 
         def foldLeft[B](b: B)(f: (B, A) => B)(implicit F: Foldable[F]): B = 
             F.foldLeft(value, b)((b, res) => res.cpsRes(_ => b, a => f(b, a)))
 
-        def foldRight[B](lb: Eval[B])(f: (A, Eval[B]) => Eval[B])(implicit F: Foldable[F]): Eval[B] = 
-            F.foldRight(value, lb)((res, lb) => res.cpsRes(_ => lb, a => f(a, lb)))
+        def foldRight[B](eb: Eval[B])(f: (A, Eval[B]) => Eval[B])(implicit F: Foldable[F]): Eval[B] = 
+            F.foldRight(value, eb)((res, eb) => res.cpsRes(_ => eb, a => f(a, eb)))
 
+        def bimap[D, B](fe: E => D, fa: A => B)(implicit F: Functor[F]): ResultGT[D, F, B] = 
+            ResultGT(F.map(value)(_.cpsRes(e => e.mapFailure(fe), a => Okay(fa(a)))))
     }
 
     import cats.implicits._
 
-    trait ResultGTInstances {
+    private[result] trait ResultGTInstances0 {
 
         implicit def resultGTMonad[E, F[_]](implicit F: Monad[F]) = {
             new Monad[ResultGT[E, F, *]] {
@@ -980,12 +986,15 @@ object result {
                 }
             }
         }
+    }
+
+    // split traverse from monad to avoid "ambiguous implicit values" error while deriving implicit functor instance
+    private[result] trait ResultGTInstances1 extends ResultGTInstances0 {
 
         implicit def resultGTTraverse[E, F[_]](implicit app: Applicative[ResultGT[E, F, *]], F: Traverse[F]) = {
-
             new Traverse[ResultGT[E, F, *]] {
                 override def traverse[G[_], A, B](fa: ResultGT[E, F, A])(f: A => G[B])(implicit G: Applicative[G]): G[ResultGT[E, F, B]] = {
-                    fa traverse f
+                    fa traverse (f)
                 }
 
                 override def foldLeft[A, B](fa: ResultGT[E, F, A], b: B)(f: (B, A) => B): B =
@@ -995,9 +1004,16 @@ object result {
                     fa.foldRight(lb)(f)
             }
         }
+
+        implicit def resultFTBifunctor[F[_]](implicit F: Functor[F]) = {
+            new Bifunctor[ResultGT[*, F, *]] {
+                override def bimap[E, A, D, B](fea: ResultGT[E, F, A])(f: E => D, g: A => B): ResultGT[D, F, B] =
+                    fea bimap (f, g)
+            }
+        }
     }
 
-    private[result] trait resultGTConstructors extends ResultGTInstances {
+    private[result] trait resultGTConstructors extends ResultGTInstances1 {
 
         def fromResultG[E, F[_], A](a: ResultG[E, A])(implicit F: Monad[F]): ResultGT[E, F, A] = 
             ResultGT[E, F, A](F.pure(a))

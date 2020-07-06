@@ -588,6 +588,7 @@ class BindAndChainTest extends SpecificationWithJUnit {
 }
 
 class ResultGTTest extends SpecificationWithJUnit {
+    import cats.{Applicative, Functor}
     import cats.implicits._
 
     val isEven: Int => Boolean = _ % 2 == 0
@@ -605,6 +606,7 @@ class ResultGTTest extends SpecificationWithJUnit {
             with Option work with None: flatMapF                  $optNonewithFlatMapFCase
             with Option work with Some(Okay): flatMapF            $optSomeOkaywithFlatMapFCase
             with Option work with Some(Failed): flatMapF          $optSomeFailedwithFlatMapFCase
+
             with Option work with | and None                               $orElseNone
             with Option work with | and Some(Okay) + string                $orElseSomeOkayCase1
             with Option work with | and Some(Okay) + parameter()           $orElseSomeOkayCase2
@@ -621,15 +623,20 @@ class ResultGTTest extends SpecificationWithJUnit {
             with Option work with | and Some(Failed) + Failed()            $orElseSomeFailedCase5
             with Option work with | and Some(Failed) + Okay()              $orElseSomeFailedCase6
             with Option work with | and Some(Failed) + Failed -> FailedG   $orElseSomeFailedCase7
+
             with Option make a ResultGT from okay    $optFromOkayCase
             with Option make a ResultGT from failued $optFromFailedCase
             with Option make a ResultGT from some    $optLiftSomeGCase
             with Option make a ResultGT from none    $optLiftNoneGCase
             with Option make a ResultT from some     $optLiftSomeCase
             with Option make a ResultT from none     $optLiftNoneCase
+
             with List integration test: for, failures          $listBigTestCase1
             with List integration test: for, liftF, fromResult $listBigTestCase2
             with List integration test: for, withFilter        $listBigTestCase3
+
+            with Option derive implicit applicative instance $optDerivedApplicativeInstanceTest
+            with List derive implicit functor instance       $listDerivedFunctorInstanceTest
     """
 
     def optNonewithMapCase =
@@ -768,5 +775,13 @@ class ResultGTTest extends SpecificationWithJUnit {
         } yield x 
 
         res.value ==== List(Failed("value did not pass filter"), Okay(2))
+    }
+
+    def optDerivedApplicativeInstanceTest(implicit app: Applicative[ResultGT[Unit, Option, *]]) = {
+        app.ap(ResultGT[Unit, Option, Int => Int](Some(Okay(_ + 1))))(ResultGT[Unit, Option, Int](Some(Okay(1)))).value ==== Some(Okay(2))
+    }
+
+    def listDerivedFunctorInstanceTest(implicit func: Functor[ResultGT[Unit, List, *]]) = {
+        func.map(ResultGT[Unit, List, Int](List(Okay(1), Okay(2))))(x => x * x).value ==== List(Okay(1), Okay(4))
     }
 }
