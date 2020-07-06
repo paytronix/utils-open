@@ -309,6 +309,8 @@ object result {
             builder.result()
         }
 
+        /** facilitates continuation passing style over result: 
+            takes two continuations (one for each alternative), and returns whatever the application of the appropriate comntinuation returns */
         def cpsRes[X](failedCont: FailedG[E] => X, okCont: A => X): X
     }
 
