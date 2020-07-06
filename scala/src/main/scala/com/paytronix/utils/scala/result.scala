@@ -917,7 +917,7 @@ object result {
         def flatMap[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
             ResultGT(F.flatMap(value)(_.cpsRes(F.pure(_), f(_).value)))
 
-        /** alias for >>= */
+        /** alias for flatMap */
         def >>=[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
             this flatMap f
 
@@ -994,7 +994,7 @@ object result {
         implicit def resultGTTraverse[E, F[_]](implicit app: Applicative[ResultGT[E, F, *]], F: Traverse[F]) = {
             new Traverse[ResultGT[E, F, *]] {
                 override def traverse[G[_], A, B](fa: ResultGT[E, F, A])(f: A => G[B])(implicit G: Applicative[G]): G[ResultGT[E, F, B]] = {
-                    fa traverse (f)
+                    fa traverse f
                 }
 
                 override def foldLeft[A, B](fa: ResultGT[E, F, A], b: B)(f: (B, A) => B): B =
