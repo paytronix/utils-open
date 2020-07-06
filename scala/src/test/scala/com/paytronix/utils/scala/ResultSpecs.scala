@@ -625,7 +625,7 @@ class ResultGTTest extends SpecificationWithJUnit {
             with Option work with | and Some(Failed) + Failed -> FailedG   $orElseSomeFailedCase7
 
             with Option make a ResultGT from okay    $optFromOkayCase
-            with Option make a ResultGT from failued $optFromFailedCase
+            with Option make a ResultGT from failed  $optFromFailedCase
             with Option make a ResultGT from some    $optLiftSomeGCase
             with Option make a ResultGT from none    $optLiftNoneGCase
             with Option make a ResultT from some     $optLiftSomeCase

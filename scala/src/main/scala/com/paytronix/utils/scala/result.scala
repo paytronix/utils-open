@@ -310,7 +310,7 @@ object result {
         }
 
         /** facilitates continuation passing style over result: 
-            takes two continuations (one for each alternative), and returns whatever the application of the appropriate comntinuation returns */
+            takes two continuations (one for each alternative), and returns whatever the application of the appropriate continuation returns */
         def cpsRes[X](failedCont: FailedG[E] => X, okCont: A => X): X
     }
 
@@ -908,6 +908,38 @@ object result {
         }
     }
 
+    /**
+        monad transformer for ResultG
+
+        imagine you have some values of type Option[Result[Int]], and you want to add 1 to that value if it is a Some and Okay. you
+        might start by writing some code like this:
+
+            def add1(maybeOkInt: Option[Result[Int]]): Option[Result[Int]] = {
+                for {
+                    x <- maybeOkInt
+                } yield {
+                    x match {
+                        case Okay(n) => Okay(n + 1)
+                        case failed@_ =>
+                            logger.error("can't add1 to $x due to previous failure")
+                            failed
+                    }
+                }
+            }
+
+        this implementation is alright, but contains a lot of boilerplate code in the form of case analysis by pattern matching (or alternatively)
+        a call to map/flatMap/etc.
+
+        with a slight change to the return type of this function, we can refactor this method using ResultGT into something considerably cleaner:
+
+            def fancyAdd1(maybeOkInt: Option[Result[Int]]): ResultT[Option, Int] = 
+                for {
+                    x <- ResultT[Option, Int](maybeOkInt)
+                } yield x + 1
+            }
+
+        the value field is used to unwrap the result of computations in ResultGT like so: add1(Some(Okay(1))) ==== fancyAdd1(Some(Okay(1))).value
+     */
     final case class ResultGT[E, F[_], A](value: F[ResultG[E, A]]) {
 
         def map[B](f: A => B)(implicit F: Functor[F]): ResultGT[E, F, B] = 
