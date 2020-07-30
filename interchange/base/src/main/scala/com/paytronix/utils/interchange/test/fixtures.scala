@@ -1,5 +1,5 @@
 //
-// Copyright 2010-2014 Paytronix Systems, Inc.
+// Copyright 2010-2020 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -236,7 +236,7 @@ sealed abstract  class FlattenedTaggedUnion
 case class FlattenedTaggedUnionChild(a: Int) extends FlattenedTaggedUnion
 object FlattenedTaggedUnionChild {
     implicit val arb: Arbitrary[FlattenedTaggedUnionChild] = Arbitrary(arbitrary[Int].map(FlattenedTaggedUnionChild.apply))
-} 
+}
 
 final case class WrapperClass(field: Option[CaseClass])
 //object WrapperClassCoding extends WrapperCoding

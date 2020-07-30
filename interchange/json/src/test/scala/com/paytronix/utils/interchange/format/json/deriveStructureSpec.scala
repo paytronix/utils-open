@@ -1,5 +1,5 @@
 //
-// Copyright 2014 Paytronix Systems, Inc.
+// Copyright 2014-2020 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import org.scalacheck.Arbitrary
 import org.specs2.{ScalaCheck, SpecificationWithJUnit}
 import scalaz.BijectionT.bijection
 
-import com.paytronix.utils.interchange.base.default
+import com.paytronix.utils.interchange.base.{default, name}
 import com.paytronix.utils.interchange.test.fixtures.{BasicClass, CaseClass, POJOClass}
 import com.paytronix.utils.scala.result.{Failed, Okay, Result}
 
@@ -347,3 +347,18 @@ class jsonStructureFlatteningTest extends SpecificationWithJUnit with ScalaCheck
     }
 }
 
+class jsonStructureNamedFieldCaseClassTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
+    import scalar.stringJsonCoder
+
+    def is = s2"""
+        @name'd fields
+            should encode correctly $encodeCase
+            should decode correctly $decodeCase
+    """
+
+    case class NamedFieldCaseClass(@name("test-field") testField: String)
+    val coder: JsonCoder[NamedFieldCaseClass] = derive.structure.coder[NamedFieldCaseClass]
+
+    def encodeCase = coder.encode.toString(NamedFieldCaseClass("test value")) ==== Okay("""{"test-field":"test value"}""")
+    def decodeCase = decode(coder.decode)("""{"test-field":"test value"}""") ==== Okay(NamedFieldCaseClass("test value"))
+}

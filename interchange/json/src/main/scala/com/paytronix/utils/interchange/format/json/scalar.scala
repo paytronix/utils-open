@@ -1,5 +1,5 @@
 //
-// Copyright 2014-2018 Paytronix Systems, Inc.
+// Copyright 2014-2020 Paytronix Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
 import java.time.{Duration, LocalDate, LocalDateTime, LocalTime, OffsetTime, ZonedDateTime}
 import java.util.{Arrays, Date => JavaDate}
+import java.util.UUID
 import scala.annotation.{Annotation, StaticAnnotation}
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.language.experimental.macros
@@ -573,6 +574,34 @@ trait scalar extends scalarLPI {
         }
         new scalaEnumJsonCoder
     }
+
+    /** JsonCoder for `UUID`. Encodes as a UUID as a JSON string */
+    implicit object uuidJsonCoder extends JsonCoder[UUID] {
+        object encode extends JsonEncoder[UUID] {
+            val mightBeNull = false
+            val codesAsObject = false
+
+            def run(in: UUID, out: InterchangeJsonGenerator) =
+                tryCatchResultG(terminal) {
+                    out.writeString(in.toString)
+                    Okay.unit
+                }
+        }
+        object decode extends JsonDecoder[UUID] {
+            val mightBeNull = false
+            val codesAsObject = false
+
+            def run(in: InterchangeJsonParser, out: Receiver[UUID]) =
+                in.requireValue >> {
+                    in.currentToken match {
+                        case JsonToken.VALUE_NULL       => in.unexpectedMissingValue
+                        case JsonToken.VALUE_STRING     => uuidStringCoder.decode.run(in.stringValue, out) orElse in.noteSourceLocation
+                        case _ => in.unexpectedToken("a string")
+                    }
+                }
+        }
+    }
+
 
     implicit val zonedDateTimeJsonCoderIso8601    = dateAsIso8601.zonedDateTimeJsonCoder
     implicit val localDateJsonCoderIso8601        = dateAsIso8601.localDateJsonCoder
