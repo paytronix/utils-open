@@ -25,7 +25,7 @@ import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 import _root_.scala.reflect.{ClassTag, classTag}
 
-import cats.{Applicative, Eval, Foldable, Monad, Traverse}
+import cats.{Applicative, Eval, Foldable, Monad, Traverse, Functor, Bifunctor}
 import cats.data.Validated
 import cats.data.Validated.{Invalid, Valid}
 
@@ -41,6 +41,8 @@ object result {
 
     /** Trait of things that can be attached to FailedG as parameters. Required to use the lightweight `result | param` syntax but not required otherwise. */
     trait FailedParameter
+
+    val filterFailure: String = "value did not pass filter"
 
     /** Type class that provides a default failed parameter value, for functions that can't take one explicitly (like filter) */
     @implicitNotFound(msg = "Cannot find FailedParameterDefault for type ${E}. If ${E} is Nothing, this probably indicates you have something like Okay(...).filter (maybe automatically inserted for you by pattern matching), and you should add .withFailedType[Unit] to your Okay")
@@ -115,17 +117,17 @@ object result {
 
         /**
          * If Okay and predicate yields true for the value, yields Okay again,
-         * otherwise Failed("value did not pass filter")
+         * otherwise Failed(filterFailure)
          */
         def filter[F >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[F]): ResultG[F, A] =
             flatMap { v =>
                 if (p(v)) Okay(v)
-                else FailedG("value did not pass filter", fpd.default)
+                else FailedG(filterFailure, fpd.default)
             }
 
         /**
          * If Okay and predicate yields true for the value, yields Okay again,
-         * otherwise FailedG("value did not pass filter", parameter)
+         * otherwise FailedG(filterFailure, parameter)
          */
         def filterG[F >: E](parameter: F)(p: A => Boolean): ResultG[F, A]
 
@@ -136,7 +138,7 @@ object result {
         def filterNot[F >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[F]): ResultG[F, A] =
             flatMap { v =>
                 if (!p(v)) Okay(v)
-                else FailedG("value did not pass filter", fpd.default)
+                else FailedG(filterFailure, fpd.default)
             }
 
         /** Converse of filterG */
@@ -306,6 +308,10 @@ object result {
             }
             builder.result()
         }
+
+        /** facilitates continuation passing style over result: 
+            takes two continuations (one for each alternative), and returns whatever the application of the appropriate continuation returns */
+        def cpsRes[X](failedCont: FailedG[E] => X, okCont: A => X): X
     }
 
     object Result {
@@ -429,13 +435,13 @@ object result {
             if (pf.isDefinedAt(result)) Okay(pf(result)) else FailedG("partial function did not apply to value", parameter)
 
         def filterG[F](parameter: F)(p: A => Boolean): ResultG[F, A] =
-            if (p(result)) Okay(result) else FailedG("value did not pass filter", parameter)
+            if (p(result)) Okay(result) else FailedG(filterFailure, parameter)
 
         def filterG[F](otherwise: FailedG[F])(p: A => Boolean): ResultG[F, A] =
             if (p(result)) Okay(result) else otherwise
 
         def filterNotG[F](parameter: F)(p: A => Boolean): ResultG[F, A] =
-            if (!p(result)) Okay(result) else FailedG("value did not pass filter", parameter)
+            if (!p(result)) Okay(result) else FailedG(filterFailure, parameter)
 
         def filterNotG[F](otherwise: FailedG[F])(p: A => Boolean): ResultG[F, A] =
             if (!p(result)) Okay(result) else otherwise
@@ -486,6 +492,8 @@ object result {
 
         def flatten[E, B](implicit ev: A => ResultG[E, B]): ResultG[E, B] =
             ev(result)
+
+        def cpsRes[X](failedCont: FailedG[Nothing] => X, okCont: A => X): X = okCont(result)
 
         override def toString =
             "Okay(" + (try { String.valueOf(result) } catch { case _: Exception => "<failed .toString>" }) + ")"
@@ -558,6 +566,8 @@ object result {
         /** If the given boolean is `true`, yield this `FailedG`, else `Okay.unit` */
         def when(b: Boolean): ResultG[E, Unit] =
             if (b) this else Okay.unit
+
+        def cpsRes[X](failedCont: FailedG[E] => X, okCont: Nothing => X): X = failedCont(this)
 
         // need to override case class equality because throwables don't compare well
         override def equals(other: Any): Boolean = {
@@ -898,4 +908,165 @@ object result {
         }
     }
 
+    /**
+        monad transformer for ResultG
+
+        imagine you have some values of type Option[Result[Int]], and you want to add 1 to that value if it is a Some and Okay. you
+        might start by writing some code like this:
+
+            def add1(maybeOkInt: Option[Result[Int]]): Option[Result[Int]] = {
+                for {
+                    x <- maybeOkInt
+                } yield {
+                    x match {
+                        case Okay(n) => Okay(n + 1)
+                        case failed@_ =>
+                            logger.error("can't add1 to $x due to previous failure")
+                            failed
+                    }
+                }
+            }
+
+        this implementation is alright, but contains a lot of boilerplate code in the form of case analysis by pattern matching (or alternatively)
+        a call to map/flatMap/etc.
+
+        with a slight change to the return type of this function, we can refactor this method using ResultGT into something considerably cleaner:
+
+            def fancyAdd1(maybeOkInt: Option[Result[Int]]): ResultT[Option, Int] = 
+                for {
+                    x <- ResultT[Option, Int](maybeOkInt)
+                } yield x + 1
+            }
+
+        the value field is used to unwrap the result of computations in ResultGT like so: add1(Some(Okay(1))) ==== fancyAdd1(Some(Okay(1))).value
+     */
+    final case class ResultGT[E, F[_], A](value: F[ResultG[E, A]]) {
+
+        def map[B](f: A => B)(implicit F: Functor[F]): ResultGT[E, F, B] = 
+            ResultGT(F.map(value)(_ map f))
+
+        def mapF[B](f: A => F[B])(implicit M: Monad[F]): ResultGT[E, F, B] =
+            flatMapF(f andThen (mb => M.map(mb)(Okay(_))))
+
+        def flatMap[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
+            ResultGT(F.flatMap(value)(_.cpsRes(F.pure(_), f(_).value)))
+
+        /** alias for flatMap */
+        def >>=[B](f: A => ResultGT[E, F, B])(implicit F: Monad[F]): ResultGT[E, F, B] =
+            this flatMap f
+
+        def flatMapF[B](f: A => F[ResultG[E, B]])(implicit F: Monad[F]): ResultGT[E, F, B] =
+            ResultGT(F.flatMap(value)(_.cpsRes(F.pure(_), f)))
+
+        def | [D, B >: A](f: FailedG[E] => ResultG[D, B])(implicit F: Functor[F]): ResultGT[D, F, B] =
+            ResultGT(F.map(value)(_ | f))
+
+        /** alias for | */
+        def orElse [D, B >: A](f: FailedG[E] => ResultG[D, B])(implicit F: Functor[F]): ResultGT[D, F, B] =
+            this | f
+
+        def foreach(f: A => Unit)(implicit F: Functor[F]): Unit = { F.map(value)(_ foreach f); () }
+
+        def filter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D], F: Functor[F]): ResultGT[D, F, A] =
+            ResultGT(F.map(value)(_.cpsRes(e => e, a => if (p(a)) Okay(a) else FailedG(filterFailure, fpd.default))))
+
+        def withFilter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D]): WithFilter[D] = new WithFilter(p)
+
+        final class WithFilter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D]) {
+            def map[B](f: A => B)(implicit F: Functor[F]): ResultGT[D, F, B] =
+                ResultGT.this.filter[D](p)(fpd, F).map(f)
+
+            def flatMap[B](f: A => ResultGT[D, F, B])(implicit F: Monad[F]): ResultGT[D, F, B] =
+                ResultGT.this.filter[D](p)(fpd, F).flatMap(f)
+
+            def foreach[U](f: A => Unit)(implicit F: Functor[F]): Unit = 
+                ResultGT.this.filter[D](p)(fpd, F).foreach(f)
+
+            def withFilter(q: A => Boolean): WithFilter[D] = new WithFilter(x => p(x) && q(x))
+        }
+
+        //FIXME: need unit tests for all methods below
+        def traverse[G[_], D](f: A => G[D])(implicit traverseF: Traverse[F], applicativeG: Applicative[G]): G[ResultGT[E, F, D]] = 
+            applicativeG.map(traverseF.traverse(value)(axb => Traverse[ResultG[E, *]].traverse(axb)(f)))(ResultGT.apply)
+
+        def foldLeft[B](b: B)(f: (B, A) => B)(implicit F: Foldable[F]): B = 
+            F.foldLeft(value, b)((b, res) => res.cpsRes(_ => b, a => f(b, a)))
+
+        def foldRight[B](eb: Eval[B])(f: (A, Eval[B]) => Eval[B])(implicit F: Foldable[F]): Eval[B] = 
+            F.foldRight(value, eb)((res, eb) => res.cpsRes(_ => eb, a => f(a, eb)))
+
+        def bimap[D, B](fe: E => D, fa: A => B)(implicit F: Functor[F]): ResultGT[D, F, B] = 
+            ResultGT(F.map(value)(_.cpsRes(e => e.mapFailure(fe), a => Okay(fa(a)))))
+    }
+
+    import cats.implicits._
+
+    private[result] trait ResultGTInstances0 {
+
+        implicit def resultGTMonad[E, F[_]](implicit F: Monad[F]) = {
+            new Monad[ResultGT[E, F, *]] {
+                override def flatMap[A, B](fa: ResultGT[E, F, A])(f: A => ResultGT[E, F, B]): ResultGT[E, F, B] = fa flatMap f
+
+                override def pure[A](a: A): ResultGT[E, F, A] = ResultGT(F.pure(Okay(a)))
+
+                def tailRecM[A, B](a: A)(f: A => ResultGT[E, F, Either[A, B]]): ResultGT[E, F, B] = {
+                    ResultGT(
+                        F.tailRecM(a)(a0 =>
+                            F.map(f(a0).value)(
+                                _.cpsRes(Right(_), _.fold(a => Left(a), b => Right(Okay(b))))
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    // split traverse from monad to avoid "ambiguous implicit values" error while deriving implicit functor instance
+    private[result] trait ResultGTInstances1 extends ResultGTInstances0 {
+
+        implicit def resultGTTraverse[E, F[_]](implicit app: Applicative[ResultGT[E, F, *]], F: Traverse[F]) = {
+            new Traverse[ResultGT[E, F, *]] {
+                override def traverse[G[_], A, B](fa: ResultGT[E, F, A])(f: A => G[B])(implicit G: Applicative[G]): G[ResultGT[E, F, B]] = {
+                    fa traverse f
+                }
+
+                override def foldLeft[A, B](fa: ResultGT[E, F, A], b: B)(f: (B, A) => B): B =
+                    fa.foldLeft(b)(f)
+
+                override def foldRight[A, B](fa: ResultGT[E, F, A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = 
+                    fa.foldRight(lb)(f)
+            }
+        }
+
+        implicit def resultFTBifunctor[F[_]](implicit F: Functor[F]) = {
+            new Bifunctor[ResultGT[*, F, *]] {
+                override def bimap[E, A, D, B](fea: ResultGT[E, F, A])(f: E => D, g: A => B): ResultGT[D, F, B] =
+                    fea bimap (f, g)
+            }
+        }
+    }
+
+    private[result] trait resultGTConstructors extends ResultGTInstances1 {
+
+        def fromResultG[E, F[_], A](a: ResultG[E, A])(implicit F: Monad[F]): ResultGT[E, F, A] = 
+            ResultGT[E, F, A](F.pure(a))
+
+        def fromResult[F[_], A](ra: Result[A])(implicit F: Monad[F]): ResultT[F, A] = 
+            ResultT[F, A](F.pure(ra))
+
+        def liftF[E, F[_], A](fa: F[A])(implicit F: Monad[F]): ResultGT[E, F, A] =
+            ResultGT[E, F, A](fa flatMap (a => (F.pure(Okay(a)))))
+
+        def liftF[F[_], A](fa: F[A])(implicit F: Functor[F]): ResultT[F, A] = 
+            ResultT[F, A](fa map (Okay(_)))
+    }
+
+    case object ResultGT extends resultGTConstructors 
+
+    object ResultT extends resultGTConstructors {
+        def apply[F[_], A](in: F[ResultG[Unit, A]]): ResultGT[Unit, F, A] = ResultGT[Unit, F, A](in)
+    }
+
+    type ResultT[F[_], A] = ResultGT[Unit, F, A]
 }

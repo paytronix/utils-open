@@ -586,3 +586,202 @@ class BindAndChainTest extends SpecificationWithJUnit {
             case _ => FailedG("nope", 123)
         }) ==== Okay(2)
 }
+
+class ResultGTTest extends SpecificationWithJUnit {
+    import cats.{Applicative, Functor}
+    import cats.implicits._
+
+    val isEven: Int => Boolean = _ % 2 == 0
+
+    def is = s2"""
+        ResultGT should
+            with Option work with None                            $optNonewithMapCase
+            with Option work with Some(Okay)                      $optSomeOkaywithMapCase
+            with Option work with Some(Failed): flatMap           $optSomeFailedwithFlatMapCase
+            with Option work with Some(Failed): map               $optSomeFailedwithMapCase
+            with Option work with Some(odd) with even filter: for $optSomeOkayWithFilterwithForCase
+            with Option work with None: mapF                      $optNonewithMapFCase
+            with Option work with Some(Okay): mapF                $optSomeOkaywithMapFCase
+            with Option work with Some(Failed): mapF              $optSomeFailedwithMapFCase
+            with Option work with None: flatMapF                  $optNonewithFlatMapFCase
+            with Option work with Some(Okay): flatMapF            $optSomeOkaywithFlatMapFCase
+            with Option work with Some(Failed): flatMapF          $optSomeFailedwithFlatMapFCase
+
+            with Option work with | and None                               $orElseNone
+            with Option work with | and Some(Okay) + string                $orElseSomeOkayCase1
+            with Option work with | and Some(Okay) + parameter()           $orElseSomeOkayCase2
+            with Option work with | and Some(Okay) + MyFailedParameter()   $orElseSomeOkayCase3
+            with Option work with | and Some(Okay) + String -> Nil         $orElseSomeOkayCase4
+            with Option work with | and Some(Okay) + Failed()              $orElseSomeOkayCase5
+            with Option work with | and Some(Okay) + Okay()                $orElseSomeOkayCase6
+            with Option work with | and Some(Okay) + Failed -> FailedG     $orElseSomeOkayCase7
+            with Option work with | and Some(Okay) + sys.error             $orElseSomeOkayCase8
+            with Option work with | and Some(Failed) + string              $orElseSomeFailedCase1
+            with Option work with | and Some(Failed) + parameter           $orElseSomeFailedCase2
+            with Option work with | and Some(Failed) + MyFailedParameter() $orElseSomeFailedCase3
+            with Option work with | and Some(Failed) + String -> Nil       $orElseSomeFailedCase4
+            with Option work with | and Some(Failed) + Failed()            $orElseSomeFailedCase5
+            with Option work with | and Some(Failed) + Okay()              $orElseSomeFailedCase6
+            with Option work with | and Some(Failed) + Failed -> FailedG   $orElseSomeFailedCase7
+
+            with Option make a ResultGT from okay    $optFromOkayCase
+            with Option make a ResultGT from failed  $optFromFailedCase
+            with Option make a ResultGT from some    $optLiftSomeGCase
+            with Option make a ResultGT from none    $optLiftNoneGCase
+            with Option make a ResultT from some     $optLiftSomeCase
+            with Option make a ResultT from none     $optLiftNoneCase
+
+            with List integration test: for, failures          $listBigTestCase1
+            with List integration test: for, liftF, fromResult $listBigTestCase2
+            with List integration test: for, withFilter        $listBigTestCase3
+
+            with Option derive implicit applicative instance $optDerivedApplicativeInstanceTest
+            with List derive implicit functor instance       $listDerivedFunctorInstanceTest
+    """
+
+    def optNonewithMapCase =
+        ResultGT[Unit, Option, Int](None).map(_ + 1738).value ==== None
+
+    def optSomeOkaywithMapCase =
+        ResultGT[Unit, Option, Int](Some(Okay(1))).map(_ + 1738).value ==== Some(Okay(1739))
+
+    def optSomeFailedwithFlatMapCase =
+        ResultGT[Unit, Option, Int](Some(Okay(1))).flatMap({
+            case x if isEven(x) => ResultT[Option, Int](Some(Okay(x)))
+            case _ => ResultT[Option, Int](Some(Failed("not even")))
+        }).value ==== Some(Failed("not even"))
+
+    def optSomeFailedwithMapCase =
+        ResultGT[Unit, Option, Int](Some(Failed("failure"))).map(_ + 1738).value ==== Some(Failed("failure"))
+
+    def optSomeOkayWithFilterwithForCase = {
+        val res: ResultT[Option, Int] = for {
+            x <- ResultT[Option, Int](Some(Okay(1))) if isEven(x)
+        } yield x + 1
+        res.value ==== Some(Failed("value did not pass filter"))
+    }
+
+    def optNonewithMapFCase =
+        ResultT[Option, Int](None).mapF((x: Int) => Some(x + 1738)).value ==== None
+
+    def optSomeOkaywithMapFCase =
+        ResultT[Option, Int](Some(Okay(1))).mapF((x: Int) => Some(x + 1738)).value ==== Some(Okay(1739))
+
+    def optSomeFailedwithMapFCase = 
+        ResultT[Option, Int](Some(Failed("FAILURE"))).mapF((x: Int) => Some(x + 1738)).value ==== Some(Failed("FAILURE"))
+
+    def optNonewithFlatMapFCase = 
+        ResultT[Option, Int](None).flatMapF((x: Int) => Some(Okay(x + 1738))).value ==== None
+
+    def optSomeOkaywithFlatMapFCase = 
+        ResultT[Option, Int](Some(Okay(1))).flatMapF((x: Int) => Some(Okay(x + 1738))).value ==== Some(Okay(1739))
+
+    def optSomeFailedwithFlatMapFCase =
+        ResultT[Option, Int](Some(Failed("FAILURE"))).flatMapF((x: Int) => Some(Okay(x + 1738))).value ==== Some(Failed("FAILURE"))
+
+
+    def orElseNone =
+        (ResultT[Option, Int](None) | "FAILURE").value ==== None
+
+    def orElseSomeOkayCase1 =
+        (ResultT[Option, Int](Some(Okay(1))) | "FAILURE").value ==== Some(Okay(1))
+
+    def orElseSomeOkayCase2 =
+        (ResultT[Option, Int](Some(Okay(1))) | parameter("FAILURE")).value ==== Some(Okay(1))
+
+    def orElseSomeOkayCase3 =
+        (ResultT[Option, Int](Some(Okay(1))) | MyFailedParameter("FAILURE")).value ==== Some(Okay(1))
+
+    def orElseSomeOkayCase4 =
+        (ResultT[Option, Int](Some(Okay(1))) | ("FAILURE" -> Nil)).value ==== Some(Okay(1))
+
+    def orElseSomeOkayCase5 =
+        (ResultT[Option, Int](Some(Okay(1))) | Failed("FAILURE")).value ==== Some(Okay(1))
+
+    def orElseSomeOkayCase6 =
+        (ResultT[Option, Int](Some(Okay(1))) | Okay("???")).value ==== Some(Okay(1))
+
+    def orElseSomeOkayCase7 =
+        (ResultT[Option, Int](Some(Okay(1))) | { case Failed(throwable) => FailedG(throwable, "foo" + throwable.getMessage) }).value ==== Some(Okay(1))
+
+    def orElseSomeOkayCase8 =
+        (ResultT[Option, Int](Some(Okay(1))) | (sys.error("not lazy enough"): String)).value ==== Some(Okay(1))
+
+
+    def orElseSomeFailedCase1 = 
+        (ResultGT[Int, Option, String](Some(failedInt)) | "bar").value.getOrElse(sys.error("WTF")) must (beFailedWith("bar", 1) and beFailedWithCause("failed message"))
+
+    def orElseSomeFailedCase2 = 
+        (ResultGT[Int, Option, String](Some(failedInt)) | parameter("bar")).value.getOrElse(sys.error("WTF")) must (beFailedWith("failed message", "bar") and beFailedWithoutCause)
+
+    def orElseSomeFailedCase3 = 
+        (ResultGT[Int, Option, String](Some(failedInt)) | MyFailedParameter("bar")).value.getOrElse(sys.error("WTF")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause)
+
+    def orElseSomeFailedCase4 = 
+        (ResultGT[Int, Option, String](Some(failedInt)) | ("bar" -> Nil)).value.getOrElse(sys.error("WTF")) must (beFailedWith("bar", Nil) and beFailedWithCause("failed message"))
+
+    def orElseSomeFailedCase5 = 
+        (ResultGT[Int, Option, String](Some(failedInt)) | Failed("bar")).value.getOrElse(sys.error("WTF")) must (beFailedWith("bar") and beFailedWithCause("failed message"))
+
+    def orElseSomeFailedCase6 = 
+        (ResultGT[Int, Option, String](Some(failedInt)) | Okay("bar")).value.getOrElse(sys.error("WTF")) ==== Okay("bar")
+
+    def orElseSomeFailedCase7 = 
+        (ResultGT[Int, Option, String](Some(failedInt)) | { case FailedG(throwable, _) => FailedG(throwable, "foo" + throwable.getMessage) }).value.getOrElse(sys.error("WTF")) must beFailedWith("failed message", "foofailed message") and beFailedWithoutCause
+
+
+    def optFromOkayCase = 
+        ResultGT.fromResultG[Unit, Option, Int](Okay(1)).value ==== Some(Okay(1))
+
+    def optFromFailedCase = 
+        ResultGT.fromResultG[Unit, Option, Int](Failed("failure")).value ==== Some(Failed("failure"))
+
+    def optLiftSomeGCase = 
+        ResultGT.liftF[Unit, Option, Int](Some(1)).value ==== Some(Okay(1))
+
+    def optLiftNoneGCase = 
+        ResultGT.liftF[Unit, Option, Int](None).value ==== None
+
+    def optLiftSomeCase = 
+        ResultT.liftF[Option, Int](Some(1)).value ==== Some(Okay(1))
+
+    def optLiftNoneCase =   
+        ResultT.liftF[Option, Int](None).value ==== None
+
+    def listBigTestCase1 = {
+
+        val res = for {
+            x <- ResultT[List, Int](List(Okay(1), Okay(2), Okay(3)))
+            y <- ResultT[List, Int](List(Okay(4), Okay(5), Failed("6 not allowed")))
+        } yield x + y
+
+        res.value ==== List(Okay(5), Okay(6), Failed("6 not allowed"), Okay(6), Okay(7), Failed("6 not allowed"), Okay(7), Okay(8), Failed("6 not allowed"))
+    }
+
+    def listBigTestCase2 = {
+
+        val res = for {
+            x <- ResultT[List, Int](List(Okay(1), Okay(2)))
+            y <- ResultT.liftF[List, String](List("3", "4"))
+            z <- ResultT.fromResult[List, Int](Okay(5))
+        } yield z * x + y.toInt
+
+        res.value ==== List(Okay(8), Okay(9), Okay(13), Okay(14))
+    }
+
+    def listBigTestCase3 = {
+        val res = for {
+            x <- ResultT[List, Int](List(Okay(1), Okay(2))) if isEven(x)
+        } yield x 
+
+        res.value ==== List(Failed("value did not pass filter"), Okay(2))
+    }
+
+    def optDerivedApplicativeInstanceTest(implicit app: Applicative[ResultGT[Unit, Option, *]]) = {
+        app.ap(ResultGT[Unit, Option, Int => Int](Some(Okay(_ + 1))))(ResultGT[Unit, Option, Int](Some(Okay(1)))).value ==== Some(Okay(2))
+    }
+
+    def listDerivedFunctorInstanceTest(implicit func: Functor[ResultGT[Unit, List, *]]) = {
+        func.map(ResultGT[Unit, List, Int](List(Okay(1), Okay(2))))(x => x * x).value ==== List(Okay(1), Okay(4))
+    }
+}
