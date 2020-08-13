@@ -24,10 +24,11 @@ import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 import _root_.scala.reflect.{ClassTag, classTag}
 
-import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse}
+import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse, Functor, Scalaz}
 
 // FIXME? gotta be a better way
 import scala.annotation.unchecked.uncheckedVariance
+import scala.language.higherKinds
 
 object result {
     /** Usual type of ResultG used, where no additional error parameter is given */
@@ -38,6 +39,8 @@ object result {
 
     /** Trait of things that can be attached to FailedG as parameters. Required to use the lightweight `result | param` syntax but not required otherwise. */
     trait FailedParameter
+
+    val filterFailure: String = "value did not pass filter"
 
     /** Type class that provides a default failed parameter value, for functions that can't take one explicitly (like filter) */
     @implicitNotFound(msg = "Cannot find FailedParameterDefault for type ${E}. If ${E} is Nothing, this probably indicates you have something like Okay(...).filter (maybe automatically inserted for you by pattern matching), and you should add .withFailedType[Unit] to your Okay")
@@ -112,17 +115,17 @@ object result {
 
         /**
          * If Okay and predicate yields true for the value, yields Okay again,
-         * otherwise Failed("value did not pass filter")
+         * otherwise Failed(filterFailure)
          */
         def filter[F >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[F]): ResultG[F, A] =
             flatMap { v =>
                 if (p(v)) Okay(v)
-                else FailedG("value did not pass filter", fpd.default)
+                else FailedG(filterFailure, fpd.default)
             }
 
         /**
          * If Okay and predicate yields true for the value, yields Okay again,
-         * otherwise FailedG("value did not pass filter", parameter)
+         * otherwise FailedG(filterFailure, parameter)
          */
         def filterG[F >: E](parameter: F)(p: A => Boolean): ResultG[F, A]
 
@@ -133,7 +136,7 @@ object result {
         def filterNot[F >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[F]): ResultG[F, A] =
             flatMap { v =>
                 if (!p(v)) Okay(v)
-                else FailedG("value did not pass filter", fpd.default)
+                else FailedG(filterFailure, fpd.default)
             }
 
         /** Converse of filterG */
@@ -177,6 +180,9 @@ object result {
         final def asFailed: FailedG[E] =
             if (this.isFailed) this.asInstanceOf[FailedG[E]]
             else sys.error("expected " + this + " to be Failed")
+
+        /** fascilitates continuation passing style over result */
+        def cpsRes[X](failedCont: FailedG[E] => X, okCont: A => X): X
 
         /** Yields an Iterator of the value if Okay, an empty Iterator otherwise */
         def iterator: Iterator[A]
@@ -396,13 +402,13 @@ object result {
             if (pf.isDefinedAt(result)) Okay(pf(result)) else FailedG("partial function did not apply to value", parameter)
 
         def filterG[F](parameter: F)(p: A => Boolean): ResultG[F, A] =
-            if (p(result)) Okay(result) else FailedG("value did not pass filter", parameter)
+            if (p(result)) Okay(result) else FailedG(filterFailure, parameter)
 
         def filterG[F](otherwise: FailedG[F])(p: A => Boolean): ResultG[F, A] =
             if (p(result)) Okay(result) else otherwise
 
         def filterNotG[F](parameter: F)(p: A => Boolean): ResultG[F, A] =
-            if (!p(result)) Okay(result) else FailedG("value did not pass filter", parameter)
+            if (!p(result)) Okay(result) else FailedG(filterFailure, parameter)
 
         def filterNotG[F](otherwise: FailedG[F])(p: A => Boolean): ResultG[F, A] =
             if (!p(result)) Okay(result) else otherwise
@@ -453,6 +459,8 @@ object result {
 
         def flatten[E, B](implicit ev: A => ResultG[E, B]): ResultG[E, B] =
             ev(result)
+
+        def cpsRes[X](failedCont: FailedG[Nothing] => X, okCont: A => X): X = okCont(result)
 
         override def toString =
             "Okay(" + (try { String.valueOf(result) } catch { case _: Exception => "<failed .toString>" }) + ")"
@@ -525,6 +533,8 @@ object result {
         /** If the given boolean is `true`, yield this `FailedG`, else `Okay.unit` */
         def when(b: Boolean): ResultG[E, Unit] =
             if (b) this else Okay.unit
+
+        def cpsRes[X](failedCont: FailedG[E] => X, okCont: Nothing => X): X = failedCont(this)
 
         // need to override case class equality because throwables don't compare well
         override def equals(other: Any): Boolean = {
@@ -865,4 +875,78 @@ object result {
         }
     }
 
+    import Scalaz._
+
+    /** monad transformer for ResultG */
+    final case class ResultGT[F[_], E, A](run: F[ResultG[E, A]]) {
+
+        def map[B](f: A => B)(implicit F: Functor[F]): ResultGT[F, E, B] =
+            ResultGT(F.map(run)(_ map f))
+
+        def mapF[B](f: A => F[B])(implicit M: Monad[F]): ResultGT[F, E, B] =
+            flatMapF { f andThen (mb => M.map(mb)(Okay(_))) }
+
+        def flatMap[B](f: A => ResultGT[F, E, B])(implicit F: Monad[F]): ResultGT[F, E, B] =
+            ResultGT(F.bind(run)(_.cpsRes(F.point(_), f(_).run)))
+
+        def flatMapF[B](f: A => F[ResultG[E, B]])(implicit F: Monad[F]): ResultGT[F, E, B] =
+            ResultGT(F.bind(run)(_.cpsRes(F.point(_), f)))
+
+        def | [D, B >: A](f: FailedG[E] => ResultG[D, B])(implicit F: Functor[F]): ResultGT[F, D, B] =
+            ResultGT(F.map(run)(_ | f))
+
+        /** alias for | */
+        def orElse [D, B >: A](f: FailedG[E] => ResultG[D, B])(implicit F: Functor[F]): ResultGT[F, D, B] =
+            this | f
+
+        def foreach(f: A => Unit)(implicit F: Functor[F]): Unit = { F.map(run)(_ foreach f); () }
+
+        def filter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D], F: Functor[F]): ResultGT[F, D, A] =
+            ResultGT(F.map(run)(_.cpsRes(e => e, a => if (p(a)) Okay(a) else FailedG(filterFailure, fpd.default))))
+
+        def withFilter[D >: E](p: A => Boolean)(implicit fdp: FailedParameterDefault[D]): WithFilter[D] = new WithFilter(p)
+
+        final class WithFilter[D >: E](p: A => Boolean)(implicit fpd: FailedParameterDefault[D]) {
+            def map[B](f: A => B)(implicit F: Functor[F]): ResultGT[F, D, B] =
+                ResultGT.this.filter[D](p)(fpd, F).map(f)
+
+            def flatMap[B](f: A => ResultGT[F, D, B])(implicit F: Monad[F]): ResultGT[F, D, B] =
+                ResultGT.this.filter[D](p)(fpd, F).flatMap(f)
+
+            def foreach[U](f: A => Unit)(implicit F: Functor[F]): Unit =
+                ResultGT.this.filter[D](p)(fpd, F).foreach(f)
+
+            def withFilter(q: A => Boolean): WithFilter[D] = new WithFilter(x => p(x) && q(x))
+        }
+
+        def foldLeft[B](b: B)(f: (B, A) => B)(implicit F: Foldable[F]): B =
+            F.foldLeft(run, b)((b, res) => res.cpsRes(_ => b, a => f(b, a)))
+
+        def bimap[D, B](fe: E => D, fa: A => B)(implicit F: Functor[F]): ResultGT[F, D, B] =
+            ResultGT(F.map(run)(_.cpsRes(e => e.mapFailure(fe), a => Okay(fa(a)))))
+    }
+
+    trait ResultGTInstances {
+
+        implicit def resultGTMonad[F[_], E](implicit F: Monad[F]) = new Monad[({ type M[A] = ResultGT[F, E, A] })#M] {
+
+            def point[A](a: => A): ResultGT[F, E, A] =
+                ResultGT(F.point(Okay(a)))
+
+            def bind[A, B](fa: ResultGT[F, E, A])(f: A => ResultGT[F, E, B]): ResultGT[F, E, B] =
+                fa flatMap f
+        }
+    }
+
+    case object ResultGT extends ResultGTInstances {
+
+        def fromResultG[F[_], E, A](a: ResultG[E, A])(implicit F: Monad[F]): ResultGT[F, E, A] =
+            ResultGT[F, E, A](F.point(a))
+
+        def fromResult[F[_], A](ra: Result[A])(implicit F: Monad[F]): ResultGT[F, Unit, A] =
+            ResultGT[F, Unit, A](F.point(ra))
+
+        def liftF[F[_], E, A](fa: F[A])(implicit F: Functor[F]): ResultGT[F, E, A] =
+            ResultGT[F, E, A](fa map (Okay(_)))
+    }
 }
