@@ -28,7 +28,7 @@ import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse, Functor, Sc
 
 // FIXME? gotta be a better way
 import scala.annotation.unchecked.uncheckedVariance
-import scala.languageFeature.higherKinds
+import scala.language.higherKinds
 
 object result {
     /** Usual type of ResultG used, where no additional error parameter is given */
@@ -918,6 +918,12 @@ object result {
 
             def withFilter(q: A => Boolean): WithFilter[D] = new WithFilter(x => p(x) && q(x))
         }
+
+        def foldLeft[B](b: B)(f: (B, A) => B)(implicit F: Foldable[F]): B =
+            F.foldLeft(run, b)((b, res) => res.cpsRes(_ => b, a => f(b, a)))
+
+        def bimap[D, B](fe: E => D, fa: A => B)(implicit F: Functor[F]): ResultGT[F, D, B] =
+            ResultGT(F.map(run)(_.cpsRes(e => e.mapFailure(fe), a => Okay(fa(a)))))
     }
 
     trait ResultGTInstances {
