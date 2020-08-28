@@ -74,7 +74,7 @@
     <properties>
         <maven.version>3.6.2</maven.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <revision>20.1-scala2_12-SNAPSHOT</revision>
+        <revision>20.4-scala2_12-SNAPSHOT</revision>
         <scala.version>2.12.10</scala.version>
         <scala.compatibility.version>2.12</scala.compatibility.version>
     </properties>
@@ -388,7 +388,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
-                <version>3.0</version>
+                <version>3.3</version>
                 <configuration>
                     <reportPlugins>
                         <plugin>
