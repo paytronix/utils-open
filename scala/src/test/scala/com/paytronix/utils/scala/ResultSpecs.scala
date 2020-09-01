@@ -667,13 +667,13 @@ class ResultGTTest extends SpecificationWithJUnit {
     def optSomeOkaywithMapFCase =
         ResultT[Option, Int](Some(Okay(1))).mapF((x: Int) => Some(x + 1738)).value ==== Some(Okay(1739))
 
-    def optSomeFailedwithMapFCase = 
+    def optSomeFailedwithMapFCase =
         ResultT[Option, Int](Some(Failed("FAILURE"))).mapF((x: Int) => Some(x + 1738)).value ==== Some(Failed("FAILURE"))
 
-    def optNonewithFlatMapFCase = 
+    def optNonewithFlatMapFCase =
         ResultT[Option, Int](None).flatMapF((x: Int) => Some(Okay(x + 1738))).value ==== None
 
-    def optSomeOkaywithFlatMapFCase = 
+    def optSomeOkaywithFlatMapFCase =
         ResultT[Option, Int](Some(Okay(1))).flatMapF((x: Int) => Some(Okay(x + 1738))).value ==== Some(Okay(1739))
 
     def optSomeFailedwithFlatMapFCase =
@@ -708,44 +708,44 @@ class ResultGTTest extends SpecificationWithJUnit {
         (ResultT[Option, Int](Some(Okay(1))) | (sys.error("not lazy enough"): String)).value ==== Some(Okay(1))
 
 
-    def orElseSomeFailedCase1 = 
+    def orElseSomeFailedCase1 =
         (ResultGT[Int, Option, String](Some(failedInt)) | "bar").value.getOrElse(sys.error("WTF")) must (beFailedWith("bar", 1) and beFailedWithCause("failed message"))
 
-    def orElseSomeFailedCase2 = 
+    def orElseSomeFailedCase2 =
         (ResultGT[Int, Option, String](Some(failedInt)) | parameter("bar")).value.getOrElse(sys.error("WTF")) must (beFailedWith("failed message", "bar") and beFailedWithoutCause)
 
-    def orElseSomeFailedCase3 = 
+    def orElseSomeFailedCase3 =
         (ResultGT[Int, Option, String](Some(failedInt)) | MyFailedParameter("bar")).value.getOrElse(sys.error("WTF")) must (beFailedWith("failed message", MyFailedParameter("bar")) and beFailedWithoutCause)
 
-    def orElseSomeFailedCase4 = 
+    def orElseSomeFailedCase4 =
         (ResultGT[Int, Option, String](Some(failedInt)) | ("bar" -> Nil)).value.getOrElse(sys.error("WTF")) must (beFailedWith("bar", Nil) and beFailedWithCause("failed message"))
 
-    def orElseSomeFailedCase5 = 
+    def orElseSomeFailedCase5 =
         (ResultGT[Int, Option, String](Some(failedInt)) | Failed("bar")).value.getOrElse(sys.error("WTF")) must (beFailedWith("bar") and beFailedWithCause("failed message"))
 
-    def orElseSomeFailedCase6 = 
+    def orElseSomeFailedCase6 =
         (ResultGT[Int, Option, String](Some(failedInt)) | Okay("bar")).value.getOrElse(sys.error("WTF")) ==== Okay("bar")
 
-    def orElseSomeFailedCase7 = 
+    def orElseSomeFailedCase7 =
         (ResultGT[Int, Option, String](Some(failedInt)) | { case FailedG(throwable, _) => FailedG(throwable, "foo" + throwable.getMessage) }).value.getOrElse(sys.error("WTF")) must beFailedWith("failed message", "foofailed message") and beFailedWithoutCause
 
 
-    def optFromOkayCase = 
+    def optFromOkayCase =
         ResultGT.fromResultG[Unit, Option, Int](Okay(1)).value ==== Some(Okay(1))
 
-    def optFromFailedCase = 
+    def optFromFailedCase =
         ResultGT.fromResultG[Unit, Option, Int](Failed("failure")).value ==== Some(Failed("failure"))
 
-    def optLiftSomeGCase = 
+    def optLiftSomeGCase =
         ResultGT.liftF[Unit, Option, Int](Some(1)).value ==== Some(Okay(1))
 
-    def optLiftNoneGCase = 
+    def optLiftNoneGCase =
         ResultGT.liftF[Unit, Option, Int](None).value ==== None
 
-    def optLiftSomeCase = 
+    def optLiftSomeCase =
         ResultT.liftF[Option, Int](Some(1)).value ==== Some(Okay(1))
 
-    def optLiftNoneCase =   
+    def optLiftNoneCase =
         ResultT.liftF[Option, Int](None).value ==== None
 
     def listBigTestCase1 = {
@@ -772,7 +772,7 @@ class ResultGTTest extends SpecificationWithJUnit {
     def listBigTestCase3 = {
         val res = for {
             x <- ResultT[List, Int](List(Okay(1), Okay(2))) if isEven(x)
-        } yield x 
+        } yield x
 
         res.value ==== List(Failed("value did not pass filter"), Okay(2))
     }

@@ -17,6 +17,7 @@
 package com.paytronix.utils.interchange.format.json
 
 import java.nio.ByteBuffer
+import java.util.UUID
 
 import com.fasterxml.jackson.core.JsonFactory
 import org.scalacheck.{Arbitrary, Gen, Prop}
@@ -382,5 +383,23 @@ class scalaEnumJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with
     def encodeCase = prop { (e: ScalaEnum.Value) => coder.encode.toString(e) ==== Okay("\"" + e.toString + "\"") }
     def decodeCase = prop { (e: ScalaEnum.Value) => decode(coder.decode)("\"" + e.toString + "\"") ==== Okay(e) }
     def decodeMissingCase = checkMissing(coder.decode)
+}
+
+class scalaUUIDJsonCoderTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
+    def is = s2"""
+        scalaEnumStringCoder
+            must encode to the correct string $encodeCase
+            must decode from the correct string $decodeCase
+            must fail to decode a missing value $decodeMissingCase
+    """
+
+    val randomUUID = UUID.randomUUID
+
+    def encodeCase = scalar.uuidJsonCoder.encode.toString(randomUUID) ==== Okay("\"" + randomUUID.toString + "\"")
+    def decodeCase = scalar.uuidJsonCoder.decode.fromString("\"" + randomUUID.toString + "\"") ==== Okay(randomUUID)
+    def decodeInvalidStringCase =
+        (decode(scalar.uuidJsonCoder.decode)("\"\"")  must beLike { case FailedG(_, _) => ok }) and
+        (decode(scalar.uuidJsonCoder.decode)("\"-1\"") must beLike { case FailedG(_, _) => ok })
+    def decodeMissingCase = checkMissing(scalar.uuidJsonCoder.decode)
 }
 
