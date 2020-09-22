@@ -72,7 +72,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>20.2-voyageurs-SNAPSHOT</revision>
+        <revision>20.3.20200921</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.12</scala.version>
     </properties>
