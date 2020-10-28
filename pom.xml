@@ -72,7 +72,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>20.4-pxs_acme-SNAPSHOT</revision>
+        <revision>20.4.20201006</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.12</scala.version>
     </properties>
