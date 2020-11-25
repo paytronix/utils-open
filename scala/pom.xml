@@ -24,7 +24,6 @@
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.paytronix.utils</groupId>
     <artifactId>scala</artifactId>
     <packaging>jar</packaging>
 

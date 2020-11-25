@@ -25,42 +25,12 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>com.paytronix.utils</groupId>
     <artifactId>validation</artifactId>
     <packaging>jar</packaging>
 
     <name>Paytronix Utils - Validation</name>
     <description>A library of standard validation functions and tools to compose them both for single and multiple values.</description>
     <url>https://paytronix.github.com/utils-open</url>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-site-plugin</artifactId>
-                <configuration>
-                    <reportPlugins>
-                        <plugin>
-                            <artifactId>maven-project-info-reports-plugin</artifactId>
-                            <version>2.7</version>
-                        </plugin>
-                        <plugin>
-                            <groupId>net.alchim31.maven</groupId>
-                            <artifactId>scala-maven-plugin</artifactId>
-                            <version>3.2.0</version>
-                            <configuration>
-                                <scalaVersion>${scala.version}</scalaVersion>
-                                <jvmArgs>
-                                    <jvmArg>-Xss2048K</jvmArg>
-                                    <jvmArg>-Xmx1G</jvmArg>
-                                </jvmArgs>
-                            </configuration>
-                        </plugin>
-                    </reportPlugins>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 
     <dependencies>
         <dependency>
