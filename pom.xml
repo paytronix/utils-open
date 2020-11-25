@@ -409,8 +409,8 @@
                 <artifactId>maven-project-info-reports-plugin</artifactId>
             </plugin>
             <plugin>
+                <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.1.7-SNAPSHOT</version>
                 <configuration>
                     <scalaVersion>${scala.version}</scalaVersion>
                     <jvmArgs>
