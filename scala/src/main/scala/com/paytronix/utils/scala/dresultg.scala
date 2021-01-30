@@ -17,6 +17,8 @@
 package com.paytronix.utils.scala
 import result._
 
+import scalaz.Monad
+
 object dresultg {
 
 	type DResultG[-D, +E, +A] = D => ResultG[E, A]
@@ -24,7 +26,16 @@ object dresultg {
         def liftF[E, A](r: => ResultG[E, A]): DResultG[Any, E, A] = _ => r
         def pure[A](a: A): DResultG[Any, Nothing, A] = DOkay(a)
         def apply[D, E, A](f: D => ResultG[E, A]): DResultG[D, E, A] = f
+
+        def fromPureFunction[D, A](f: D => A): DResultG[D, Nothing, A] = 
+            d => Okay(f(d))
     }
+
+    type DResult[-D, +A] = DResultG[D, Unit, A]
+    /*object DResult {
+        def fromVolatileFunction[D, A](f: D => A): DResult[D, A] = 
+            d => tryCatchValue(f(d))
+    }*/
 
     type DOkay[+A] = DResultG[Any, Nothing, A]
     object DOkay {
@@ -71,6 +82,12 @@ object dresultg {
     }
 
     object instances {
-    	
+
+        implicit def monadInstance[D, E] = new Monad[({ type T[A] = DResultG[D, E, A] })#T] {
+            def point[A](a: => A): DResultG[D, E, A] = 
+                DResultG.pure(a)
+            def bind[A, B](fa: DResultG[D, E, A])(f: A => DResultG[D, E, B]): DResultG[D, E, B] = 
+                fa flatMap f
+        }
     }
 }
