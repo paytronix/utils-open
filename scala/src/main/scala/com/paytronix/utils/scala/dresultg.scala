@@ -17,7 +17,7 @@
 package com.paytronix.utils.scala
 import result._
 
-import cats.{Bifunctor, Contravariant, Monad}
+import cats.{Bifunctor, Contravariant, FlatMap, Monad}
 
 object dresultg {
 
@@ -92,18 +92,33 @@ object dresultg {
 
     object instances {
 
+        implicit def resultMonadInstance[E] = new Monad[({ type T[A] = ResultG[E, A] })#T] {
+
+            def pure[A](x: A): ResultG[E, A] = 
+                Okay(x)
+
+            def flatMap[A, B](fa: ResultG[E, A])(f: A => ResultG[E, B]): ResultG[E, B] = 
+                fa flatMap f
+
+            @scala.annotation.tailrec
+            def tailRecM[A, B](a: A)(f: A => ResultG[E, Either[A, B]]): ResultG[E, B] = 
+                f(a) match {
+                    case f@FailedG(_, _) => f
+                    case Okay(Left(a)) => tailRecM(a)(f)
+                    case Okay(Right(b)) => Okay(b)
+                }
+        }
+
         implicit def monadInstance[D, E] = new Monad[({ type T[A] = DResultG[D, E, A] })#T] {
+
             def pure[A](x: A): DResultG[D, E, A] = 
                 DOkay(x)
 
             def flatMap[A, B](fa: DResultG[D, E, A])(f: A => DResultG[D, E, B]): DResultG[D, E, B] = 
                 fa flatMap f
 
-            def tailRecM[A, B](a: A)(f: A => DResultG[D, E, Either[A, B]]): DResultG[D, E, B] = 
-                f(a) flatMap {
-                    case Left(a) => tailRecM(a)(f)
-                    case Right(b) => DOkay(b)
-                }
+            def tailRecM[A, B](a: A)(f: A => DResultG[D, E, Either[A, B]]): DResultG[D, E, B] =
+                d => implicitly[FlatMap[({ type T[A] = ResultG[E, A] })#T]].tailRecM(a)(f(_)(d))
         }
 
         implicit def contravariantInstance[E, A] = new Contravariant[({ type T[D] = DResultG[D, E, A] })#T] {
