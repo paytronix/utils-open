@@ -21,7 +21,7 @@ import cats.{Bifunctor, Contravariant, Monad}
 
 object dresultg {
 
-	type DResultG[-D, +E, +A] = D => ResultG[E, A]
+    type DResultG[-D, +E, +A] = D => ResultG[E, A]
     object DResultG {
         def liftF[E, A](r: => ResultG[E, A]): DResultG[Any, E, A] = _ => r
         def pure[A](a: A): DResultG[Any, Nothing, A] = DOkay(a)
