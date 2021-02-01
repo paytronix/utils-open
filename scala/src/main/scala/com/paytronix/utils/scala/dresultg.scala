@@ -17,7 +17,7 @@
 package com.paytronix.utils.scala
 import result._
 
-import scalaz.Monad
+import cats.{Bifunctor, Contravariant, Monad}
 
 object dresultg {
 
@@ -53,11 +53,23 @@ object dresultg {
     }
 
     implicit class DResultCapabilities[-D, +E, +A](val fa: DResultG[D, E, A]) extends AnyVal {
+        def local[DD](f: DD => D): DResultG[DD, E, A] = 
+            fa compose f
+
+        def tap[DD <: D]: DResultG[DD, E, DD] = 
+            dd => Okay(dd)
+
+        def tapWith[DD <: D, a >: A, B](f: (DD, a) => B): DResultG[DD, E, B] = 
+            dd => fa.map(f(dd, _))(dd)
+
+        def dimap[DD, B](f: DD => D)(g: A => B): DResultG[DD, E, B] = 
+            fa.local(f).map(g)
+
         def flatMap[DD <: D, e >: E, B](f: A => DResultG[DD, e, B]): DResultG[DD, e, B] = 
             dd => fa(dd).flatMap(a => f(a)(dd))
 
         def map[B](f: A => B): DResultG[D, E, B] = 
-            d => fa(d).map(f)
+            d => fa(d) map f
 
         def filter[e >: E : FailedParameterDefault](p: A => Boolean): DResultG[D, e, A] = 
             flatMap(a => if (p(a)) (d => Okay(a)) else (d => FailedG("filter failure", implicitly[FailedParameterDefault[e]].default)))
@@ -68,7 +80,8 @@ object dresultg {
         def |[F, a >: A](f: FailedG[E] => ResultG[F, a]): DResultG[D, F, a] = 
             d => fa(d) | f
 
-        def run[DD <: D](dd: DD): ResultG[E, A] = fa(dd)
+        def run[DD <: D](dd: DD): ResultG[E, A] = 
+            fa(dd)
 
         def toOption[DD <: D, a >: A]: DD => Option[a] = 
             dd => fa(dd).toOption
@@ -80,10 +93,30 @@ object dresultg {
     object instances {
 
         implicit def monadInstance[D, E] = new Monad[({ type T[A] = DResultG[D, E, A] })#T] {
-            def point[A](a: => A): DResultG[D, E, A] = 
-                DResultG.pure(a)
-            def bind[A, B](fa: DResultG[D, E, A])(f: A => DResultG[D, E, B]): DResultG[D, E, B] = 
+            def pure[A](x: A): DResultG[D, E, A] = 
+                DOkay(x)
+
+            def flatMap[A, B](fa: DResultG[D, E, A])(f: A => DResultG[D, E, B]): DResultG[D, E, B] = 
                 fa flatMap f
+
+            def tailRecM[A, B](a: A)(f: A => DResultG[D, E, Either[A, B]]): DResultG[D, E, B] = 
+                f(a) flatMap {
+                    case Left(a) => tailRecM(a)(f)
+                    case Right(b) => DOkay(b)
+                }
         }
+
+        implicit def contravariantInstance[E, A] = new Contravariant[({ type T[D] = DResultG[D, E, A] })#T] {
+            def contramap[D, DD](fa: DResultG[D, E, A])(f: DD => D): DResultG[DD, E, A] = 
+                fa local f
+        }
+
+        implicit def bifunctor[D] = new Bifunctor[({ type T[E, A] = DResultG[D, E, A] })#T] {
+            def bimap[E, A, F, B](fab: DResultG[D, E, A])(f: E => F, g: A => B): DResultG[D, F, B] = 
+                dd => fab(dd) match {
+                    case FailedG(x, e) => FailedG(x, f(e))
+                    case Okay(a) => Okay(g(a))
+                }
+        }        
     }
 }
