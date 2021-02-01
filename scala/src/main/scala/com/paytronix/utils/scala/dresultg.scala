@@ -32,10 +32,6 @@ object dresultg {
     }
 
     type DResult[-D, +A] = DResultG[D, Unit, A]
-    /*object DResult {
-        def fromVolatileFunction[D, A](f: D => A): DResult[D, A] = 
-            d => tryCatchValue(f(d))
-    }*/
 
     type DOkay[+A] = DResultG[Any, Nothing, A]
     object DOkay {
