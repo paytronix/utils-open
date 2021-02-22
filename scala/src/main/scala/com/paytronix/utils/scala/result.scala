@@ -24,7 +24,7 @@ import _root_.scala.collection.Iterator
 import _root_.scala.collection.generic.CanBuild
 import _root_.scala.reflect.{ClassTag, classTag}
 
-import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, Traverse, Functor, Scalaz}
+import scalaz.{\/, -\/, \/-, Applicative, Foldable, Monad, MonadError, Traverse, Functor, Scalaz}
 
 // FIXME? gotta be a better way
 import scala.annotation.unchecked.uncheckedVariance
@@ -325,7 +325,7 @@ object result {
             }
 
         /** Grant Scalaz powers to ResultG */
-        implicit def resultGMonad[E] = new Traverse[({ type F[A] = ResultG[E, A] })#F] with Monad[({ type F[A] = ResultG[E, A] })#F] {
+        implicit def resultGMonad[E] = new Traverse[({ type F[A] = ResultG[E, A] })#F] with Monad[({ type F[A] = ResultG[E, A] })#F] with MonadError[ResultG, E] {
             def point[A](a: => A) =
                 Okay(a)
 
@@ -343,6 +343,12 @@ object result {
                     case FailedG(_, _) => z
                     case Okay(a) => f(a, z)
                 }
+
+            def handleError[A](fa: ResultG[E, A])(f: E => ResultG[E, A]): ResultG[E, A] = 
+                fa.cpsRes({ case FailedG(_, e) => f(e)}, a => Okay(a))
+
+            def raiseError[A](e: E): ResultG[E, A] = 
+                FailedG("MonadError#raiseError", e)
         }
 
         /** Allow unifying a `ResultG` where the failure parameter is compatible with the success type */
@@ -928,13 +934,26 @@ object result {
 
     trait ResultGTInstances {
 
-        implicit def resultGTMonad[F[_], E](implicit F: Monad[F]) = new Monad[({ type M[A] = ResultGT[F, E, A] })#M] {
+        implicit def resultGTMonad[F[_], E](implicit F: Monad[F]) = new Monad[({ type M[A] = ResultGT[F, E, A] })#M] with MonadError[({ type T[E, A] = ResultGT[F, E, A] })#T , E]{
 
             def point[A](a: => A): ResultGT[F, E, A] =
                 ResultGT(F.point(Okay(a)))
 
             def bind[A, B](fa: ResultGT[F, E, A])(f: A => ResultGT[F, E, B]): ResultGT[F, E, B] =
                 fa flatMap f
+
+            def raiseError[A](e: E): ResultGT[F, E, A] = 
+                ResultGT(F.point(FailedG("MonadError[ResultGT[F, _, _], E]#raiseError", e)))
+
+            def handleError[A](fa: ResultGT[F, E, A])(f: E => ResultGT[F, E, A]): ResultGT[F, E, A] =
+                ResultGT(
+                    F.bind(fa.run)(
+                        _.cpsRes(
+                            { case FailedG(t, e) => f(e).run },
+                            a => F.point(Okay(a))
+                        )
+                    )
+                )
         }
     }
 

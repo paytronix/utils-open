@@ -18,7 +18,7 @@ package com.paytronix.utils.scala
 
 import org.specs2.SpecificationWithJUnit
 import org.specs2.matcher.{AnyMatchers, Matcher, StandardMatchResults}
-import scalaz.{\/, -\/, \/-, Scalaz}
+import scalaz.{\/, -\/, \/-, MonadError, Scalaz}
 
 import result._
 
@@ -238,6 +238,7 @@ class FailedGTest extends SpecificationWithJUnit {
 }
 
 class ResultGTest extends SpecificationWithJUnit {
+
     val okay: Result[String] = Okay("a")
     val okay2: Result[String] = Okay("b")
     val failed: Result[String] = Failed("foo")
@@ -276,6 +277,64 @@ class ResultGTest extends SpecificationWithJUnit {
         { (for (foo <- Okay("foo")) { result = foo }) ==== (()) } and
         { result ==== "foo" }
     }
+}
+
+class ResultTypeClassInstancesTest extends SpecificationWithJUnit {
+    import ResultG.resultGMonad
+    import ResultGT.resultGTMonad
+
+    import Scalaz._
+
+    implicit val ME:  MonadError[ResultG, Int]                                       = resultGMonad[Int]
+    implicit val MET: MonadError[({ type T[E, A] = ResultGT[Option, E, A] })#T, Int] = resultGTMonad[Option, Int]
+
+    def is = s2"""
+        Result type class instances 
+            MonadError[ResultG, Int]
+                raiseError                                     $monadErrorRaiseError
+                handleError Okay on dangerous handle           $monadErrorHandleErrorOkay
+                handleError Failed then handled                $monadErrorHandleErrorErrorOkay
+                handleError Failed then not handled            $monadErrorHandleErrorErrorFailed
+            MonadError[ResultGT[Option, _, _], Int]
+                raiseError                                     $monadErrorTRaiseError
+                handleError None on dangerous handle           $monadErrorTHandleErrorNone
+                handleError Some(Okay) on dangerous handle     $monadErrorTHandleErrorSomeOkay
+                handleError Some(Failed) handled               $monadErrorTHandleErrorSomeFailedOkay
+                handleError Some(Failed) not handled           $monadErrorTHandleErrorSomeFailedFailed
+                handleError Some(Failed) handled to None       $monadErrorTHandleErrorSomeFailedHandleWithEffect
+    """
+
+    def monadErrorRaiseError =
+        ME.raiseError(1738) must beFailedWith("MonadError#raiseError", 1738)
+
+    val explode: Int => ResultG[Int, Int] = n => Okay(n / 0)
+    def monadErrorHandleErrorOkay = 
+        ME.handleError(Okay(0))(explode) ==== Okay(0)
+
+    val handleEven: Int => ResultG[Int, Int] = n => if (n % 2 == 0) Okay(n) else FailedG("not even", n)
+    def monadErrorHandleErrorErrorOkay = 
+        ME.handleError(FailedG("bad int", 0))(handleEven) ==== Okay(0)
+
+    def monadErrorHandleErrorErrorFailed = 
+        ME.handleError(FailedG("bad int", 1))(handleEven) must beFailedWith("not even", 1)
+
+    def monadErrorTRaiseError = 
+        MET.raiseError(1738).run ==== Some(FailedG("MonadError[ResultGT[F, _, _], E]#raiseError", 1738))
+
+    def monadErrorTHandleErrorNone = 
+        MET.handleError(ResultGT[Option, Int, Int](None))(e => ResultGT(Some(explode(e)))).run ==== None
+
+    def monadErrorTHandleErrorSomeOkay = 
+        MET.handleError(ResultGT[Option, Int, Int](Some(Okay(1738))))(e => ResultGT(Some(explode(e)))).run ==== Some(Okay(1738))
+
+    def monadErrorTHandleErrorSomeFailedOkay = 
+        MET.handleError(ResultGT[Option, Int, Int](Some(FailedG("bad int", 0))))(n => ResultGT[Option, Int, Int](Some(handleEven(n)))).run ==== Some(Okay(0))
+
+    def monadErrorTHandleErrorSomeFailedFailed = 
+        MET.handleError(ResultGT[Option, Int, Int](Some(FailedG("bad int", 1))))(n => ResultGT[Option, Int, Int](Some(handleEven(n)))).run ==== Some(FailedG("not even", 1))
+
+    def monadErrorTHandleErrorSomeFailedHandleWithEffect = 
+        MET.handleError(ResultGT[Option, Int, Int](Some(FailedG("bad int", 0))))(n => ResultGT[Option, Int, Int](None)).run ==== None
 }
 
 class ResultConversionTest extends SpecificationWithJUnit {
