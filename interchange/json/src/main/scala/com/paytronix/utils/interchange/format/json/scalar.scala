@@ -20,11 +20,12 @@ import java.lang.{Boolean => JavaBoolean, Integer => JavaInteger, Long => JavaLo
 import java.math.{BigDecimal => JavaBigDecimal, BigInteger => JavaBigInteger}
 import java.nio.ByteBuffer
 import java.sql.{Date => JavaSqlDate, Time => JavaSqlTime, Timestamp => JavaSqlTimestamp}
-import java.time.{Duration, LocalDate, LocalDateTime, LocalTime, OffsetTime, ZonedDateTime}
+import java.time.{Duration => JavaTimeDuration, LocalDate, LocalDateTime, LocalTime, OffsetTime, ZonedDateTime}
 import java.util.{Arrays, Date => JavaDate}
 import java.util.UUID
 import scala.annotation.{Annotation, StaticAnnotation}
 import scala.collection.JavaConverters.seqAsJavaListConverter
+import scala.concurrent.duration.{Duration => ScalaConcurrentDuration}
 import scala.language.experimental.macros
 import scala.reflect.{ClassTag, classTag}
 import scala.reflect.runtime.universe.{TypeTag, typeTag}
@@ -647,10 +648,19 @@ trait scalar extends scalarLPI {
         implicit val javaSqlTimestampJsonCoder : JsonCoder[JavaSqlTimestamp] = stringJsonCoder.mapBijection(datetime.sqlServer.javaSqlTimestampBijection)
     }
 
-    /** `JsonCoder` for `org.joda.time.Duration`. Encodes as a JSON number */
-    implicit lazy val durationJsonCoder = longJsonCoder.mapBijection(bijection (
-        (d: Duration) => Okay(d.toMillis): Result[Long],
-        (d: Long)     => Okay(Duration.ofMillis(d)): Result[Duration]
+    /** `JsonCoder` for `java.time.Duration`. Encodes as a JSON number */
+    implicit lazy val javaDurationJsonCoder = longJsonCoder.mapBijection(bijection (
+        (d: JavaTimeDuration) => Okay(d.toMillis): Result[Long],
+        (d: Long)     => Okay(JavaTimeDuration.ofMillis(d)): Result[JavaTimeDuration]
+    ))
+
+    /** `JsonCoder` for `scala.concurrent.duration.Duration`. Encodes as a JSON string 
+
+        NOTE: "Inf" is an acceptable String for creating a Duration.Inf
+    */
+    implicit lazy val scalaDurationJsonCoder = stringJsonCoder.mapBijection(bijection (
+        (d: ScalaConcurrentDuration) => Okay(d.toString): Result[String],
+        (d: String)     => Okay(ScalaConcurrentDuration(d)): Result[ScalaConcurrentDuration]
     ))
 }
 
