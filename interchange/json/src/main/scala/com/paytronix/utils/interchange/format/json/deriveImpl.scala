@@ -94,8 +94,12 @@ private[json] class deriveImpl(val c: Context) extends DeriveCoderMacros {
                 if (prop.annotations.exists(_.tree.tpe =:= flattenTpe))
                     q"""
                         $jsonGenerator.filterNextObject(com.paytronix.utils.interchange.format.json.InterchangeJsonGenerator.ObjectFilter.flatten)
+                        val propEncoder = ${encoderFor(prop)}
+                        if (propEncoder.mightBeNull) {
+                            $jsonGenerator.omitNextMissing()
+                        }
                         com.paytronix.utils.interchange.base.atProperty(${prop.externalName}) {
-                            ${encoderFor(prop)}.run(${prop.read(Ident(instance))}, $jsonGenerator)
+                            propEncoder.run(${prop.read(Ident(instance))}, $jsonGenerator)
                         }
                     """
                 else

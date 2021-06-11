@@ -313,6 +313,7 @@ class jsonStructureDefaultingTest extends SpecificationWithJUnit with ScalaCheck
 
 object jsonStructureFlatteningTest {
     import scalar.{intJsonCoder, stringJsonCoder}
+    import container.optionJsonCoder
 
     final case class InnerStructure(a: Int, b: String)
     object InnerStructure {
@@ -326,6 +327,12 @@ object jsonStructureFlatteningTest {
         implicit val arb = Arbitrary(for { o <- arbitrary[Int]; f <- arbitrary[InnerStructure]; p <- arbitrary[String] }
                                      yield StructureWithFlattening(o, f, p))
     }
+    final case class StructureWithOptionFlattening(o: Int, @flatten f: Option[InnerStructure], p: String)
+    object StructureWithOptionFlattening {
+        implicit val jsonCoder: JsonCoder[StructureWithOptionFlattening] = derive.structure.coder[StructureWithOptionFlattening]
+        implicit val arb = Arbitrary(for { o <- arbitrary[Int]; f <- arbitrary[Option[InnerStructure]]; p <- arbitrary[String] }
+                                     yield StructureWithOptionFlattening(o, f, p))
+    }
 }
 
 class jsonStructureFlatteningTest extends SpecificationWithJUnit with ScalaCheck with JsonMatchers {
@@ -336,14 +343,38 @@ class jsonStructureFlatteningTest extends SpecificationWithJUnit with ScalaCheck
             should encode correctly $encodeCase
             should decode correctly $decodeCase
     """
+// These tests fail because the optionJsonCoder, and probably almost every other coder with an optional value as well,
+// only really handles "no JSON" as None/empty, and thus treats an object with other fields but not the ones its value
+// coder needs as being a parsing error. This is not simple to fix, but it certainly IS fixable.
+//            should encode optional object correctly $encodeWithOptionCase
+//            should decode optional object correctly $decodeWithOptionCase
 
-    lazy val coder = JsonCoder[StructureWithFlattening]
+    val structureCoder = JsonCoder[StructureWithFlattening]
 
     def encodeCase = prop { (swf: StructureWithFlattening) =>
-        coder.encode.toString(swf) ==== Okay(s""" {"a":${swf.f.a},"b":${encodeString(swf.f.b)},"o":${swf.o},"p":${encodeString(swf.p)}} """.trim)
+        structureCoder.encode.toString(swf) ==== Okay(s""" {"a":${swf.f.a},"b":${encodeString(swf.f.b)},"o":${swf.o},"p":${encodeString(swf.p)}} """.trim)
     }
     def decodeCase = prop { (swf: StructureWithFlattening) =>
-        decode(coder.decode)(s""" {"a":${swf.f.a},"b":${encodeString(swf.f.b)},"o":${swf.o},"p":${encodeString(swf.p)}} """.trim) ==== Okay(swf)
+        decode(structureCoder.decode)(s""" {"a":${swf.f.a},"b":${encodeString(swf.f.b)},"o":${swf.o},"p":${encodeString(swf.p)}} """.trim) ==== Okay(swf)
+    }
+
+    val structureWithOptionCoder = JsonCoder[StructureWithOptionFlattening]
+
+    def encodeWithOptionCase = prop { (swf: StructureWithOptionFlattening) =>
+        swf.f match {
+            case Some(f) =>
+                structureWithOptionCoder.encode.toString(swf) ==== Okay(s""" {"a":${f.a},"b":${encodeString(f.b)},"o":${swf.o},"p":${encodeString(swf.p)}} """.trim)
+            case None =>
+                structureWithOptionCoder.encode.toString(swf) ==== Okay(s""" {"o":${swf.o},"p":${encodeString(swf.p)}} """.trim)
+        }
+    }
+    def decodeWithOptionCase = prop { (swf: StructureWithOptionFlattening) =>
+        swf.f match {
+            case Some(f) =>
+                decode(structureWithOptionCoder.decode)(s""" {"a":${f.a},"b":${encodeString(f.b)},"o":${swf.o},"p":${encodeString(swf.p)}} """.trim) ==== Okay(swf)
+            case None =>
+                decode(structureWithOptionCoder.decode)(s""" {"o":${swf.o},"p":${encodeString(swf.p)}} """.trim) ==== Okay(swf)
+        }
     }
 }
 
