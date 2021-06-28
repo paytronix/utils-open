@@ -72,7 +72,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>20.5-pioneer-SNAPSHOT</revision>
+        <revision>21.0.20210628</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.version>2.11.12</scala.version>
     </properties>
